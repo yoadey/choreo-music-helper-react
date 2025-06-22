@@ -1,9 +1,13 @@
 import { PlayerControls } from '@/components/PlayerControls'
 import { colors, fontSize } from '@/constants/tokens'
+import { useNavigationOpenFile } from '@/hooks/useNavigationOpenFile'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { Tabs } from 'expo-router'
 
 const TabsNavigation = () => {
+	
+	useNavigationOpenFile({})
+	
 	return (
 		<>
 			<Tabs
@@ -13,15 +17,17 @@ const TabsNavigation = () => {
 						fontSize: fontSize.xs,
 						fontWeight: '500',
 					},
-					headerShown: false,
 					tabBarStyle: {
 						position: 'absolute',
 						borderTopWidth: 0,
 						paddingTop: 8,
 						backgroundColor: '#252525',
 					},
+					headerShown: false,
 				}}
 			>
+
+				
 				<Tabs.Screen
 					name="(songs)"
 					options={{
@@ -32,7 +38,7 @@ const TabsNavigation = () => {
 					}}
 				/>
 				<Tabs.Screen
-					name="playlists"
+					name="(clips)"
 					options={{
 						title: 'Clips',
 						tabBarIcon: ({ color }) => (

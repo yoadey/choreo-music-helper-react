@@ -4,7 +4,7 @@ import { Database } from '@nozbe/watermelondb'
 import Clip from './clip'
 import migrations from './migrations'
 import schema from './schema'
-import Track from './track'
+import TrackWithClips from './track'
 
 const adapter = new LokiJSAdapter({
     schema,
@@ -37,7 +37,7 @@ const adapter = new LokiJSAdapter({
     }
 })
 
-const database = new Database({
+export const database = new Database({
     adapter,
-    modelClasses: [Track, Clip],
+    modelClasses: [TrackWithClips, Clip],
 })

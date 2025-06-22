@@ -2,6 +2,7 @@ import { playbackService } from '@/constants/playbackService'
 import { colors } from '@/constants/tokens'
 import { useLogTrackPlayerState } from '@/hooks/useLogTrackPlayerState'
 import { useSetupTrackPlayer } from '@/hooks/useSetupTrackPlayer'
+import { ActionSheetProvider } from '@expo/react-native-action-sheet'
 import { SplashScreen, Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useCallback } from 'react'
@@ -26,11 +27,13 @@ const App = () => {
 
 	return (
 		<SafeAreaProvider>
-				<GestureHandlerRootView style={{ flex: 1 }}>
+			<GestureHandlerRootView style={{ flex: 1 }}>
+				<ActionSheetProvider>
 					<RootNavigation />
+				</ActionSheetProvider>
 
-					<StatusBar style="auto" />
-				</GestureHandlerRootView>
+				<StatusBar style="auto" />
+			</GestureHandlerRootView>
 		</SafeAreaProvider>
 	)
 }
@@ -38,7 +41,23 @@ const App = () => {
 const RootNavigation = () => {
 	return (
 		<Stack>
-			<Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+			<Stack.Screen name="(tabs)" options={{
+				title: "Choreo Music Helper",
+				headerShown: true,
+				headerLargeTitle: true,
+				headerLargeStyle: {
+					backgroundColor: colors.background,
+				},
+				headerLargeTitleStyle: {
+					color: colors.text,
+				},
+				headerStyle: { backgroundColor: colors.background },
+				headerTintColor: colors.text,
+				headerTransparent: false,
+				headerBlurEffect: 'prominent',
+				headerShadowVisible: false,
+
+			}} />
 
 			<Stack.Screen
 				name="player"
@@ -52,16 +71,47 @@ const RootNavigation = () => {
 			/>
 
 			<Stack.Screen
-				name="(modals)/addToPlaylist"
+				name="(modals)/speed"
 				options={{
-					presentation: 'modal',
+					presentation: 'transparentModal',
 					headerStyle: {
 						backgroundColor: colors.background,
 					},
-					headerTitle: 'Add to playlist',
+					headerTitle: 'Speed',
 					headerTitleStyle: {
 						color: colors.text,
 					},
+					headerShown: false,
+				}}
+			/>
+
+			<Stack.Screen
+				name="(modals)/loop"
+				options={{
+					presentation: 'transparentModal',
+					headerStyle: {
+						backgroundColor: colors.background,
+					},
+					headerTitle: 'Loop',
+					headerTitleStyle: {
+						color: colors.text,
+					},
+					headerShown: false,
+				}}
+			/>
+
+			<Stack.Screen
+				name="(modals)/edit"
+				options={{
+					presentation: 'transparentModal',
+					headerStyle: {
+						backgroundColor: colors.background,
+					},
+					headerTitle: 'Edit Clip',
+					headerTitleStyle: {
+						color: colors.text,
+					},
+					headerShown: false,
 				}}
 			/>
 		</Stack>

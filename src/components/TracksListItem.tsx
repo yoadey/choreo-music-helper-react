@@ -1,14 +1,13 @@
-import { TrackShortcutsMenu } from '@/components/TrackShortcutsMenu'
-import { StopPropagation } from '@/components/utils/StopPropagation'
 import { colors, fontSize } from '@/constants/tokens'
+import TrackWithClips from '@/model/track'
 import { defaultStyles } from '@/styles'
-import { Entypo, Ionicons } from '@expo/vector-icons'
+import { Ionicons } from '@expo/vector-icons'
 import { ActivityIndicator, StyleSheet, Text, TouchableHighlight, View } from 'react-native'
-import { Track, useActiveTrack, useIsPlaying } from 'react-native-track-player'
+import { useActiveTrack, useIsPlaying } from 'react-native-track-player'
 
 export type TracksListItemProps = {
-	track: Track
-	onTrackSelect: (track: Track) => void
+	track: TrackWithClips
+	onTrackSelect: (track: TrackWithClips) => void
 }
 
 export const TracksListItem = ({
@@ -17,7 +16,7 @@ export const TracksListItem = ({
 }: TracksListItemProps) => {
 	const { playing } = useIsPlaying()
 
-	const isActiveTrack = useActiveTrack()?.url === track.url
+	const isActiveTrack = useActiveTrack()?.url === track.uri
 
 	return (
 		<TouchableHighlight onPress={() => handleTrackSelect(track)}>
@@ -56,19 +55,7 @@ export const TracksListItem = ({
 						>
 							{track.title}
 						</Text>
-
-						{track.artist && (
-							<Text numberOfLines={1} style={styles.trackArtistText}>
-								{track.artist}
-							</Text>
-						)}
 					</View>
-
-					<StopPropagation>
-						<TrackShortcutsMenu track={track}>
-							<Entypo name="dots-three-horizontal" size={18} color={colors.icon} />
-						</TrackShortcutsMenu>
-					</StopPropagation>
 				</View>
 			</View>
 		</TouchableHighlight>

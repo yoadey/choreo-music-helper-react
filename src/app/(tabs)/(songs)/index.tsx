@@ -1,27 +1,13 @@
 import { TracksList } from '@/components/TracksList'
 import { screenPadding } from '@/constants/tokens'
 import { generateTracksListId } from '@/helpers/miscellaneous'
-import { useNavigationSearch } from '@/hooks/useNavigationSearch'
+import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { defaultStyles } from '@/styles'
-import { Database } from '@nozbe/watermelondb'
 import { withObservables } from '@nozbe/watermelondb/react'
 import { ScrollView, View } from 'react-native'
-import { Track } from 'react-native-track-player'
 
 const SongsScreen = ({ tracks }: { tracks: TrackWithClips[] }) => {
-	const search = useNavigationSearch({
-		searchBarOptions: {
-			placeholder: 'Find in songs',
-		},
-	})
-
-	var tracksForPlayer: Track[] = []
-	tracks.forEach(track => {
-		tracksForPlayer.push({
-			url: track.uri
-		})	
-	});
 
 	return (
 		<View style={defaultStyles.container}>
@@ -30,8 +16,8 @@ const SongsScreen = ({ tracks }: { tracks: TrackWithClips[] }) => {
 				style={{ paddingHorizontal: screenPadding.horizontal }}
 			>
 				<TracksList
-					id={generateTracksListId('songs', search)}
-					tracks={tracksForPlayer}
+					id={generateTracksListId('songs', "")}
+					tracks={tracks}
 					scrollEnabled={false}
 				/>
 			</ScrollView>
@@ -39,15 +25,11 @@ const SongsScreen = ({ tracks }: { tracks: TrackWithClips[] }) => {
 	)
 }
 
-interface Props {
-	database: Database;
-	tracks: Track[]
-  }
-
-const enhance = withObservables<Props, keyof Props>([], ({ database }) => ({
+const enhance = withObservables<{}, { tracks: TrackWithClips[] }>([], () => ({
+	// @ts-ignore
 	tracks: database.collections
-		.get("tracks")
-		.query()
+		.get<TrackWithClips>("tracks")
+		.query().observe()
 }));
 
 export default enhance(SongsScreen)

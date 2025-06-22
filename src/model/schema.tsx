@@ -17,7 +17,7 @@ export default appSchema({
           columns: [
             { name: 'track_id', type: 'string', isIndexed: true },
             { name: 'position', type: 'number' },
-            { name: 'label', type: 'string' },
+            { name: 'title', type: 'string' },
             { name: 'color', type: 'string' },
           ]
         }),

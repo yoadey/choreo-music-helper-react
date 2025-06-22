@@ -30,6 +30,15 @@ export const useSetupTrackPlayer = ({ onLoad }: { onLoad?: () => void }) => {
 		setupPlayer()
 			.then(() => {
 				isInitialized.current = true
+				TrackPlayer.updateOptions({
+					compactCapabilities: [
+						Capability.Play,
+						Capability.Pause,
+						Capability.SkipToNext,
+						Capability.SkipToPrevious,
+					],
+					progressUpdateEventInterval: 0.2, // 200ms
+				})
 				onLoad?.()
 			})
 			.catch((error) => {

@@ -23,6 +23,7 @@ export const PlayerAddClipButton = ({ ...iconProps }: IconProps) => {
 					database.get<Clip>("clips").create(clip => {
 						clip.track.set(currentTrack);
 						clip.title = `New clip`;
+						clip.color = `#00000000`;
 						clip.position = progress.position;
 					});
 				})

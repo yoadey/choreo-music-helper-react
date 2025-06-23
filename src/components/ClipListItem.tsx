@@ -58,8 +58,9 @@ export const ClipListItem = ({ clip, ...props }: ClipListItemProps) => {
 	return (
 		<TouchableHighlight activeOpacity={0.8} {...props}
 			onPress={() => handleClipPress(clip)}
-			onLongPress={() => handleClipLongPress(clip)}>
-			<View style={styles.cliplistItemContainer}>
+			onLongPress={() => handleClipLongPress(clip)}
+			style={{backgroundColor: clip.color!}}>
+			<View style={[styles.cliplistItemContainer, { backgroundColor: clip.color! }]}>
 				<View
 					style={{
 						flexDirection: 'row',

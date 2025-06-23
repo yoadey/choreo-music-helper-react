@@ -7,6 +7,14 @@ export const preferences = new MMKV({
 });
 
 /**
+ * The last opened track id.
+ */
+export const KEY_LAST_TRACK = 'lastTrackId';
+export const useLastTrack = () => useMMKVNumber(KEY_LAST_TRACK, preferences);
+export const getLastTrack = () => preferences.getString(KEY_LAST_TRACK);
+export const setLastTrack = (trackId: string) => preferences.set(KEY_LAST_TRACK, trackId)
+
+/**
  * The current playback speed, should be between 0.5 and 2.0.
  */
 export const KEY_SPEED = 'speed';

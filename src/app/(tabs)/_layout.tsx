@@ -25,8 +25,8 @@ const TabsNavigation = () => {
 					},
 					headerShown: false,
 				}}
+				initialRouteName='(songs)'
 			>
-
 				
 				<Tabs.Screen
 					name="(songs)"

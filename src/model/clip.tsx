@@ -11,5 +11,6 @@ export default class Clip extends Model {
 
   @text('title') title!: string;
   @field('position') position!: number;
+  @text('color') color!: string;
   @immutableRelation('tracks', 'track_id') track!: Relation<TrackWithClips>;
 }

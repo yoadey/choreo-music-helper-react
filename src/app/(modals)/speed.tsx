@@ -57,13 +57,13 @@ const SpeedModal = () => {
 					<Text style={styles.speedLabel}>1.00</Text>
 					<Text style={styles.speedLabel}>2.00</Text>
 				</View>
+				{/* value && onValueChange: Adjust for better UX, since slider values are 0-1, we map them to 0.5-2.0 */}
 				<Slider
 					style={styles.slider}
 					minimumValue={0}
 					maximumValue={MAX_SPEED}
 					step={STEP}
-					// Adjust for better UX, since slider values are 0-1, we map them to 0.5-2.0
-					value={speedLocal > 1 ? speedLocal : (speedLocal - MIN_SPEED )* 2}
+					value={speedLocal > 1 ? speedLocal : (speedLocal - MIN_SPEED) * 2}
 					onValueChange={(speed) => handleSliderChange(speedLocal > 1 ? speed : (speed) / 2 + MIN_SPEED)}
 					minimumTrackTintColor={colors.minimumTrackTintColor}
 					maximumTrackTintColor={colors.maximumTrackTintColor}

@@ -2,6 +2,7 @@ import { ClipListItem } from '@/components/ClipListItem'
 import Clip from '@/model/clip'
 import { utilsStyles } from '@/styles'
 import { FlatList, FlatListProps, Text, View } from 'react-native'
+import { useProgress } from 'react-native-track-player'
 
 type ClipsListProps = {
 	clips: Clip[]
@@ -11,6 +12,7 @@ export const ClipsList = ({
 	clips,
 	...flatListProps
 }: ClipsListProps) => {
+	const progress = useProgress(5000)
 
 	const clipsSorted = clips.sort((a, b) => {
 		if (a.position < b.position) return -1;
@@ -28,7 +30,7 @@ export const ClipsList = ({
 			}
 			data={clipsSorted}
 			renderItem={({ item: clip, index }) => (
-				<ClipListItem index={index} clip={clip} endPosition={clipsSorted[index + 1]?.position} />
+				<ClipListItem index={index} clip={clip} endPosition={clipsSorted[index + 1] ? clipsSorted[index + 1].position : progress?.duration ?? 0} />
 			)}
 			{...flatListProps}
 		/>

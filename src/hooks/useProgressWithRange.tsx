@@ -13,11 +13,13 @@ export const useProgressWithRange = ({ start, end }: { start: number, end: numbe
                 setProgress(-1);
             }
         }
-        const listener = TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, handleProgessChanged);
+        const progressListener = TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, handleProgessChanged);
+        const seekListener = TrackPlayer.addEventListener(Event.RemoteSeek, handleProgessChanged)
         return () => {
-            listener.remove()
+            progressListener.remove()
+            seekListener.remove();
         };
-    }, [])
+    }, [start, end])
 
     return progress
 }

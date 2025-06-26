@@ -132,7 +132,7 @@ export const LoopButton = ({ iconSize = 30 }: PlayerButtonProps) => {
 					</Text>
 					: <></>
 				}
-				&nbsp;
+				<Text>&nbsp;</Text>
 				{leadOutDuration && leadOutDuration !== 0 ?
 					<Text
 						style={{

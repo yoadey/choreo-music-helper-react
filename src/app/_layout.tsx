@@ -2,6 +2,9 @@ import { playbackService } from '@/constants/playbackService'
 import { colors } from '@/constants/tokens'
 import { useCurrentTrack } from '@/hooks/useCurrentTrack'
 import { useSetupTrackPlayer } from '@/hooks/useSetupTrackPlayer'
+import { database } from '@/model/index.web'
+import TrackWithClips from '@/model/track'
+import { getLastTrack } from '@/store/playbackState'
 import { ActionSheetProvider } from '@expo/react-native-action-sheet'
 import { SplashScreen, Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
@@ -15,8 +18,16 @@ SplashScreen.preventAutoHideAsync()
 TrackPlayer.registerPlaybackService(() => playbackService)
 
 const App = () => {
+	const { setCurrentTrack } = useCurrentTrack()
 	const handleTrackPlayerLoaded = useCallback(() => {
 		SplashScreen.hideAsync()
+
+		let trackId = getLastTrack();
+		if (trackId) {
+			database.get<TrackWithClips>("tracks")
+				.find(trackId)
+				.then(setCurrentTrack)
+		}
 	}, [])
 
 	useSetupTrackPlayer({

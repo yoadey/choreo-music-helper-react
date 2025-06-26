@@ -21,15 +21,16 @@ export const useNavigationOpenFile = ({
 	const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
 		const file = event.target.files?.[0];
 		if (file && file.type.startsWith('audio/')) {
-			await set(file.name, file);
 			
             const tracksCollection = database.get<TrackWithClips>('tracks'); // Tabellenname ggf. anpassen
-            await database.write(async () => {
-                await tracksCollection.create((track: TrackWithClips) => {
+            let track = await database.write(async () => {
+                let track = await tracksCollection.create((track: TrackWithClips) => {
 					track.title = file.name;
                     track.uri = file.name;
                 });
+				return track
             });
+			await set(track.id, file);
 		}
 	};
 

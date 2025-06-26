@@ -11,6 +11,7 @@ export const playbackService = async () => {
 	let loopStart: number | undefined = undefined;
 	let loopEnd: number | undefined = undefined;
 	let speed = 1;
+	let playerReady = false;
 
 	// MMKV Listener for speed changes
 	preferences.addOnValueChangedListener((key) => {
@@ -36,8 +37,14 @@ export const playbackService = async () => {
 			loopStart = getLoopStart();
 		}
 
-		TrackPlayer.getProgress().then(loopChecks);
+		if (playerReady) {
+			TrackPlayer.getProgress().then(loopChecks);
+		}
 	});
+
+	TrackPlayer.addEventListener(Event.PlaybackState, () => {
+		playerReady = true;
+	})
 
 	TrackPlayer.addEventListener(Event.RemotePlay, () => {
 		console.log('RemotePlay event received');
@@ -68,7 +75,6 @@ export const playbackService = async () => {
 		const state = await TrackPlayer.getPlaybackState();
 		if (state.state === State.Playing) {
 			TrackPlayer.setRate(speed);
-			//const { loopStart, loopEnd } = getLoopConfig();
 			if (isLoopActive()) {
 				checkVolume({ position });
 			}

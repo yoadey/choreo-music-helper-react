@@ -92,7 +92,6 @@ const EditClipModal = ({ clip }: { clip: Clip }) => {
 					/>
 				</View>
 
-
 				<CirclePicker
 					color={color}
 					onChangeComplete={e => setColor(e.hex)}

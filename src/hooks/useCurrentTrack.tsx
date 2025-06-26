@@ -2,9 +2,11 @@ import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { useEffect, useState } from 'react'
 import TrackPlayer, { useActiveTrack } from 'react-native-track-player'
+import { useStoredAudioFiles } from './useStoredAudioFiles'
 
 export const useCurrentTrack = () => {
 	const activeTrack = useActiveTrack()
+    const audioFiles = useStoredAudioFiles()
 	const [currentTrack, setCurrentTrackIntern] = useState<TrackWithClips>()
 
 	useEffect(() => {

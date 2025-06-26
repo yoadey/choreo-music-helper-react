@@ -1,4 +1,5 @@
 import { colors } from '@/constants/tokens'
+import { useProgressWithRange } from '@/hooks/useProgressWithRange'
 import Clip from '@/model/clip'
 import { database } from '@/model/index.web'
 import { useLeadInDuration } from '@/store/playbackState'
@@ -9,12 +10,15 @@ import { StyleSheet, Text, TouchableHighlight, TouchableHighlightProps, View } f
 import TrackPlayer from 'react-native-track-player'
 
 type ClipListItemProps = {
-	clip: Clip
+	index: number,
+	clip: Clip,
+	endPosition: number,
 } & TouchableHighlightProps
 
-export const ClipListItem = ({ clip, ...props }: ClipListItemProps) => {
+export const ClipListItem = ({ index, clip, endPosition, ...props }: ClipListItemProps) => {
 	const router = useRouter();
 	const [leadInDuration, setLeadInDuration] = useLeadInDuration()
+	const progress = useProgressWithRange({ start: clip.position, end: endPosition })
 	const { showActionSheetWithOptions } = useActionSheet();
 
 	const toTime = (position: number) => {
@@ -70,8 +74,15 @@ export const ClipListItem = ({ clip, ...props }: ClipListItemProps) => {
 						justifyContent: 'space-between',
 						alignItems: 'center',
 						width: '100%',
+						paddingLeft: 10,
+						paddingRight: 10,
+						paddingTop: 5,
+						paddingBottom: 2,
 					}}
 				>
+					<Text numberOfLines={1} style={styles.clipIndexText}>
+						{index + 1}
+					</Text>
 					<View style={{ flex: 1, width: "100%" }} >
 						<Text numberOfLines={1} style={styles.clipTitleText}>
 							{clip.title || 'Untitled Clip'}
@@ -87,6 +98,29 @@ export const ClipListItem = ({ clip, ...props }: ClipListItemProps) => {
 						<Text style={styles.buttonText}>B</Text>
 					</TouchableHighlight>
 				</View>
+				<View
+					style={{
+						flexDirection: 'row',
+						justifyContent: 'space-between',
+						alignItems: 'flex-start',
+						backgroundColor: progress >= 0 ? colors.maximumTrackTintColor : clip.color!,
+						width: '100%',
+						height: 3
+					}}
+				>
+					{progress >= 0 ?
+						<View
+							style={{
+								flexDirection: 'row',
+								justifyContent: 'space-between',
+								alignItems: 'center',
+								backgroundColor: colors.minimumTrackTintColor,
+								width: `${(progress - clip.position) / (endPosition - clip.position) * 100}%`,
+								height: '100%',
+							}}
+						/> : <></>
+					}
+				</View>
 			</View>
 		</TouchableHighlight>
 	)
@@ -95,9 +129,15 @@ export const ClipListItem = ({ clip, ...props }: ClipListItemProps) => {
 const styles = StyleSheet.create({
 	cliplistItemContainer: {
 		columnGap: 14,
-		alignItems: 'center',
-		paddingRight: 90,
+		alignItems: 'flex-start',
 		width: '100%',
+	},
+	clipIndexText: {
+		...defaultStyles.text,
+		fontSize: 32,
+		fontWeight: '600',
+		maxWidth: '100%',
+		paddingRight: 10,
 	},
 	clipTitleText: {
 		...defaultStyles.text,

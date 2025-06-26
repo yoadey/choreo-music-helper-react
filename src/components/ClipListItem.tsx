@@ -1,6 +1,7 @@
 import { colors } from '@/constants/tokens'
 import Clip from '@/model/clip'
 import { database } from '@/model/index.web'
+import { useLeadInDuration } from '@/store/playbackState'
 import { defaultStyles } from '@/styles'
 import { useActionSheet } from '@expo/react-native-action-sheet'
 import { useRouter } from 'expo-router'
@@ -13,17 +14,19 @@ type ClipListItemProps = {
 
 export const ClipListItem = ({ clip, ...props }: ClipListItemProps) => {
 	const router = useRouter();
+	const [leadInDuration, setLeadInDuration] = useLeadInDuration()
 	const { showActionSheetWithOptions } = useActionSheet();
 
 	const toTime = (position: number) => {
 		if (position < 0) return '0:00'
 		const minutes = Math.floor(position / 60)
 		const seconds = Math.floor(position % 60)
-		return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`
+		const milliseconds = Math.floor(position * 10 % 10)
+		return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}.${milliseconds}`
 	}
 
 	const handleClipPress = (clip: Clip) => {
-		TrackPlayer.seekTo(clip.position);
+		TrackPlayer.seekTo(Math.max(clip.position - (leadInDuration ?? 0), 0));
 	}
 
 	const handleClipLongPress = (clip: Clip) => {
@@ -59,7 +62,7 @@ export const ClipListItem = ({ clip, ...props }: ClipListItemProps) => {
 		<TouchableHighlight activeOpacity={0.8} {...props}
 			onPress={() => handleClipPress(clip)}
 			onLongPress={() => handleClipLongPress(clip)}
-			style={{backgroundColor: clip.color!}}>
+			style={{ backgroundColor: clip.color! }}>
 			<View style={[styles.cliplistItemContainer, { backgroundColor: clip.color! }]}>
 				<View
 					style={{

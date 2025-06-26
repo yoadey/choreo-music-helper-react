@@ -1,6 +1,6 @@
-import { colors, screenPadding } from '@/constants/tokens'
+import { colors } from '@/constants/tokens'
 import { useSpeed } from '@/store/playbackState'
-import { defaultStyles } from '@/styles'
+import { modalStyles } from '@/styles'
 import Slider from '@react-native-community/slider'
 import { useHeaderHeight } from '@react-navigation/elements'
 import { useRouter } from 'expo-router'
@@ -46,11 +46,11 @@ const SpeedModal = () => {
 	}
 
 	return (
-		<View style={[styles.modalContainer, { paddingTop: headerHeight }]}>
-			<Pressable style={styles.backdrop} onPress={handleCancel} />
+		<View style={[modalStyles.modalContainer, { paddingTop: headerHeight }]}>
+			<Pressable style={modalStyles.backdrop} onPress={handleCancel} />
 
-			<View style={styles.modal}>
-				<Text style={styles.title}>Geschwindigkeit</Text>
+			<View style={modalStyles.modal}>
+				<Text style={modalStyles.title}>Geschwindigkeit</Text>
 				<Text style={styles.currentSpeedText}>{speedLocal.toFixed(2)}x</Text>
 				<View style={styles.speedLabelsRow}>
 					<Text style={styles.speedLabel}>0.50</Text>
@@ -95,34 +95,6 @@ const SpeedModal = () => {
 }
 
 const styles = StyleSheet.create({
-	modalContainer: {
-		...defaultStyles.container,
-		flex: 1,
-		paddingHorizontal: screenPadding.horizontal,
-		justifyContent: 'center',
-		alignItems: 'center',
-		position: 'relative',
-		backgroundColor: 'rgba(0, 0, 0, 0)',
-	},
-	backdrop: {
-		...StyleSheet.absoluteFillObject,
-		backgroundColor: 'rgba(255, 255, 255, 0.3)',
-	},
-	modal: {
-		backgroundColor: colors.background,
-		padding: 20,
-		borderRadius: 12,
-		minWidth: 250,
-		maxWidth: '90%',
-		elevation: 10,
-		zIndex: 10,
-	},
-	title: {
-		fontSize: 22,
-		fontWeight: 'bold',
-		marginBottom: 16,
-		color: colors.text,
-	},
 	speedLabelsRow: {
 		flexDirection: 'row',
 		justifyContent: 'space-between',

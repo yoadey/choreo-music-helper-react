@@ -1,7 +1,7 @@
 import { DurationVolumeComponent } from '@/components/DurationVolume'
-import { colors, screenPadding } from '@/constants/tokens'
+import { colors } from '@/constants/tokens'
 import { useLeadInDuration, useLeadInVolume, useLeadOutDuration, useLeadOutVolume } from '@/store/playbackState'
-import { defaultStyles } from '@/styles'
+import { modalStyles } from '@/styles'
 import { useHeaderHeight } from '@react-navigation/elements'
 import { useRouter } from 'expo-router'
 import React, { useEffect, useState } from 'react'
@@ -23,14 +23,14 @@ const SpeedModal = () => {
 	const [leadOutDurationLocal, setLeadOutDurationLocal] = useState(leadOutDuration ?? 0)
 	const [leadOutVolume, setLeadOutVolume] = useLeadOutVolume()
 	const [leadOutVolumeLocal, setLeadOutVolumeLocal] = useState(leadOutVolume ?? 1)
-	
+
 	// Always use current speed when modal opens
 	useEffect(() => {
 		setLeadInDurationLocal(leadInDuration ?? 0)
 		setLeadInVolumeLocal(leadInVolume ?? 1)
 		setLeadOutDurationLocal(leadOutDuration ?? 0)
 		setLeadOutVolumeLocal(leadOutVolume ?? 1)
-	}, [leadInDuration, leadInVolume, leadOutDuration, leadOutVolume ])
+	}, [leadInDuration, leadInVolume, leadOutDuration, leadOutVolume])
 
 
 	const handleOk = async () => {
@@ -46,11 +46,11 @@ const SpeedModal = () => {
 	}
 
 	return (
-		<View style={[styles.modalContainer, { paddingTop: headerHeight }]}>
-			<Pressable style={styles.backdrop} onPress={handleCancel} />
+		<View style={[modalStyles.modalContainer, { paddingTop: headerHeight }]}>
+			<Pressable style={modalStyles.backdrop} onPress={handleCancel} />
 
-			<View style={styles.modal}>
-				<Text style={styles.title}>Vorbereitungszeit</Text>
+			<View style={modalStyles.modal}>
+				<Text style={modalStyles.title}>Vorbereitungszeit</Text>
 				<DurationVolumeComponent
 					seconds={leadInDurationLocal}
 					onSecondsChange={setLeadInDurationLocal}
@@ -74,34 +74,6 @@ const SpeedModal = () => {
 }
 
 const styles = StyleSheet.create({
-	modalContainer: {
-		...defaultStyles.container,
-		flex: 1,
-		paddingHorizontal: screenPadding.horizontal,
-		justifyContent: 'center',
-		alignItems: 'center',
-		position: 'relative',
-		backgroundColor: 'rgba(0, 0, 0, 0)',
-	},
-	backdrop: {
-		...StyleSheet.absoluteFillObject,
-		backgroundColor: 'rgba(255, 255, 255, 0.3)',
-	},
-	modal: {
-		backgroundColor: colors.background,
-		padding: 20,
-		borderRadius: 12,
-		minWidth: 250,
-		maxWidth: '90%',
-		elevation: 10,
-		zIndex: 10,
-	},
-	title: {
-		fontSize: 22,
-		fontWeight: 'bold',
-		marginBottom: 16,
-		color: colors.text,
-	},
 	speedLabelsRow: {
 		flexDirection: 'row',
 		justifyContent: 'space-between',

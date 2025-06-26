@@ -7,10 +7,6 @@ type ClipsListProps = {
 	clips: Clip[]
 } & Partial<FlatListProps<Clip>>
 
-const ItemDivider = () => (
-	<View style={{ ...utilsStyles.itemSeparator, marginLeft: 80, marginVertical: 12 }} />
-)
-
 export const ClipsList = ({
 	clips,
 	...flatListProps
@@ -24,17 +20,15 @@ export const ClipsList = ({
 
 	return (
 		<FlatList
-			contentContainerStyle={{ paddingTop: 10, paddingBottom: 128 }}
-			ItemSeparatorComponent={ItemDivider}
-			ListFooterComponent={ItemDivider}
+			contentContainerStyle={{ paddingTop: 0, paddingBottom: 60 }}
 			ListEmptyComponent={
 				<View>
 					<Text style={utilsStyles.emptyContentText}>No Clips defined yet!</Text>
 				</View>
 			}
 			data={clipsSorted}
-			renderItem={({ item: clip }) => (
-				<ClipListItem clip={clip} />
+			renderItem={({ item: clip, index }) => (
+				<ClipListItem index={index} clip={clip} endPosition={clipsSorted[index + 1]?.position} />
 			)}
 			{...flatListProps}
 		/>

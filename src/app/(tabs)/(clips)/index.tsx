@@ -1,5 +1,4 @@
 import { ClipsList } from '@/components/ClipList'
-import { screenPadding } from '@/constants/tokens'
 import { useCurrentTrack } from '@/hooks/useCurrentTrack'
 import Clip from '@/model/clip'
 import { defaultStyles } from '@/styles'
@@ -11,7 +10,7 @@ const ClipsScreen = () => {
 	const [clips, setClips] = useState<Clip[]>([]);
 
 	useMemo(() => {
-		currentTrack?.clips.observeWithColumns(['title', 'position']).subscribe((clips) => {
+		currentTrack?.clips.observeWithColumns(['title','position','color']).subscribe((clips) => {
 			setClips(clips);
 		})
 	}, [currentTrack?.id])
@@ -21,7 +20,7 @@ const ClipsScreen = () => {
 			<ScrollView
 				contentInsetAdjustmentBehavior="automatic"
 				style={{
-					paddingHorizontal: screenPadding.horizontal,
+					padding: 0,
 				}}
 			>
 				<ClipsList

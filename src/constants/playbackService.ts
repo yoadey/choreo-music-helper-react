@@ -4,13 +4,13 @@ import TrackPlayer, { Event, State } from 'react-native-track-player';
 export const VOLUME_FADE_DURATION = 2000; // 2 seconds
 
 export const playbackService = async () => {
-	let leadInDuration = getLeadInDuration();
-	let leadInVolume = getLeadInVolume();
-	let leadOutDuration = getLeadOutDuration();
-	let leadOutVolume = getLeadOutVolume();
-	let loopStart = getLoopStart();
-	let loopEnd = getLoopEnd();
-	let speed = getSpeed();
+	let leadInDuration = 0;
+	let leadInVolume = 1;
+	let leadOutDuration = 0;
+	let leadOutVolume = 1;
+	let loopStart: number | undefined = undefined;
+	let loopEnd: number | undefined = undefined;
+	let speed = 1;
 
 	// MMKV Listener for speed changes
 	preferences.addOnValueChangedListener((key) => {

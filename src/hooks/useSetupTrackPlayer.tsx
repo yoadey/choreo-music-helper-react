@@ -15,6 +15,7 @@ const setupPlayer = async () => {
 			Capability.SkipToPrevious,
 			Capability.Stop,
 		],
+		progressUpdateEventInterval: 0.05, // 50ms
 	})
 
 	await TrackPlayer.setVolume(0.3) // not too loud
@@ -30,15 +31,6 @@ export const useSetupTrackPlayer = ({ onLoad }: { onLoad?: () => void }) => {
 		setupPlayer()
 			.then(() => {
 				isInitialized.current = true
-				TrackPlayer.updateOptions({
-					compactCapabilities: [
-						Capability.Play,
-						Capability.Pause,
-						Capability.SkipToNext,
-						Capability.SkipToPrevious,
-					],
-					progressUpdateEventInterval: 0.2, // 200ms
-				})
 				onLoad?.()
 			})
 			.catch((error) => {

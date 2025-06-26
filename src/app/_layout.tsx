@@ -1,6 +1,6 @@
 import { playbackService } from '@/constants/playbackService'
 import { colors } from '@/constants/tokens'
-import { useLogTrackPlayerState } from '@/hooks/useLogTrackPlayerState'
+import { useCurrentTrack } from '@/hooks/useCurrentTrack'
 import { useSetupTrackPlayer } from '@/hooks/useSetupTrackPlayer'
 import { ActionSheetProvider } from '@expo/react-native-action-sheet'
 import { SplashScreen, Stack } from 'expo-router'
@@ -23,8 +23,6 @@ const App = () => {
 		onLoad: handleTrackPlayerLoaded,
 	})
 
-	useLogTrackPlayerState()
-
 	return (
 		<SafeAreaProvider>
 			<GestureHandlerRootView style={{ flex: 1 }}>
@@ -39,10 +37,11 @@ const App = () => {
 }
 
 const RootNavigation = () => {
+	const { currentTrack, setCurrentTrack } = useCurrentTrack()
 	return (
 		<Stack>
 			<Stack.Screen name="(tabs)" options={{
-				title: "Choreo Music Helper",
+				title: `${currentTrack ? currentTrack?.title + " - " : ""}Choreo Music Helper`,
 				headerShown: true,
 				headerLargeTitle: true,
 				headerLargeStyle: {
@@ -58,17 +57,6 @@ const RootNavigation = () => {
 				headerShadowVisible: false,
 
 			}} />
-
-			<Stack.Screen
-				name="player"
-				options={{
-					presentation: 'card',
-					gestureEnabled: true,
-					gestureDirection: 'vertical',
-					animationDuration: 400,
-					headerShown: false,
-				}}
-			/>
 
 			<Stack.Screen
 				name="(modals)/speed"

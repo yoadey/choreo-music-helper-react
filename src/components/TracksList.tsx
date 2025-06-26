@@ -1,13 +1,13 @@
 import { TracksListItem } from '@/components/TracksListItem'
 import { utilsStyles } from '@/styles'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { FlatList, FlatListProps, Text, View } from 'react-native'
 import TrackPlayer, { Track, useActiveTrack } from 'react-native-track-player'
 
+import { useStoredAudioFiles } from '@/hooks/useStoredAudioFiles'
 import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { getLastTrack, setLastTrack } from '@/store/playbackState'
-import { get } from 'idb-keyval'
 
 export type TracksListProps = Partial<FlatListProps<TrackWithClips>> & {
 	id: string
@@ -19,19 +19,14 @@ const ItemDivider = () => (
 	<View style={{ ...utilsStyles.itemSeparator, marginVertical: 9, marginLeft: 60 }} />
 )
 
-interface AudioFile {
-	name: string;
-	url: string;
-}
-
 export const TracksList = ({
 	id,
 	tracks,
 	hideQueueControls = false,
 	...flatlistProps
 }: TracksListProps) => {
-	const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
 	const track = useActiveTrack()
+	const audioFiles = useStoredAudioFiles()
 
 	const handleTrackSelect = async (selectedTrack: TrackWithClips) => {
 		if (!selectedTrack || !tracks) {
@@ -41,11 +36,9 @@ export const TracksList = ({
 		setLastTrack(selectedTrack.id)
 
 		var uri: string[] = [""]
-		audioFiles.forEach(file => {
-			if (file.name === selectedTrack.uri) {
-				uri[0] = file.url;
-			}
-		});
+		if (audioFiles && audioFiles.has(selectedTrack.uri)) {
+			uri[0] = selectedTrack.uri
+		}
 
 		await TrackPlayer.reset()
 		const track: Track = {
@@ -56,15 +49,6 @@ export const TracksList = ({
 		await TrackPlayer.add(track);
 	}
 
-	// TODO: loadAudioFiles etc to a more general place
-	useEffect(() => {
-		const fileNames: string[] = []
-		tracks.forEach(track => {
-			fileNames.push(track.uri);
-		});
-		loadAudioFiles(fileNames);
-	}, [tracks]);
-
 	useEffect(() => {
 		let trackId = getLastTrack();
 		if (trackId && trackId !== track?.id) {
@@ -72,20 +56,8 @@ export const TracksList = ({
 				.find(trackId)
 				.then(handleTrackSelect)
 		}
-	}, [audioFiles])
+	}, [])
 
-
-	const loadAudioFiles = async (fileNames: string[]) => {
-		const loaded: AudioFile[] = [];
-		for (const name of fileNames) {
-			const blob = await get<Blob>(name);
-			if (blob) {
-				const url = URL.createObjectURL(blob);
-				loaded.push({ name, url });
-			}
-		}
-		setAudioFiles(loaded);
-	};
 	return (
 		<FlatList
 			data={tracks}
@@ -95,7 +67,6 @@ export const TracksList = ({
 			ListEmptyComponent={
 				<View>
 					<Text style={utilsStyles.emptyContentText}>No songs found</Text>
-
 				</View>
 			}
 			renderItem={({ item: track }) => (

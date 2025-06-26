@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "music-player",
-    "slug": "music-player",
+    "name": "Choreo Music Helper",
+    "slug": "choreo-music-helper",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "scheme": "music-player",
+    "scheme": "choreo-music-helper",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -17,7 +17,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.music.player",
+      "bundleIdentifier": "de.yoadey.choreomusic",
       "infoPlist": {
         "UIBackgroundModes": [
           "audio"
@@ -31,7 +31,8 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "static"
     },
     "plugins": [
       "expo-router"

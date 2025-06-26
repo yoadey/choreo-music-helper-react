@@ -1,7 +1,10 @@
 import { colors } from '@/constants/tokens'
+import { useCurrentTrack } from '@/hooks/useCurrentTrack'
+import Clip from '@/model/clip'
 import { useLeadInDuration, useLeadOutDuration, useSpeed } from '@/store/playbackState'
 import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
+import { useMemo, useState } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native'
 import TrackPlayer, { useIsPlaying } from 'react-native-track-player'
 import { PlayerAddClipButton } from './PlayerAddClipButton'
@@ -17,6 +20,47 @@ type PlayerButtonProps = {
 }
 
 export const PlayerControls = ({ style }: PlayerControlsProps) => {
+
+	const { currentTrack } = useCurrentTrack()
+	const [clips, setClips] = useState<Clip[]>([]);
+
+	useMemo(() => {
+		currentTrack?.clips.observeWithColumns(['position']).subscribe((clips) => {
+			const sortedClips = clips.sort((a, b) => {
+				if (a.position < b.position) return -1;
+				if (a.position > b.position) return 1;
+				return 0;
+			});
+			setClips(sortedClips);
+		})
+	}, [currentTrack?.id])
+
+	const handlePrevious = () => {
+		if (!currentTrack) return;
+
+		TrackPlayer.getProgress()
+			.then(progress => {
+				for (let index = 0; index < clips.length - 1; index++) {
+					if (clips[index].position <= progress.position && clips[index + 1].position > progress.position) {
+						TrackPlayer.seekTo(clips[index - 1].position);
+						break;
+					}
+				}
+			});
+	}
+	const handleNext = () => {
+		if (!currentTrack) return;
+
+		TrackPlayer.getProgress()
+			.then(progress => {
+				for (let index = 0; index < clips.length - 1; index++) {
+					if (clips[index].position <= progress.position && clips[index + 1].position > progress.position) {
+						TrackPlayer.seekTo(clips[index + 1].position);
+						break;
+					}
+				}
+			});
+	}
 	return (
 		<View style={[styles.container, style]}>
 			<View style={styles.row}>
@@ -29,12 +73,18 @@ export const PlayerControls = ({ style }: PlayerControlsProps) => {
 			</View>
 			<PlayerProgressBar style={{ marginTop: 32 }} />
 			<View style={styles.row}>
-				<SkipToPreviousButton />
+				<TouchableOpacity activeOpacity={0.7} onPress={handlePrevious} style={[styles.button]}>
+					<FontAwesome6 name={'backward'} size={30} color={colors.text} />
+				</TouchableOpacity>
 
-				<StopButton />
+				<TouchableOpacity activeOpacity={0.7} onPress={() => TrackPlayer.stop()} style={[styles.button]}>
+					<FontAwesome6 name="stop" size={30} color={colors.text} />
+				</TouchableOpacity>
 				<PlayPauseButton />
 
-				<SkipToNextButton />
+				<TouchableOpacity activeOpacity={0.7} onPress={handleNext} style={[styles.button]}>
+					<FontAwesome6 name="forward" size={30} color={colors.text} />
+				</TouchableOpacity>
 			</View>
 		</View>
 	)
@@ -56,34 +106,11 @@ export const PlayPauseButton = ({ style, iconSize = 48 }: PlayerButtonProps) => 
 	)
 }
 
-export const StopButton = ({ iconSize = 30 }: PlayerButtonProps) => {
-	return (
-		<TouchableOpacity activeOpacity={0.7} onPress={() => TrackPlayer.stop()} style={[styles.button]}>
-			<FontAwesome6 name="stop" size={iconSize} color={colors.text} />
-		</TouchableOpacity>
-	)
-}
-
-export const SkipToNextButton = ({ iconSize = 30 }: PlayerButtonProps) => {
-	return (
-		<TouchableOpacity activeOpacity={0.7} onPress={() => TrackPlayer.skipToNext()} style={[styles.button]}>
-			<FontAwesome6 name="forward" size={iconSize} color={colors.text} />
-		</TouchableOpacity>
-	)
-}
-
-export const SkipToPreviousButton = ({ iconSize = 30 }: PlayerButtonProps) => {
-	return (
-		<TouchableOpacity activeOpacity={0.7} onPress={() => TrackPlayer.skipToPrevious()} style={[styles.button]}>
-			<FontAwesome6 name={'backward'} size={iconSize} color={colors.text} />
-		</TouchableOpacity>
-	)
-}
 
 export const LoopButton = ({ iconSize = 30 }: PlayerButtonProps) => {
 	const router = useRouter()
-	const [leadInDuration, setLeadInDuration] = useLeadInDuration()
-	const [leadOutDuration, setLeadOutDuration] = useLeadOutDuration()
+	const [leadInDuration] = useLeadInDuration()
+	const [leadOutDuration] = useLeadOutDuration()
 	const highlightColor = leadInDuration && leadInDuration !== 0 ? colors.primary : colors.icon;
 	return (
 		<TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/(modals)/loop')} style={[styles.button]}>

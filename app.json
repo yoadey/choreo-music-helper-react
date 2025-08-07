@@ -4,11 +4,11 @@
     "slug": "choreo-music-helper",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/favicon.png",
     "userInterfaceStyle": "dark",
     "scheme": "choreo-music-helper",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/favicon.png",
       "resizeMode": "contain",
       "backgroundColor": "#000"
     },
@@ -26,13 +26,19 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/favicon.png",
         "backgroundColor": "#000"
       }
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "output": "static"
+      "output": "single",
+      "build": {
+        "serviceWorker": {
+          "register": true,
+          "file": "./public/service-worker.js"
+        }
+      }
     },
     "plugins": [
       "expo-router"

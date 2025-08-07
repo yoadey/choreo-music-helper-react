@@ -1,4 +1,4 @@
-import { getLeadInDuration, getLeadInVolume, getLeadOutDuration, getLeadOutVolume, getLoopEnd, getLoopStart, getSpeed, KEY_LEAD_IN_DURATION, KEY_LEAD_IN_VOLUME, KEY_LEAD_OUT_DURATION, KEY_LEAD_OUT_VOLUME, KEY_LOOP_END, KEY_LOOP_START, KEY_SPEED, preferences } from '@/store/playbackState';
+import { getLeadInDuration, getLeadInVolume, getLeadOutDuration, getLeadOutVolume, getLoopEnd, getLoopStart, getSpeed, preferences } from '@/store/playbackState';
 import TrackPlayer, { Event, State } from 'react-native-track-player';
 
 export const VOLUME_FADE_DURATION = 2000; // 2 seconds
@@ -13,29 +13,15 @@ export const playbackService = async () => {
 	let speed = 1;
 	let playerReady = false;
 
-	// MMKV Listener for speed changes
-	preferences.addOnValueChangedListener((key) => {
-		if (key === KEY_SPEED) {
-			speed = getSpeed();
-		}
-		else if (key === KEY_LEAD_IN_DURATION) {
-			leadInDuration = getLeadInDuration();
-		}
-		else if (key === KEY_LEAD_IN_VOLUME) {
-			leadInVolume = getLeadInVolume();
-		}
-		else if (key === KEY_LEAD_OUT_DURATION) {
-			leadOutDuration = getLeadOutDuration();
-		}
-		else if (key === KEY_LEAD_OUT_VOLUME) {
-			leadOutVolume = getLeadOutVolume();
-		}
-		else if (key === KEY_LOOP_END) {
-			loopEnd = getLoopEnd();
-		}
-		else if (key === KEY_LOOP_START) {
-			loopStart = getLoopStart();
-		}
+	// MMKV Listener for settings changes
+	preferences.addOnValueChangedListener(() => {
+		speed = getSpeed();
+		leadInDuration = getLeadInDuration();
+		leadInVolume = getLeadInVolume();
+		leadOutDuration = getLeadOutDuration();
+		leadOutVolume = getLeadOutVolume();
+		loopEnd = getLoopEnd();
+		loopStart = getLoopStart();
 
 		if (playerReady) {
 			TrackPlayer.getProgress().then(loopChecks);
@@ -78,7 +64,8 @@ export const playbackService = async () => {
 			if (isLoopActive()) {
 				checkVolume({ position });
 			}
-			if (position > loopEnd! + leadOutDuration) {
+			if (position > loopEnd! + leadOutDuration ||
+				position < loopStart! - leadInDuration) {
 				TrackPlayer.seekTo(loopStart! - leadInDuration);
 			}
 		}
@@ -131,5 +118,4 @@ export const playbackService = async () => {
 	}
 
 	TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, loopChecks);
-
 }

@@ -1,57 +1,32 @@
 import { colors, fontSize } from '@/constants/tokens'
 import { formatSecondsToMinutes } from '@/helpers/miscellaneous'
-import { defaultStyles, utilsStyles } from '@/styles'
+import { defaultStyles } from '@/styles'
 import { StyleSheet, Text, View, ViewProps } from 'react-native'
-import { Slider } from 'react-native-awesome-slider'
-import { useSharedValue } from 'react-native-reanimated'
-import TrackPlayer, { useProgress } from 'react-native-track-player'
+import TrackPlayer, { useActiveTrack, useProgress } from 'react-native-track-player'
+import WaveformView from './waveform/WaveformView'
 
 export const PlayerProgressBar = ({ style }: ViewProps) => {
-	const { duration, position } = useProgress(250)
-
-	const isSliding = useSharedValue(false)
-	const progress = useSharedValue(0)
-	const min = useSharedValue(0)
-	const max = useSharedValue(1)
+	const { duration, position } = useProgress(50)
+	const track = useActiveTrack()
 
 	const trackElapsedTime = formatSecondsToMinutes(position)
 	const trackRemainingTime = formatSecondsToMinutes(duration - position)
 
-	if (!isSliding.value) {
-		progress.value = duration > 0 ? position / duration : 0
-	}
-
 	return (
 		<View style={style}>
-			<Slider
-				progress={progress}
-				minimumValue={min}
-				maximumValue={max}
-				containerStyle={utilsStyles.slider}
-				thumbWidth={0}
-				renderBubble={() => null}
-				theme={{
-					minimumTrackTintColor: colors.minimumTrackTintColor,
-					maximumTrackTintColor: colors.maximumTrackTintColor,
-				}}
-				onSlidingStart={() => (isSliding.value = true)}
-				onValueChange={async (value) => {
-					await TrackPlayer.seekTo(value * duration)
-				}}
-				onSlidingComplete={async (value) => {
-					/* if the user is not sliding, we should not update the position */
-					if (!isSliding.value) return
-
-					isSliding.value = false
-
-					await TrackPlayer.seekTo(value * duration)
-				}}
+			<WaveformView
+				mp3Url={track?.url}
+				progress={position}
+				duration={duration}
+				onSeek={(newProgress) => TrackPlayer.seekTo(newProgress)}
+				progressedBarColor={colors.minimumTrackTintColor}
+				remainingBarColor={colors.maximumTrackTintColor}
 			/>
 
 			<View style={styles.timeRow}>
-				<Text style={styles.timeText}>{trackElapsedTime}</Text>
+				<Text id="elapsedTime" style={styles.timeText}>{trackElapsedTime}</Text>
 
-				<Text style={styles.timeText}>
+				<Text id="remainingTime" style={styles.timeText}>
 					{'-'} {trackRemainingTime}
 				</Text>
 			</View>
@@ -64,7 +39,7 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		justifyContent: 'space-between',
 		alignItems: 'baseline',
-		marginTop: 20,
+		marginTop: 10,
 	},
 	timeText: {
 		...defaultStyles.text,
@@ -73,5 +48,6 @@ const styles = StyleSheet.create({
 		fontSize: fontSize.xs,
 		letterSpacing: 0.7,
 		fontWeight: '500',
+		paddingHorizontal: 10,
 	},
 })

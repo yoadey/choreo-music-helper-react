@@ -1,15 +1,17 @@
 import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
-import { setLastTrack } from '@/store/playbackState'
+import { setLastTrack, useLoopEnd, useLoopStart } from '@/store/playbackState'
 import { useCurrentTrackStore } from '@/store/store'
+import { get } from 'idb-keyval'
 import { useEffect } from 'react'
+import { Platform } from 'react-native'
 import TrackPlayer, { useActiveTrack } from 'react-native-track-player'
-import { useStoredAudioFiles } from './useStoredAudioFiles'
 
 export const useCurrentTrack = () => {
     const activeTrack = useActiveTrack()
-    const audioFiles = useStoredAudioFiles()
     const { currentTrack, setCurrentTrack } = useCurrentTrackStore()
+    const [loopStart, setLoopStart] = useLoopStart()
+    const [loopEnd, setLoopEnd] = useLoopEnd()
 
     useEffect(() => {
         if (!activeTrack || activeTrack.headers?.id == currentTrack?.id) {
@@ -21,45 +23,37 @@ export const useCurrentTrack = () => {
             .then(setCurrentTrack)
     }, [activeTrack])
 
-    useEffect(() => {
-        if (!currentTrack ||
-            !audioFiles.has(currentTrack.id) ||
-            audioFiles.get(currentTrack.id) === activeTrack?.url) {
-            return
-        }
-
-        let id = currentTrack.id
-        let url = audioFiles.get(currentTrack.id)!
-        let title = currentTrack.title
-        TrackPlayer.reset()
-            .then(() => {
-                TrackPlayer.load({
-                    headers: {
-                        id: id,
-                    },
-                    url: url,
-                    title: title
-                })
-            });
-    }, [audioFiles, activeTrack, currentTrack])
-
     const setCurrentTrackIntern = (track: TrackWithClips) => {
-        let url = track.uri;
-        if (audioFiles && audioFiles.has(track.uri)) {
-            url = audioFiles.get(url)!;
-        }
         setCurrentTrack(track)
         setLastTrack(track.id)
-        TrackPlayer.reset()
-            .then(async () => {
-                await TrackPlayer.load({
-                    headers: {
-                        id: track.id,
-                    },
-                    url: url,
-                    title: track.title,
-                })
+        setLoopStart(undefined)
+        setLoopEnd(undefined)
+        let id = track.id
+        let url = track.uri
+        let title = track.title
+
+        const setEverything = async () => {
+            let uri = url
+            if (Platform.OS === 'web') {
+                try {
+                    const blob = await get(url);
+                    const blobUrl = URL.createObjectURL(blob);
+                    uri = blobUrl;
+                } catch (error) {
+                    console.log("File not found locally: " + url)
+                    return
+                }
+            }
+            await TrackPlayer.reset()
+            await TrackPlayer.load({
+                headers: {
+                    id: id,
+                },
+                url: uri,
+                title: title
             })
+        }
+        setEverything()
     }
     return {
         currentTrack,

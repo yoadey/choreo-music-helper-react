@@ -1,4 +1,4 @@
-import { MMKV, Mode, useMMKVNumber } from 'react-native-mmkv';
+import { MMKV, Mode, useMMKVNumber, useMMKVObject } from 'react-native-mmkv';
 
 export const preferences = new MMKV({
     id: `preferences-storage`,
@@ -21,18 +21,31 @@ export const KEY_SPEED = 'speed';
 export const useSpeed = () => useMMKVNumber(KEY_SPEED, preferences);
 export const getSpeed = () => preferences.getNumber(KEY_SPEED) ?? 1.0;
 
+export type ClipPosition = {
+    id: String
+    position: number
+}
+
 /**
  * The start position of the current loop in ms.
  */
 export const KEY_LOOP_START = 'loopStart';
-export const useLoopStart = () => useMMKVNumber(KEY_LOOP_START, preferences);
-export const getLoopStart = () => preferences.getNumber(KEY_LOOP_START);
+export const useLoopStart = () => useMMKVObject<ClipPosition>(KEY_LOOP_START, preferences);
+export const getLoopStart = () => {
+    var json = preferences.getString(KEY_LOOP_START);
+    if (json == null) return undefined;
+    return (JSON.parse(json) as ClipPosition).position;
+}
 /**
  * The end position of the current loop in ms.
  */
 export const KEY_LOOP_END = 'loopEnd';
-export const useLoopEnd = () => useMMKVNumber(KEY_LOOP_END, preferences);
-export const getLoopEnd = () => preferences.getNumber(KEY_LOOP_END);
+export const useLoopEnd = () => useMMKVObject<ClipPosition>(KEY_LOOP_END, preferences);
+export const getLoopEnd = () => {
+    var json = preferences.getString(KEY_LOOP_END);
+    if (json == null) return undefined;
+    return (JSON.parse(json) as ClipPosition).position;
+}
 
 /**
  * Defines, how much time in ms should be played from the track before the loop start track when a loop is activated.

@@ -2,7 +2,7 @@ import { colors } from '@/constants/tokens'
 import { useProgressWithRange } from '@/hooks/useProgressWithRange'
 import Clip from '@/model/clip'
 import { database } from '@/model/index.web'
-import { useLeadInDuration } from '@/store/playbackState'
+import { useLeadInDuration, useLoopEnd, useLoopStart } from '@/store/playbackState'
 import { defaultStyles } from '@/styles'
 import { useActionSheet } from '@expo/react-native-action-sheet'
 import { useRouter } from 'expo-router'
@@ -20,6 +20,8 @@ export const ClipListItem = ({ index, clip, endPosition, ...props }: ClipListIte
 	const [leadInDuration, setLeadInDuration] = useLeadInDuration()
 	const progress = useProgressWithRange({ start: clip.position, end: endPosition })
 	const { showActionSheetWithOptions } = useActionSheet();
+	const [loopStart, setLoopStart] = useLoopStart()
+	const [loopEnd, setLoopEnd] = useLoopEnd()
 
 	const toTime = (position: number) => {
 		if (position < 0) return '0:00'
@@ -62,6 +64,28 @@ export const ClipListItem = ({ index, clip, endPosition, ...props }: ClipListIte
 		});
 	}
 
+	const toggleLoopStart = () => {
+		if (loopStart?.id === clip.id) {
+			setLoopStart(undefined)
+		} else {
+			setLoopStart({
+				id: clip.id,
+				position: clip.position
+			})
+		}
+	}
+
+	const toggleLoopEnd = () => {
+		if (loopEnd?.id === clip.id) {
+			setLoopEnd(undefined)
+		} else {
+			setLoopEnd({
+				id: clip.id,
+				position: endPosition
+			})
+		}
+	}
+
 	return (
 		<TouchableHighlight activeOpacity={0.8} {...props}
 			onPress={() => handleClipPress(clip)}
@@ -91,10 +115,10 @@ export const ClipListItem = ({ index, clip, endPosition, ...props }: ClipListIte
 							{toTime(clip.position) || '0:00'}
 						</Text>
 					</View>
-					<TouchableHighlight style={styles.loopButton}>
+					<TouchableHighlight style={loopStart?.id === clip.id ? styles.loopActiveButton : styles.loopButton} onPress={toggleLoopStart}>
 						<Text style={styles.buttonText}>A</Text>
 					</TouchableHighlight>
-					<TouchableHighlight style={styles.loopButton}>
+					<TouchableHighlight style={loopEnd?.id === clip.id ? styles.loopActiveButton : styles.loopButton} onPress={toggleLoopEnd}>
 						<Text style={styles.buttonText}>B</Text>
 					</TouchableHighlight>
 				</View>
@@ -153,9 +177,18 @@ const styles = StyleSheet.create({
 		maxWidth: '20%',
 	},
 	loopButton: {
+		backgroundColor: colors.secondary,
+		width: 35,
+		height: 35,
+		marginHorizontal: 4,
+		borderRadius: 6,
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	loopActiveButton: {
 		backgroundColor: colors.primary,
-		paddingVertical: 6,
-		paddingHorizontal: 12,
+		width: 35,
+		height: 35,
 		marginHorizontal: 4,
 		borderRadius: 6,
 		alignItems: 'center',
@@ -163,7 +196,7 @@ const styles = StyleSheet.create({
 	},
 	buttonText: {
 		color: '#fff',
-		fontWeight: 'bold',
-		fontSize: 18,
+		fontWeight: 600,
+		fontSize: 24,
 	},
 })

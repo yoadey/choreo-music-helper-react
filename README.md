@@ -13,3 +13,9 @@ yarn install
 ```bash
 npx expo start --web
 ```
+
+## Build web
+
+```bash
+npx expo export --platform web
+```

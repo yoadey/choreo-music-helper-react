@@ -1,4 +1,4 @@
-import { colors, fontSize, screenPadding } from '@/constants/tokens'
+import { colors, fontSize } from '@/constants/tokens'
 import { StyleSheet } from 'react-native'
 
 export const defaultStyles = StyleSheet.create({
@@ -24,8 +24,8 @@ export const utilsStyles = StyleSheet.create({
 		alignItems: 'center',
 	},
 	slider: {
-		height: 7,
-		borderRadius: 16,
+		height: 12,
+		borderRadius: 6,
 	},
 	itemSeparator: {
 		borderColor: colors.textMuted,
@@ -52,7 +52,7 @@ export const modalStyles = StyleSheet.create({
 	modalContainer: {
 		...defaultStyles.container,
 		flex: 1,
-		paddingHorizontal: screenPadding.horizontal,
+		paddingHorizontal: 5,
 		justifyContent: 'center',
 		alignItems: 'center',
 		position: 'relative',
@@ -64,10 +64,10 @@ export const modalStyles = StyleSheet.create({
 	},
 	modal: {
 		backgroundColor: colors.modal,
-		padding: 20,
+		padding: 15,
 		borderRadius: 12,
 		minWidth: 250,
-		maxWidth: '90%',
+		maxWidth: '95%',
 		elevation: 10,
 		zIndex: 10,
 	},
@@ -78,7 +78,10 @@ export const modalStyles = StyleSheet.create({
 		color: colors.text,
 	},
 	container: {
-		margin: 20,
+		marginTop: 10,
+		marginBottom: 10,
+		marginLeft: 5,
+		marginRight: 5,
 		position: 'relative',
 		color: colors.text,
 	},
@@ -105,13 +108,14 @@ export const containerStyles = StyleSheet.create({
 
 export const inputStyles = StyleSheet.create({
 	input: {
+		width: 1,
 		flex: 1,
 		borderWidth: 0,
 		borderBottomWidth: 1,
 		borderRadius: 0,
-		textAlign: 'right',
 		borderColor: colors.minimumTrackTintColor,
 		color: colors.text,
+		fontSize: fontSize.base,
 		paddingHorizontal: 10,
 		paddingVertical: 5,
 		marginRight: 10,
@@ -133,7 +137,6 @@ export const buttonStyles = StyleSheet.create({
 		flexDirection: 'row',
 		justifyContent: 'space-between',
 		width: '100%',
-		marginTop: 12,
 		gap: 8,
 	},
 	button: {

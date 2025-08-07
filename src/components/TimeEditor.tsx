@@ -15,49 +15,16 @@ export default function TimeEditor({ timeMs, onChange }: TimeEditorProps) {
 
     const minutes = Math.floor(timeMs / 60000);
     const seconds = Math.floor((timeMs % 60000) / 1000);
-    const milliseconds = Math.floor((timeMs % 1000) / 100) * 100;
+    const milliseconds = Math.floor((timeMs % 1000) / 100);
 
     return (
-        <View style={styles.container}>
-            <TimePart
-                label="Min"
-                value={minutes}
-                onIncrease={() => updateTime(60000)}
-                onDecrease={() => updateTime(-60000)}
-            />
-            <TimePart
-                label="Sec"
-                value={seconds}
-                onIncrease={() => updateTime(1000)}
-                onDecrease={() => updateTime(-1000)}
-            />
-            <TimePart
-                label="Ms"
-                value={milliseconds}
-                onIncrease={() => updateTime(100)}
-                onDecrease={() => updateTime(-100)}
-            />
-        </View>
-    );
-}
-
-type TimePartProps = {
-    label: string;
-    value: number;
-    onIncrease: () => void;
-    onDecrease: () => void;
-};
-
-function TimePart({ label, value, onIncrease, onDecrease }: TimePartProps) {
-    return (
-        <View style={styles.part}>
-            <Text style={defaultStyles.label}>{label}</Text>
-            <Text style={defaultStyles.text}>{value.toString().padStart(2, '0')}</Text>
-            <View style={buttonStyles.buttonsRow}>
-                <TouchableOpacity style={buttonStyles.button} onPress={onIncrease}>
+        <View style={[buttonStyles.buttonsRow, {alignItems: 'center'}]}>
+            <Text style={[defaultStyles.text, { flex: 1, textAlign: 'right' }]}>{minutes.toString()}:{seconds.toString().padStart(2, '0')}.{milliseconds.toString()}</Text>
+            <View style={[buttonStyles.buttonsRow, { flex: 0, flexShrink: 1, flexBasis: 'auto', width: 'auto' }]}>
+                <TouchableOpacity style={buttonStyles.button} onPress={() => updateTime(100)}>
                     <Text style={buttonStyles.buttonText}>+</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={buttonStyles.button} onPress={onDecrease}>
+                <TouchableOpacity style={buttonStyles.button} onPress={() => updateTime(-100)}>
                     <Text style={buttonStyles.buttonText}>-</Text>
                 </TouchableOpacity>
             </View>
@@ -68,6 +35,7 @@ function TimePart({ label, value, onIncrease, onDecrease }: TimePartProps) {
 const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
+        verticalAlign: 'middle',
         padding: 10,
     },
     part: {

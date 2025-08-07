@@ -71,7 +71,7 @@ export const PlayerControls = ({ style }: PlayerControlsProps) => {
 
 				<SpeedButton />
 			</View>
-			<PlayerProgressBar style={{ marginTop: 32 }} />
+			<PlayerProgressBar style={{ marginTop: 10, paddingHorizontal: 10 }} />
 			<View style={styles.row}>
 				<TouchableOpacity activeOpacity={0.7} onPress={handlePrevious} style={[styles.button]}>
 					<FontAwesome6 name={'backward'} size={30} color={colors.text} />

@@ -1,4 +1,5 @@
 import { colors } from '@/constants/tokens';
+import { defaultStyles, inputStyles, modalStyles } from '@/styles';
 import Slider from '@react-native-community/slider';
 import React from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -24,7 +25,7 @@ export const DurationVolumeComponent: React.FC<Props> = ({
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[modalStyles.container, { marginLeft: 0, marginRight: 0 }]}>
             <Text style={styles.title}>{title}</Text>
             <View style={styles.box}>
                 <View style={styles.inputRow}>
@@ -62,7 +63,7 @@ export const DurationVolumeComponent: React.FC<Props> = ({
                         maximumTrackTintColor={colors.maximumTrackTintColor}
                         thumbTintColor={colors.primary}
                     />
-                    <Text style={styles.text}>{(volume * 100).toFixed(0)}%</Text>
+                    <Text style={defaultStyles.text}>{(volume * 100).toFixed(0)}%</Text>
                 </View>
             </View>
         </View>
@@ -70,30 +71,23 @@ export const DurationVolumeComponent: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-    container: {
-        margin: 20,
-        position: 'relative',
-        color: colors.text,
-    },
     title: {
         position: 'absolute',
         top: -10,
         left: 20,
-        backgroundColor: colors.background,
+        backgroundColor: colors.modal,
         color: colors.text,
         paddingHorizontal: 8,
         zIndex: 1,
     },
-    text: {
-        verticalAlign: 'middle',
-        color: colors.text,
-    },
     box: {
         borderWidth: 1,
         borderColor: colors.minimumTrackTintColor,
-        padding: 20,
+        paddingLeft: 15,
+        paddingRight: 15,
+        paddingTop: 10,
+        paddingBottom: 10,
         borderRadius: 10,
-        paddingTop: 30,
     },
     inputRow: {
         flexDirection: 'row',
@@ -101,16 +95,8 @@ const styles = StyleSheet.create({
         verticalAlign: 'middle',
     },
     input: {
-        flex: 1,
-        borderWidth: 0,
-        borderBottomWidth: 1,
-        borderRadius: 0,
+        ...inputStyles.input,
         textAlign: 'right',
-        borderColor: colors.minimumTrackTintColor,
-        color: colors.text,
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        marginRight: 10,
     },
     slider: {
         width: 200,

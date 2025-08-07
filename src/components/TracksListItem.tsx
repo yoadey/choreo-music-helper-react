@@ -1,7 +1,10 @@
 import { colors, fontSize } from '@/constants/tokens'
+import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { defaultStyles } from '@/styles'
+import { useActionSheet } from '@expo/react-native-action-sheet'
 import { Ionicons } from '@expo/vector-icons'
+import { del } from 'idb-keyval'
 import { ActivityIndicator, StyleSheet, Text, TouchableHighlight, View } from 'react-native'
 import { useActiveTrack, useIsPlaying } from 'react-native-track-player'
 
@@ -15,11 +18,41 @@ export const TracksListItem = ({
 	onTrackSelect: handleTrackSelect,
 }: TracksListItemProps) => {
 	const { playing } = useIsPlaying()
+	const { showActionSheetWithOptions } = useActionSheet();
 
 	const isActiveTrack = useActiveTrack()?.url === track.uri
 
+	const handleClipLongPress = (track: TrackWithClips) => {
+		const options = ['Delete', 'Cancel'];
+		const destructiveButtonIndex = 0;
+		const cancelButtonIndex = 1;
+
+		showActionSheetWithOptions({
+			options,
+			cancelButtonIndex,
+			destructiveButtonIndex
+		}, (selectedIndex) => {
+			switch (selectedIndex) {
+				case destructiveButtonIndex:
+					database.write(async () => {
+						await database.get<TrackWithClips>('tracks')
+							.find(track.id)
+							.then(track => {
+								del(track.uri);
+								track?.destroyPermanently();
+							});
+					});
+					break;
+
+				case cancelButtonIndex:
+			}
+		});
+	}
+
 	return (
-		<TouchableHighlight onPress={() => handleTrackSelect(track)}>
+		<TouchableHighlight
+			onPress={() => handleTrackSelect(track)}
+			onLongPress={() => handleClipLongPress(track)}>
 			<View style={styles.trackItemContainer}>
 				<View>
 

@@ -48,23 +48,9 @@ const App = () => {
 }
 
 const RootNavigation = () => {
-	const { currentTrack } = useCurrentTrack()
 	return (
-		<Stack>
-			<Stack.Screen name="(tabs)" options={{
-				title: `${currentTrack ? currentTrack?.title + " - " : ""}Choreo Music Helper`,
-				headerShown: true,
-				headerLargeTitle: true,
-				headerLargeTitleStyle: {
-					color: colors.text,
-				},
-				headerStyle: { backgroundColor: colors.backgroundSecondary },
-				headerTintColor: colors.text,
-				headerTransparent: false,
-				headerBlurEffect: 'prominent',
-				headerShadowVisible: false,
-
-			}} />
+		<Stack screenOptions={{ headerShown: false }}>
+			<Stack.Screen name="(drawer)" />
 
 			<Stack.Screen
 				name="(modals)/speed"
@@ -110,8 +96,23 @@ const RootNavigation = () => {
 					headerShown: false,
 				}}
 			/>
+
+			<Stack.Screen
+				name="licenses"
+				options={{
+					presentation: 'modal',
+					headerStyle: {
+						backgroundColor: colors.background,
+					},
+					headerTitle: 'Edit Clip',
+					headerTitleStyle: {
+						color: colors.text,
+					},
+					headerShown: false,
+				}}
+			/>
 		</Stack>
-	)
+	);
 }
 
 export default App

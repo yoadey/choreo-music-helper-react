@@ -177,7 +177,7 @@ export const SpeedButton = ({ iconSize = 30 }: PlayerButtonProps) => {
 const styles = StyleSheet.create({
 	container: {
 		width: '100%',
-		backgroundColor: '#252525',
+		backgroundColor: colors.backgroundSecondary,
 	},
 	row: {
 		flexDirection: 'row',

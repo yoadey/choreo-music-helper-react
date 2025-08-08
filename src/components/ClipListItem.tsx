@@ -43,7 +43,13 @@ export const ClipListItem = ({ index, clip, endPosition, ...props }: ClipListIte
 		showActionSheetWithOptions({
 			options,
 			cancelButtonIndex,
-			destructiveButtonIndex
+			destructiveButtonIndex,
+			containerStyle: {
+				backgroundColor: colors.backgroundHighlighted,
+			},
+			textStyle: {
+				color: colors.text,
+			},
 		}, (selectedIndex) => {
 			switch (selectedIndex) {
 				case 1:

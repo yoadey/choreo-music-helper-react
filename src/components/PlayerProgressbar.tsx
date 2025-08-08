@@ -19,7 +19,7 @@ export const PlayerProgressBar = ({ style }: ViewProps) => {
 				progress={position}
 				duration={duration}
 				onSeek={(newProgress) => TrackPlayer.seekTo(newProgress)}
-				progressedBarColor={colors.minimumTrackTintColor}
+				elapsedBarColor={colors.minimumTrackTintColor}
 				remainingBarColor={colors.maximumTrackTintColor}
 			/>
 

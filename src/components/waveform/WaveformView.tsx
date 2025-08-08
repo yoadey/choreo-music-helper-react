@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   DimensionValue,
@@ -7,7 +7,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native'
-import { extractWaveformWeb } from './useWaveformWeb'
+import { useWaveformWeb } from './useWaveformWeb'
 
 type Props = {
   mp3Url: string | undefined
@@ -17,7 +17,7 @@ type Props = {
   visibleTime?: number
   barWidth?: number
   barSpacing?: number
-  progressedBarColor?: string
+  elapsedBarColor?: string
   remainingBarColor?: string
   backgroundColor?: string
   maxHeight?: number
@@ -29,16 +29,15 @@ export default function WaveformView({
   progress,
   onSeek,
   duration,
-  visibleTime = 30,
-  barWidth = 3,
+  visibleTime = 60,
+  barWidth = 4,
   barSpacing = 2,
-  progressedBarColor = '#000',
+  elapsedBarColor = '#000',
   remainingBarColor = '#FFF',
   backgroundColor = 'transparent',
   maxHeight = 25,
   baseline = 1,
 }: Props) {
-  const [waveform, setWaveform] = useState<number[] | null>(null)
   const [width, setWidth] = useState<number>(1)
 
   // We must use Refs, 
@@ -50,23 +49,8 @@ export default function WaveformView({
   const pixelPerSecond = visibleTime / width
   const barTotal = barWidth + barSpacing
   const barCount = width / barTotal
-  const entries = Math.round(barCount / visibleTime * duration)
-  useEffect(() => {
-    if (waveform?.length !== entries) {
-      setWaveform(Array(entries).fill(baseline))
-    }
-  }, [entries, baseline]);
 
-  useEffect(() => {
-    if (!mp3Url) return
-    const work = async () => {
-      extractWaveformWeb(mp3Url, barCount / visibleTime).then(({ waveform }) => {
-        setWaveform(waveform)
-      })
-    }
-    work()
-  }, [mp3Url, barCount, visibleTime])
-
+  const waveform = useWaveformWeb({ mp3Url, resolution: Math.round(barCount / visibleTime * duration), baseline })
 
   const handleScrub = useCallback(
     (x: number) => {
@@ -148,7 +132,7 @@ export default function WaveformView({
             width: barWidth,
             height: barHeight,
             marginRight: i === visibleBarCount - 1 ? 0 : barSpacing,
-            backgroundColor: isCenter ? undefined : i < halfBarCount ? progressedBarColor : remainingBarColor,
+            backgroundColor: isCenter ? undefined : i < halfBarCount ? elapsedBarColor : remainingBarColor,
             ...styles.barStyle
           }
 
@@ -157,7 +141,7 @@ export default function WaveformView({
             const rightWidth = barWidth - leftWidth
             return (
               <View key={i} style={[barStyle, styles.centerWrapper]}>
-                <View style={[barStyle, { width: leftWidth, backgroundColor: progressedBarColor, marginRight: 0 }]} />
+                <View style={[barStyle, { width: leftWidth, backgroundColor: elapsedBarColor, marginRight: 0 }]} />
                 <View style={[barStyle, { width: rightWidth, backgroundColor: remainingBarColor, marginRight: 0 }]} />
               </View>
             )

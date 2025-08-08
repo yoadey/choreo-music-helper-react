@@ -48,20 +48,17 @@ const App = () => {
 }
 
 const RootNavigation = () => {
-	const { currentTrack, setCurrentTrack } = useCurrentTrack()
+	const { currentTrack } = useCurrentTrack()
 	return (
 		<Stack>
 			<Stack.Screen name="(tabs)" options={{
 				title: `${currentTrack ? currentTrack?.title + " - " : ""}Choreo Music Helper`,
 				headerShown: true,
 				headerLargeTitle: true,
-				headerLargeStyle: {
-					backgroundColor: colors.background,
-				},
 				headerLargeTitleStyle: {
 					color: colors.text,
 				},
-				headerStyle: { backgroundColor: colors.background },
+				headerStyle: { backgroundColor: colors.backgroundSecondary },
 				headerTintColor: colors.text,
 				headerTransparent: false,
 				headerBlurEffect: 'prominent',

@@ -28,7 +28,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/favicon.png",
         "backgroundColor": "#000"
-      }
+      },
+      "package": "de.yoadey.choreomusic"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -41,7 +42,8 @@
       }
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "react-native-legal"
     ],
     "experiments": {
       "typedRoutes": true,

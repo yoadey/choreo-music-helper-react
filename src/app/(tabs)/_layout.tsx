@@ -18,11 +18,11 @@ const TabsNavigation = () => {
 						fontWeight: '500',
 					},
 					tabBarStyle: {
-						position: 'absolute',
-						borderTopWidth: 0,
-						paddingTop: 8,
-						backgroundColor: '#252525',
+						backgroundColor: colors.backgroundSecondary,
+						borderBottomWidth: 0,
 					},
+					tabBarActiveBackgroundColor: colors.backgroundHighlighted,
+					tabBarPosition: 'top',
 					headerShown: false,
 				}}
 				initialRouteName='(songs)'
@@ -35,6 +35,7 @@ const TabsNavigation = () => {
 						tabBarIcon: ({ color }) => (
 							<Ionicons name="musical-notes-sharp" size={24} color={color} />
 						),
+						tabBarLabelPosition: 'beside-icon',
 					}}
 				/>
 				<Tabs.Screen
@@ -44,6 +45,7 @@ const TabsNavigation = () => {
 						tabBarIcon: ({ color }) => (
 							<MaterialCommunityIcons name="playlist-play" size={28} color={color} />
 						),
+						tabBarLabelPosition: 'beside-icon',
 					}}
 				/>
 			</Tabs>

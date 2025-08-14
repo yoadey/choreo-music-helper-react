@@ -22,6 +22,7 @@ type Props = {
   backgroundColor?: string
   maxHeight?: number
   baseline?: number
+  trackId?: string
 }
 
 export default function WaveformView({
@@ -37,6 +38,7 @@ export default function WaveformView({
   backgroundColor = 'transparent',
   maxHeight = 25,
   baseline = 1,
+  trackId,
 }: Props) {
   const [width, setWidth] = useState<number>(1)
 
@@ -50,7 +52,7 @@ export default function WaveformView({
   const barTotal = barWidth + barSpacing
   const barCount = width / barTotal
 
-  const waveform = useWaveformWeb({ mp3Url, resolution: Math.round(barCount / visibleTime * duration), baseline })
+  const waveform = useWaveformWeb({ mp3Url, resolution: Math.round(barCount / visibleTime * duration), baseline, trackId })
 
   const handleScrub = useCallback(
     (x: number) => {

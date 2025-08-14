@@ -14,6 +14,7 @@ export default class TrackWithClips extends Model {
   @text('title') title!: string;
   @text('uri') uri!: string;
   @field('length') length!: number;
+  @text('waveform') waveform!: string | null;
   @children('clips') clips!: Query<Clip>;
 }
 

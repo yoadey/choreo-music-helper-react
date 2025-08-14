@@ -12,6 +12,7 @@ import { useCallback } from 'react'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import TrackPlayer from 'react-native-track-player'
+import Tutorial from '@/components/Tutorial'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -37,9 +38,10 @@ const App = () => {
 	return (
 		<SafeAreaProvider>
 			<GestureHandlerRootView style={{ flex: 1 }}>
-				<ActionSheetProvider>
-					<RootNavigation />
-				</ActionSheetProvider>
+                                <ActionSheetProvider>
+                                        <RootNavigation />
+                                        <Tutorial />
+                                </ActionSheetProvider>
 
 				<StatusBar style="auto" />
 			</GestureHandlerRootView>

@@ -1,12 +1,25 @@
 import { useEffect, useState } from "react";
+import { database } from '@/model/index.web'
+import TrackWithClips from '@/model/track'
 
-
-
-export const useWaveformWeb = ({ mp3Url, resolution, baseline }: { mp3Url: string | undefined, resolution: number, baseline: number }) => {
+export const useWaveformWeb = ({ mp3Url, resolution, baseline, trackId }: { mp3Url: string | undefined, resolution: number, baseline: number, trackId?: string }) => {
   const [waveform, setWaveform] = useState<number[] | null>(null)
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | undefined>()
 
   useEffect(() => {
+    if (!trackId) return
+    database.get<TrackWithClips>('tracks').find(trackId).then(track => {
+      if (track.waveform) {
+        try {
+          setWaveform(JSON.parse(track.waveform))
+        } catch { }
+      }
+    })
+  }, [trackId])
+
+  // intentionally omit `waveform` from deps for performance
+  useEffect(() => {
+    if (waveform) return
     let active = true
     load()
     return () => { active = false }
@@ -22,30 +35,40 @@ export const useWaveformWeb = ({ mp3Url, resolution, baseline }: { mp3Url: strin
 
       const audioCtx = new window.AudioContext()
       const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
-      setAudioBuffer(audioBuffer)
+      if (active) setAudioBuffer(audioBuffer)
     }
-  }, [mp3Url]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mp3Url])
 
+  // keep dependency list minimal to avoid frequent re-execution with large objects
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (audioBuffer) {
+    if (audioBuffer && !waveform) {
       const rawData = audioBuffer.getChannelData(0) // Mono
       const blockSize = Math.floor(rawData.length / resolution)
 
-      const waveform: number[] = []
+      const wf: number[] = []
       for (let i = 0; i < resolution; i++) {
         let sum = 0
         for (let j = 0; j < blockSize; j++) {
           sum += Math.abs(rawData[i * blockSize + j] || 0)
         }
-        waveform.push(sum / blockSize)
+        wf.push(sum / blockSize)
       }
-      setWaveform(waveform)
-    } else {
-      if (waveform?.length !== resolution) {
-        setWaveform(Array(resolution).fill(baseline))
+      setWaveform(wf)
+      if (trackId) {
+        database.write(async () => {
+          const track = await database.get<TrackWithClips>('tracks').find(trackId)
+          await track.update(() => {
+            track.waveform = JSON.stringify(wf)
+            track.length = Math.round(audioBuffer.duration * 1000)
+          })
+        })
       }
+    } else if (!waveform) {
+      setWaveform(Array(resolution).fill(baseline))
     }
-  }, [audioBuffer?.length, resolution, baseline]);
+  }, [audioBuffer, resolution, baseline, trackId])
 
   return waveform
 }

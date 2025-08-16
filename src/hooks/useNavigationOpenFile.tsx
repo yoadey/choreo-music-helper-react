@@ -33,11 +33,11 @@ export const useNavigationOpenFile = ({
                                 const { set } = await import('idb-keyval');
                                 const response = await fetch(fileUri);
                                 const blob = await response.blob();
-                                const arrayBuffer = await response.arrayBuffer();
+                                const arrayBuffer = await blob.arrayBuffer();
                                 const { extractWaveform } = await import('@/helpers/waveform.web');
                                 const { waveform, duration } = await extractWaveform(arrayBuffer, 1000);
-                                const { parseBlob } = await import('music-metadata-browser');
-                                const metadata = await parseBlob(blob);
+                                const { parseBuffer } = await import('music-metadata');
+                                const metadata = await parseBuffer(new Uint8Array(arrayBuffer));
                                 const chapterTags = [
                                         ...(metadata.native?.['ID3v2.4'] || []),
                                         ...(metadata.native?.['ID3v2.3'] || []),

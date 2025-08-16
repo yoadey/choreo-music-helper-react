@@ -1,10 +1,18 @@
 import TrackWithClips from '@/model/track';
 import Clip from '@/model/clip';
 import ID3Writer from 'browser-id3-writer';
+import { get } from 'idb-keyval';
 
 export async function shareTrackWithClips(track: TrackWithClips, clips: Clip[]): Promise<void> {
-  const response = await fetch(track.uri);
-  const arrayBuffer = await response.arrayBuffer();
+  let arrayBuffer: ArrayBuffer;
+  if (track.uri.startsWith('/audio/')) {
+    const blob = await get(track.uri);
+    if (!blob) throw new Error('Track data not found');
+    arrayBuffer = await blob.arrayBuffer();
+  } else {
+    const response = await fetch(track.uri);
+    arrayBuffer = await response.arrayBuffer();
+  }
   const writer = new ID3Writer(arrayBuffer);
 
   const sorted = [...clips].sort((a, b) => a.position - b.position);

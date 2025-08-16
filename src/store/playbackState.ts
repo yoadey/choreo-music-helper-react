@@ -32,7 +32,7 @@ export type ClipPosition = {
 export const KEY_LOOP_START = 'loopStart';
 export const useLoopStart = () => useMMKVObject<ClipPosition>(KEY_LOOP_START, preferences);
 export const getLoopStart = () => {
-    var json = preferences.getString(KEY_LOOP_START);
+    const json = preferences.getString(KEY_LOOP_START);
     if (json == null) return undefined;
     return (JSON.parse(json) as ClipPosition).position;
 }
@@ -42,7 +42,7 @@ export const getLoopStart = () => {
 export const KEY_LOOP_END = 'loopEnd';
 export const useLoopEnd = () => useMMKVObject<ClipPosition>(KEY_LOOP_END, preferences);
 export const getLoopEnd = () => {
-    var json = preferences.getString(KEY_LOOP_END);
+    const json = preferences.getString(KEY_LOOP_END);
     if (json == null) return undefined;
     return (JSON.parse(json) as ClipPosition).position;
 }

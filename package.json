@@ -6,7 +6,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo run:web",
-    "lint": "eslint .",
+    "lint": "eslint src",
     "build:web": "expo export -p web && npx workbox injectManifest workbox-config.js && metro build temp/sw.js -O dist/sw.js",
     "generate:licenses": "license-kit report --format json --output ./assets/licenses.json"
   },
@@ -18,7 +18,7 @@
     "@react-native-menu/menu": "^1.2.3",
     "@react-navigation/drawer": "^7.5.6",
     "@types/jest": "^30.0.0",
-    "browser-id3-writer": "^6.3.0",
+    "browser-id3-writer": "github:egoroof/browser-id3-writer#c2e047aad205a6354e1ac2e903ebd2021849d21d",
     "eslint-config-expo": "^9.2.0",
     "expo": "53.0.11",
     "expo-application": "^6.1.5",

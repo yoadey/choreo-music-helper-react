@@ -1,6 +1,6 @@
 import TrackWithClips from '@/model/track';
 import Clip from '@/model/clip';
-import ID3Writer from 'browser-id3-writer';
+import * as ID3Writer from 'browser-id3-writer';
 import { get } from 'idb-keyval';
 
 export async function shareTrackWithClips(track: TrackWithClips, clips: Clip[]): Promise<void> {
@@ -13,7 +13,8 @@ export async function shareTrackWithClips(track: TrackWithClips, clips: Clip[]):
     const response = await fetch(track.uri);
     arrayBuffer = await response.arrayBuffer();
   }
-  const writer = new ID3Writer(arrayBuffer);
+  // browser-id3-writer exposes the constructor as a property on the module namespace
+  const writer = new ID3Writer.ID3Writer(arrayBuffer);
 
   const sorted = [...clips].sort((a, b) => a.position - b.position);
   sorted.forEach((clip, index) => {

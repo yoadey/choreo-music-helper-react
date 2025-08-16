@@ -22,7 +22,7 @@ export const useSpeed = () => useMMKVNumber(KEY_SPEED, preferences);
 export const getSpeed = () => preferences.getNumber(KEY_SPEED) ?? 1.0;
 
 export type ClipPosition = {
-    id: String
+    id: string
     position: number
 }
 

@@ -20,11 +20,9 @@ export default class TrackWithClips extends Model {
 
 
 export function useTracks() {
-  const database = useDatabase()
+  const database = useDatabase();
 
-  const tracks = withObservables(["database"], ({ database }) => ({
-    tracks: database.get("tracks").find().observe()
+  return withObservables(['database'], { database }, ({ database }) => ({
+    tracks: database.get('tracks').query().observe(),
   }));
-
-  return tracks
 }

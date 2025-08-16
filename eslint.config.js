@@ -1,15 +1,18 @@
-const { defineConfig } = require('eslint/config');
+const { FlatCompat } = require('@eslint/eslintrc');
+const js = require('@eslint/js');
+const compat = new FlatCompat({ baseDirectory: __dirname, recommendedConfig: js.configs.recommended });
 
-module.exports = defineConfig({
-  ignores: ['dist/*'],
-  extends: ['eslint:recommended', 'plugin:react/recommended', 'plugin:react-hooks/recommended'],
-  parser: '@typescript-eslint/parser',
-  parserOptions: {
-    ecmaFeatures: { jsx: true },
-    ecmaVersion: 'latest',
-    sourceType: 'module',
+module.exports = [
+  { ignores: ['dist/*', 'src/sw.js'] },
+  ...compat.extends('eslint:recommended', 'plugin:react/recommended', 'plugin:react-hooks/recommended', 'plugin:@typescript-eslint/recommended'),
+  {
+    files: ['**/*.{ts,tsx,js,jsx}'],
+    languageOptions: {
+      parser: require('@typescript-eslint/parser'),
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    settings: { react: { version: 'detect' } },
   },
-  plugins: ['@typescript-eslint', 'react', 'react-hooks'],
-  env: { browser: true, es2021: true },
-  settings: { react: { version: 'detect' } },
-});
+];

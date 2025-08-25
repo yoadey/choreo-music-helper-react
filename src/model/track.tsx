@@ -1,7 +1,6 @@
 import { Model, Query } from '@nozbe/watermelondb';
 import { Associations } from '@nozbe/watermelondb/Model';
 import { children, field, text } from '@nozbe/watermelondb/decorators';
-import { useDatabase, withObservables } from '@nozbe/watermelondb/react';
 import Clip from './clip';
 
 export default class TrackWithClips extends Model {
@@ -14,16 +13,7 @@ export default class TrackWithClips extends Model {
   @text('title') title!: string;
   @text('uri') uri!: string;
   @field('length') length!: number;
+  @text('waveform') waveform!: string | null;
   @children('clips') clips!: Query<Clip>;
 }
 
-
-export function useTracks() {
-  const database = useDatabase()
-
-  const tracks = withObservables(["database"], ({ database }) => ({
-    tracks: database.get("tracks").find().observe()
-  }));
-
-  return tracks
-}

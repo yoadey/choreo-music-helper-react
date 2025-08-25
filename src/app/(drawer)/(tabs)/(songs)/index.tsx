@@ -5,24 +5,18 @@ import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { defaultStyles } from '@/styles'
 import { withObservables } from '@nozbe/watermelondb/react'
-import { ScrollView, View } from 'react-native'
+import { View } from 'react-native'
 
 const SongsScreen = ({ tracks }: { tracks: TrackWithClips[] }) => {
 
-	return (
-		<View style={defaultStyles.container}>
-			<ScrollView
-				contentInsetAdjustmentBehavior="automatic"
-				style={{ paddingHorizontal: screenPadding.horizontal }}
-			>
-				<TracksList
-					id={generateTracksListId('songs', "")}
-					tracks={tracks}
-					scrollEnabled={false}
-				/>
-			</ScrollView>
-		</View>
-	)
+        return (
+                <View style={[defaultStyles.container, { paddingHorizontal: screenPadding.horizontal }]}> 
+                        <TracksList
+                                id={generateTracksListId('songs', "")}
+                                tracks={tracks}
+                        />
+                </View>
+        )
 }
 
 const enhance = withObservables<{}, { tracks: TrackWithClips[] }>([], () => ({

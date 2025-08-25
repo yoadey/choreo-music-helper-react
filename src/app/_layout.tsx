@@ -6,6 +6,7 @@ import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { getLastTrack } from '@/store/playbackState'
 import { ActionSheetProvider } from '@expo/react-native-action-sheet'
+import { Q } from '@nozbe/watermelondb'
 import { SplashScreen, Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useCallback } from 'react'
@@ -24,9 +25,17 @@ const App = () => {
 
 		let trackId = getLastTrack();
 		if (trackId) {
-			database.get<TrackWithClips>("tracks")
-				.find(trackId)
-				.then(setCurrentTrack)
+			try {
+				database.get<TrackWithClips>("tracks").query(
+					Q.where("id", trackId)
+				).then(tracks => {
+					if (tracks.length === 1) {
+						setCurrentTrack(tracks[0])
+					}
+				})
+			} catch (error) {
+				console.log("track not found")
+			}
 		}
 	}, [])
 
@@ -39,6 +48,7 @@ const App = () => {
 			<GestureHandlerRootView style={{ flex: 1 }}>
 				<ActionSheetProvider>
 					<RootNavigation />
+					{/*<Tutorial />*/}
 				</ActionSheetProvider>
 
 				<StatusBar style="auto" />

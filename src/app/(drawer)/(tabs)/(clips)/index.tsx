@@ -3,7 +3,7 @@ import { useCurrentTrack } from '@/hooks/useCurrentTrack'
 import Clip from '@/model/clip'
 import { defaultStyles } from '@/styles'
 import { useMemo, useState } from 'react'
-import { ScrollView, View } from 'react-native'
+import { View } from 'react-native'
 
 const ClipsScreen = () => {
 	const { currentTrack, setCurrentTrack } = useCurrentTrack()
@@ -15,21 +15,11 @@ const ClipsScreen = () => {
 		})
 	}, [currentTrack?.id])
 
-	return (
-		<View style={defaultStyles.container}>
-			<ScrollView
-				contentInsetAdjustmentBehavior="automatic"
-				style={{
-					padding: 0,
-				}}
-			>
-				<ClipsList
-					scrollEnabled={false}
-					clips={clips}
-				/>
-			</ScrollView>
-		</View>
-	)
+        return (
+                <View style={defaultStyles.container}>
+                        <ClipsList clips={clips} />
+                </View>
+        )
 }
 
 export default ClipsScreen

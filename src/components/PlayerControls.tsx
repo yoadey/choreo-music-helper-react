@@ -21,8 +21,8 @@ type PlayerButtonProps = {
 
 export const PlayerControls = ({ style }: PlayerControlsProps) => {
 
-	const { currentTrack } = useCurrentTrack()
-	const [clips, setClips] = useState<Clip[]>([]);
+        const { currentTrack } = useCurrentTrack()
+        const [clips, setClips] = useState<Clip[]>([]);
 
 	useMemo(() => {
 		currentTrack?.clips.observeWithColumns(['position']).subscribe((clips) => {
@@ -61,16 +61,16 @@ export const PlayerControls = ({ style }: PlayerControlsProps) => {
 				}
 			});
 	}
-	return (
-		<View style={[styles.container, style]}>
-			<View style={styles.row}>
+        return (
+                <View style={[styles.container, style]}>
+                        <View style={styles.row}>
 
-				<LoopButton />
+                                <LoopButton />
 
-				<PlayerAddClipButton size={32} />
+                                <PlayerAddClipButton size={32} />
 
-				<SpeedButton />
-			</View>
+                                <SpeedButton />
+                        </View>
 			<PlayerProgressBar style={{ marginTop: 10, paddingHorizontal: 10 }} />
 			<View style={styles.row}>
 				<TouchableOpacity activeOpacity={0.7} onPress={handlePrevious} style={[styles.button]}>

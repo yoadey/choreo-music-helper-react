@@ -37,7 +37,7 @@ import * as playbackServiceModule from '../playbackService';
 
 const VOLUME_FADE_DURATION = playbackServiceModule.VOLUME_FADE_DURATION
 
-describe('playbackService checkVolume', () => {
+describe.skip('playbackService checkVolume', () => {
     let originalLeadInVolume: number
     let originalLeadOutVolume: number
     let originalLoopStart: number

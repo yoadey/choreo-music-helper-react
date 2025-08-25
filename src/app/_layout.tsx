@@ -6,13 +6,13 @@ import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { getLastTrack } from '@/store/playbackState'
 import { ActionSheetProvider } from '@expo/react-native-action-sheet'
+import { Q } from '@nozbe/watermelondb'
 import { SplashScreen, Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useCallback } from 'react'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import TrackPlayer from 'react-native-track-player'
-import Tutorial from '@/components/Tutorial'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -25,9 +25,17 @@ const App = () => {
 
 		let trackId = getLastTrack();
 		if (trackId) {
-			database.get<TrackWithClips>("tracks")
-				.find(trackId)
-				.then(setCurrentTrack)
+			try {
+				database.get<TrackWithClips>("tracks").query(
+					Q.where("id", trackId)
+				).then(tracks => {
+					if (tracks.length === 1) {
+						setCurrentTrack(tracks[0])
+					}
+				})
+			} catch (error) {
+				console.log("track not found")
+			}
 		}
 	}, [])
 
@@ -38,10 +46,10 @@ const App = () => {
 	return (
 		<SafeAreaProvider>
 			<GestureHandlerRootView style={{ flex: 1 }}>
-                                <ActionSheetProvider>
-                                        <RootNavigation />
-                                        <Tutorial />
-                                </ActionSheetProvider>
+				<ActionSheetProvider>
+					<RootNavigation />
+					{/*<Tutorial />*/}
+				</ActionSheetProvider>
 
 				<StatusBar style="auto" />
 			</GestureHandlerRootView>

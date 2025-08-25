@@ -12,14 +12,10 @@ const DrawerNavigator = () => {
                                 options={{
                                         title: `Music Player`,
                                         headerShown: true,
-                                        headerLargeTitleStyle: {
-                                                color: colors.text,
-                                        },
                                         headerTitle: `${currentTrack ? currentTrack?.title + ' - ' : ''}Choreo Music Helper`,
                                         headerStyle: { backgroundColor: colors.backgroundSecondary },
                                         headerTintColor: colors.text,
                                         headerTransparent: false,
-                                        headerBlurEffect: 'prominent',
                                         headerShadowVisible: false,
                                         drawerStyle: {
                                                 backgroundColor: colors.backgroundHighlighted,
@@ -48,13 +44,9 @@ const DrawerNavigator = () => {
                                 options={{
                                         title: `Info`,
                                         headerShown: true,
-                                        headerLargeTitleStyle: {
-                                                color: colors.text,
-                                        },
                                         headerStyle: { backgroundColor: colors.backgroundSecondary },
                                         headerTintColor: colors.text,
                                         headerTransparent: false,
-                                        headerBlurEffect: 'prominent',
                                         headerShadowVisible: false,
                                         drawerStyle: {
                                                 backgroundColor: colors.backgroundHighlighted,

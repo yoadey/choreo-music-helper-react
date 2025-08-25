@@ -16,10 +16,12 @@ const adapter = new LokiJSAdapter({
 
     // --- Optional, but recommended event handlers:
 
-    onQuotaExceededError: (error) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    onQuotaExceededError: (_error) => {
         // Browser ran out of disk space -- offer the user to reload the app or log out
     },
-    onSetUpError: (error) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    onSetUpError: (_error) => {
         // Database failed to load -- offer the user to reload the app or log out
     },
     extraIncrementalIDBOptions: {

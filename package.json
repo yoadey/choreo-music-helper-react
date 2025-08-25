@@ -34,7 +34,7 @@
     "idb-keyval": "^6.2.2",
     "jest": "~29.7.0",
     "jest-expo": "~53.0.7",
-    "node-id3": "^0.2.9",
+    "music-metadata": "^11.8.3",
     "react": "^19.1.0",
     "react-color": "^2.19.3",
     "react-dom": "^19.1.0",

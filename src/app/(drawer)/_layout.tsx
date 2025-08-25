@@ -2,6 +2,7 @@ import { colors } from '@/constants/tokens'
 import { useCurrentTrack } from '@/hooks/useCurrentTrack'
 import { Drawer } from 'expo-router/drawer'
 import { FontAwesome6 } from '@expo/vector-icons'
+import { Platform } from 'react-native'
 
 const DrawerNavigator = () => {
 	const { currentTrack } = useCurrentTrack()
@@ -29,16 +30,18 @@ const DrawerNavigator = () => {
                                         ),
                                 }}
                         />
-                        <Drawer.Screen
-                                name="share"
-                                options={{
-                                        title: `Share`,
-                                        drawerIcon: ({ color, size }) => (
-                                                <FontAwesome6 name="share-from-square" size={size} color={color} />
-                                        ),
-                                        headerShown: false,
-                                }}
-                        />
+                        {Platform.OS === 'android' && (
+                                <Drawer.Screen
+                                        name="share"
+                                        options={{
+                                                title: `Share`,
+                                                drawerIcon: ({ color, size }) => (
+                                                        <FontAwesome6 name="share-from-square" size={size} color={color} />
+                                                ),
+                                                headerShown: false,
+                                        }}
+                                />
+                        )}
                         <Drawer.Screen
                                 name="info"
                                 options={{

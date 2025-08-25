@@ -2,6 +2,7 @@ import Clip from '@/model/clip';
 import { database } from '@/model/index.web';
 import TrackWithClips from '@/model/track';
 import { FontAwesome6 } from '@expo/vector-icons';
+import type { ParamListBase } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as DocumentPicker from 'expo-document-picker';
 import { useNavigation } from 'expo-router';
@@ -11,11 +12,9 @@ import { useCurrentTrack } from './useCurrentTrack';
 import { Buffer } from 'buffer';
 
 
-export const useNavigationOpenFile = ({
-}: {
-	}) => {
-	const navigation = useNavigation<NativeStackNavigationProp<any>>();
-	const { setCurrentTrack } = useCurrentTrack()
+export const useNavigationOpenFile = () => {
+        const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
+        const { setCurrentTrack } = useCurrentTrack()
 
         type PickedFile = { uri: string; name: string; title: string; length: number; waveform: number[]; clips: { title: string; position: number; color: string }[] }
 
@@ -37,16 +36,29 @@ export const useNavigationOpenFile = ({
                                 const arrayBuffer = await blob.arrayBuffer();
                                 const { extractWaveform } = await import('@/helpers/waveform.web');
                                 const { waveform, duration } = await extractWaveform(arrayBuffer, 1000);
-                                const NodeID3 = (await import('node-id3')).default;
-                                const tags = NodeID3.read(Buffer.from(arrayBuffer));
-                                const clips = (tags.chapter || []).map((chap: any, i: number) => ({
-                                        title: chap.tags?.title || `Clip ${i + 1}`,
-                                        position: chap.startTimeMs || 0,
-                                        color: '#00000000',
-                                }));
+                                const mm = await import('music-metadata');
+                                type ChapFrame = { id: string; value: { tags?: { title?: string }; startTimeMs?: number } };
+                                const metadata = await mm.parseBuffer(Buffer.from(arrayBuffer), 'audio/mpeg');
+                                const frames = (metadata.native?.['ID3v2.4'] as ChapFrame[] | undefined) ||
+                                        (metadata.native?.['ID3v2.3'] as ChapFrame[] | undefined) ||
+                                        [];
+                                const chapters = frames
+                                        .filter((f) => f.id === 'CHAP')
+                                        .map((chap, i) => ({
+                                                title: chap.value.tags?.title || `Clip ${i + 1}`,
+                                                position: chap.value.startTimeMs || 0,
+                                                color: '#00000000',
+                                        }));
                                 const key = `/audio/${encodeURIComponent(uniqueName)}`;
                                 await set(key, blob);
-                                return { uri: key, name: originalName, title: tags.title || '', length: duration, waveform, clips };
+                                return {
+                                        uri: key,
+                                        name: originalName,
+                                        title: metadata.common.title || '',
+                                        length: duration,
+                                        waveform,
+                                        clips: chapters,
+                                };
                         } else {
                                 return { uri: fileUri, name: originalName, title: '', length: 0, waveform: [], clips: [] }; // Native path
                         }
@@ -60,7 +72,7 @@ export const useNavigationOpenFile = ({
                         .then(({ uri, name, title, length, waveform, clips }) => {
                                 database.write(async () => {
                                         const tracksCollection = database.get<TrackWithClips>('tracks');
-                                        let track = await tracksCollection.create((t: TrackWithClips) => {
+                                        const track = await tracksCollection.create((t: TrackWithClips) => {
                                                 t.title = title ? title : name;
                                                 t.uri = uri;
                                                 t.length = length;
@@ -94,17 +106,17 @@ export const useNavigationOpenFile = ({
                         });
         };
 
-	useLayoutEffect(() => {
-		navigation.setOptions({
-			headerRight: () => (
-				<>
-					<TouchableOpacity onPress={handleChooseFile} style={{ paddingRight: 20 }}>
-						<FontAwesome6 name="folder-open" size={22} color="#FFFFFF" solid />
-					</TouchableOpacity>
-				</>
-			),
-		});
-	}, [navigation]);
+        useLayoutEffect(() => {
+                navigation.setOptions({
+                        headerRight: () => (
+                                <>
+                                        <TouchableOpacity onPress={handleChooseFile} style={{ paddingRight: 20 }}>
+                                                <FontAwesome6 name="folder-open" size={22} color="#FFFFFF" solid />
+                                        </TouchableOpacity>
+                                </>
+                        ),
+                });
+        }, [navigation, handleChooseFile]);
 
 	return null;
 }

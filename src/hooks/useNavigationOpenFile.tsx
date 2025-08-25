@@ -8,6 +8,7 @@ import { useNavigation } from 'expo-router';
 import React, { useLayoutEffect } from 'react';
 import { Platform, TouchableOpacity } from 'react-native';
 import { useCurrentTrack } from './useCurrentTrack';
+import { Buffer } from 'buffer';
 
 
 export const useNavigationOpenFile = ({
@@ -36,20 +37,16 @@ export const useNavigationOpenFile = ({
                                 const arrayBuffer = await blob.arrayBuffer();
                                 const { extractWaveform } = await import('@/helpers/waveform.web');
                                 const { waveform, duration } = await extractWaveform(arrayBuffer, 1000);
-                                const { parseBuffer } = await import('music-metadata');
-                                const metadata = await parseBuffer(new Uint8Array(arrayBuffer));
-                                const chapterTags = [
-                                        ...(metadata.native?.['ID3v2.4'] || []),
-                                        ...(metadata.native?.['ID3v2.3'] || []),
-                                ].filter((tag: any) => tag.id === 'CHAP');
-                                const clips = chapterTags.map((tag: any, i: number) => ({
-                                        title: tag.value?.subFrames?.TIT2?.data || `Clip ${i + 1}`,
-                                        position: tag.value?.startTime || 0,
+                                const NodeID3 = (await import('node-id3')).default;
+                                const tags = NodeID3.read(Buffer.from(arrayBuffer));
+                                const clips = (tags.chapter || []).map((chap: any, i: number) => ({
+                                        title: chap.tags?.title || `Clip ${i + 1}`,
+                                        position: chap.startTimeMs || 0,
                                         color: '#00000000',
                                 }));
                                 const key = `/audio/${encodeURIComponent(uniqueName)}`;
                                 await set(key, blob);
-                                return { uri: key, name: originalName, title: metadata.common.title || '', length: duration, waveform, clips };
+                                return { uri: key, name: originalName, title: tags.title || '', length: duration, waveform, clips };
                         } else {
                                 return { uri: fileUri, name: originalName, title: '', length: 0, waveform: [], clips: [] }; // Native path
                         }

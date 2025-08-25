@@ -8,7 +8,8 @@
     "web": "expo run:web",
     "lint": "eslint src",
     "build:web": "expo export -p web && npx workbox injectManifest workbox-config.js && metro build temp/sw.js -O dist/sw.js",
-    "generate:licenses": "license-kit report --format json --output ./assets/licenses.json"
+    "generate:licenses": "license-kit report --format json --output ./assets/licenses.json",
+    "test": "jest"
   },
   "dependencies": {
     "@expo/react-native-action-sheet": "^4.1.1",
@@ -33,7 +34,7 @@
     "idb-keyval": "^6.2.2",
     "jest": "~29.7.0",
     "jest-expo": "~53.0.7",
-    "music-metadata": "^11.8.2",
+    "node-id3": "^0.2.9",
     "react": "^19.1.0",
     "react-color": "^2.19.3",
     "react-dom": "^19.1.0",

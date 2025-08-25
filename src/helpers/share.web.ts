@@ -1,7 +1,8 @@
 import TrackWithClips from '@/model/track';
 import Clip from '@/model/clip';
-import { ID3Writer } from '@/lib/id3';
+import NodeID3 from 'node-id3';
 import { get } from 'idb-keyval';
+import { Buffer } from 'buffer';
 
 export async function shareTrackWithClips(track: TrackWithClips, clips: Clip[]): Promise<void> {
   let arrayBuffer: ArrayBuffer;
@@ -13,29 +14,30 @@ export async function shareTrackWithClips(track: TrackWithClips, clips: Clip[]):
     const response = await fetch(track.uri);
     arrayBuffer = await response.arrayBuffer();
   }
-  const writer = new ID3Writer(arrayBuffer);
-
   const sorted = [...clips].sort((a, b) => a.position - b.position);
-  sorted.forEach((clip, index) => {
-    const end = sorted[index + 1] ? sorted[index + 1].position : track.length;
-    writer.setFrame('CHAP', {
-      elementID: `clip${index}`,
-      startTime: clip.position,
-      endTime: end,
-      startOffset: 0,
-      endOffset: 0,
-      tags: { TIT2: clip.title }
-    });
-  });
+  const tags = {
+    title: track.title,
+    chapter: sorted.map((clip, index) => {
+      const end = sorted[index + 1] ? sorted[index + 1].position : track.length;
+      return {
+        elementID: `clip${index}`,
+        startTimeMs: clip.position,
+        endTimeMs: end,
+        startOffsetBytes: 0,
+        endOffsetBytes: 0,
+        tags: { title: clip.title }
+      };
+    }),
+    tableOfContents: [{
+      elementID: 'toc',
+      isOrdered: true,
+      elements: sorted.map((_, i) => `clip${i}`),
+      tags: { title: track.title }
+    }]
+  } as const;
 
-  writer.setFrame('CTOC', {
-    elementID: 'toc',
-    flags: 0,
-    childElementIDs: sorted.map((_, i) => `clip${i}`)
-  });
-
-  writer.addTag();
-  const blob = writer.getBlob();
+  const updated = NodeID3.update(tags, Buffer.from(arrayBuffer));
+  const blob = new Blob([updated], { type: 'audio/mpeg' });
   const file = new File([blob], `${track.title}.mp3`, { type: 'audio/mpeg' });
 
   if (navigator.share) {

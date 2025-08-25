@@ -4,12 +4,12 @@ import TrackWithClips from '@/model/track';
 import { FontAwesome6 } from '@expo/vector-icons';
 import type { ParamListBase } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Buffer } from 'buffer';
 import * as DocumentPicker from 'expo-document-picker';
 import { useNavigation } from 'expo-router';
 import React, { useLayoutEffect } from 'react';
 import { Platform, TouchableOpacity } from 'react-native';
 import { useCurrentTrack } from './useCurrentTrack';
-import { Buffer } from 'buffer';
 
 
 export const useNavigationOpenFile = () => {
@@ -38,7 +38,8 @@ export const useNavigationOpenFile = () => {
                                 const { waveform, duration } = await extractWaveform(arrayBuffer, 1000);
                                 const mm = await import('music-metadata');
                                 type ChapFrame = { id: string; value: { tags?: { title?: string }; startTimeMs?: number } };
-                                const metadata = await mm.parseBuffer(Buffer.from(arrayBuffer), 'audio/mpeg');
+                                const arrayBufferMetaData = await blob.arrayBuffer();
+                                const metadata = await mm.parseBuffer(Buffer.from(arrayBufferMetaData), 'audio/mpeg');
                                 const frames = (metadata.native?.['ID3v2.4'] as ChapFrame[] | undefined) ||
                                         (metadata.native?.['ID3v2.3'] as ChapFrame[] | undefined) ||
                                         [];

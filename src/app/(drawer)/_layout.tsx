@@ -1,12 +1,12 @@
 import { colors } from '@/constants/tokens'
 import { useCurrentTrack } from '@/hooks/useCurrentTrack'
-import { Drawer } from 'expo-router/drawer'
 import { FontAwesome6 } from '@expo/vector-icons'
+import { Drawer } from 'expo-router/drawer'
 import { Platform } from 'react-native'
 
 const DrawerNavigator = () => {
-	const { currentTrack } = useCurrentTrack()
-	return (
+        const { currentTrack } = useCurrentTrack()
+        return (
                 <Drawer>
                         <Drawer.Screen
                                 name="(tabs)"
@@ -25,12 +25,14 @@ const DrawerNavigator = () => {
                                         drawerLabelStyle: {
                                                 color: colors.text,
                                         },
+                                        drawerInactiveTintColor: colors.text,
+                                        drawerActiveTintColor: colors.text,
                                         drawerIcon: ({ color, size }) => (
                                                 <FontAwesome6 name="music" size={size} color={color} />
                                         ),
                                 }}
                         />
-                        {Platform.OS === 'android' && (
+                        {Platform.OS === 'android' ?
                                 <Drawer.Screen
                                         name="share"
                                         options={{
@@ -40,8 +42,16 @@ const DrawerNavigator = () => {
                                                 ),
                                                 headerShown: false,
                                         }}
+                                /> :
+                                <Drawer.Screen
+                                        name="share"
+                                        options={{
+                                                drawerItemStyle: { 
+                                                        display: "none"
+                                                }
+                                        }}
                                 />
-                        )}
+                        }
                         <Drawer.Screen
                                 name="info"
                                 options={{
@@ -58,8 +68,10 @@ const DrawerNavigator = () => {
                                         drawerLabelStyle: {
                                                 color: colors.text,
                                         },
+                                        drawerInactiveTintColor: colors.text,
+                                        drawerActiveTintColor: colors.text,
                                         drawerIcon: ({ color, size }) => (
-                                                <FontAwesome6 name="info-circle" size={size} color={color} />
+                                                <FontAwesome6 name="fa-circle-info" size={size} color={color} />
                                         ),
                                 }}
                         />

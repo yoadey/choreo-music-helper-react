@@ -117,10 +117,11 @@ export const ClipListItem = ({ index, clip, endPosition, ...props }: ClipListIte
 						<Text numberOfLines={1} style={styles.clipTitleText}>
 							{clip.title || 'Untitled Clip'}
 						</Text>
-						<Text numberOfLines={1} style={styles.clipPositionText}>
-							{toTime(clip.position) || '0:00'}
-						</Text>
-					</View>
+                                                <Text numberOfLines={1} style={styles.clipPositionText}>
+                                                        {toTime(clip.position) || '0:00'}
+                                                        {clip.speed && clip.speed !== 1 ? ` \u2022 ${clip.speed.toFixed(2)}x` : ''}
+                                                </Text>
+                                        </View>
 					<TouchableHighlight style={loopStart?.id === clip.id ? styles.loopActiveButton : styles.loopButton} onPress={toggleLoopStart}>
 						<Text style={styles.buttonText}>A</Text>
 					</TouchableHighlight>

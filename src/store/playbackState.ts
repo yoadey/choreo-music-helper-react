@@ -1,4 +1,4 @@
-import { MMKV, Mode, useMMKVNumber, useMMKVObject } from 'react-native-mmkv';
+import { MMKV, Mode, useMMKVBoolean, useMMKVNumber, useMMKVObject } from 'react-native-mmkv';
 
 export const preferences = new MMKV({
     id: `preferences-storage`,
@@ -20,6 +20,13 @@ export const setLastTrack = (trackId: string) => preferences.set(KEY_LAST_TRACK,
 export const KEY_SPEED = 'speed';
 export const useSpeed = () => useMMKVNumber(KEY_SPEED, preferences);
 export const getSpeed = () => preferences.getNumber(KEY_SPEED) ?? 1.0;
+
+/**
+ * If set to true, only the global speed is applied and clip speeds are ignored.
+ */
+export const KEY_GLOBAL_SPEED_ONLY = 'globalSpeedOnly';
+export const useGlobalSpeedOnly = () => useMMKVBoolean(KEY_GLOBAL_SPEED_ONLY, preferences);
+export const getGlobalSpeedOnly = () => preferences.getBoolean(KEY_GLOBAL_SPEED_ONLY) ?? false;
 
 export type ClipPosition = {
     id: string

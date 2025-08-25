@@ -8,6 +8,8 @@ jest.mock('@/store/playbackState', () => ({
     getLoopEnd: jest.fn(() => 20_000),
     getLoopStart: jest.fn(() => 10_000),
     getSpeed: jest.fn(() => 1.0),
+    getGlobalSpeedOnly: jest.fn(() => false),
+    getLastTrack: jest.fn(() => 'track1'),
     KEY_LEAD_IN_TIME: 'leadInTime',
     KEY_LEAD_IN_VOLUME: 'leadInVolume',
     KEY_LEAD_OUT_TIME: 'leadOutTime',

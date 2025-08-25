@@ -10,9 +10,9 @@ const ClipsScreen = () => {
 	const [clips, setClips] = useState<Clip[]>([]);
 
 	useMemo(() => {
-		currentTrack?.clips.observeWithColumns(['title','position','color']).subscribe((clips) => {
-			setClips(clips);
-		})
+                currentTrack?.clips.observeWithColumns(['title','position','color','speed']).subscribe((clips) => {
+                        setClips(clips);
+                })
 	}, [currentTrack?.id])
 
         return (

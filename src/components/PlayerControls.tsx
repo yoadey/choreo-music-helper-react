@@ -1,7 +1,7 @@
 import { colors } from '@/constants/tokens'
 import { useCurrentTrack } from '@/hooks/useCurrentTrack'
 import Clip from '@/model/clip'
-import { useLeadInDuration, useLeadOutDuration, useSpeed } from '@/store/playbackState'
+import { useGlobalSpeedOnly, useLeadInDuration, useLeadOutDuration, useSpeed } from '@/store/playbackState'
 import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useMemo, useState } from 'react'
@@ -152,8 +152,9 @@ export const LoopButton = ({ iconSize = 30 }: PlayerButtonProps) => {
 
 export const SpeedButton = ({ iconSize = 30 }: PlayerButtonProps) => {
 	const router = useRouter()
-	const [speed, setSpeed] = useSpeed()
-	const highlightColor = speed && speed !== 1 ? colors.primary : colors.icon;
+        const [speed] = useSpeed()
+        const [globalOnly] = useGlobalSpeedOnly()
+        const highlightColor = speed && (speed !== 1 || globalOnly) ? colors.primary : colors.icon;
 	return (
 		<TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/(modals)/speed')} style={[styles.button]}>
 			<MaterialCommunityIcons

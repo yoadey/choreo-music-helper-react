@@ -20,16 +20,17 @@ export const PlayerAddClipButton = ({ ...iconProps }: IconProps) => {
 		TrackPlayer.getProgress()
 			.then(progress => {
 				database.write(async () => {
-					database.get<Clip>("clips").create(clip => {
-						clip.track.set(currentTrack);
-						clip.title = `New clip`;
-						clip.color = `#00000000`;
-						clip.position = progress.position;
-					});
-				})
-			});
-		currentTrack?.id
-	}
+                                        database.get<Clip>("clips").create(clip => {
+                                                clip.track.set(currentTrack);
+                                                clip.title = `New clip`;
+                                                clip.color = `#00000000`;
+                                                clip.position = progress.position;
+                                                clip.speed = 1;
+                                        });
+                                })
+                        });
+                currentTrack?.id
+        }
 
 	return (
 		<MaterialCommunityIcons

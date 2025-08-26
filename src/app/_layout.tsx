@@ -93,7 +93,7 @@ const RootNavigation = () => {
 			/>
 
 			<Stack.Screen
-				name="(modals)/edit"
+				name="(modals)/edit-clip"
 				options={{
 					presentation: 'transparentModal',
 					headerStyle: {

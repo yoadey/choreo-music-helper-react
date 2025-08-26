@@ -24,5 +24,16 @@ export default schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 4,
+      steps: [
+        addColumns({
+          table: 'tracks',
+          columns: [
+            { name: 'color', type: 'string' },
+          ],
+        }),
+      ],
+    },
   ],
 })

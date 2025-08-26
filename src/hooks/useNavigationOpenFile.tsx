@@ -78,6 +78,7 @@ export const useNavigationOpenFile = () => {
                                                 t.uri = uri;
                                                 t.length = length;
                                                 t.waveform = JSON.stringify(waveform);
+                                                t.color = `#00000000`;
                                         });
                                         if (clips.length > 0) {
                                                 for (const c of clips) {

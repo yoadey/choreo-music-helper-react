@@ -36,7 +36,6 @@
     "jest-expo": "~53.0.7",
     "music-metadata": "^11.8.3",
     "react": "^19.1.0",
-    "react-color": "^2.19.3",
     "react-dom": "^19.1.0",
     "react-native": "^0.79.2",
     "react-native-awesome-slider": "^2.9.0",

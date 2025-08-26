@@ -1,140 +1,127 @@
-import { colors, fontSize } from '@/constants/tokens'
+import { colors } from '@/constants/tokens'
 import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { defaultStyles } from '@/styles'
 import { useActionSheet } from '@expo/react-native-action-sheet'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import { del } from 'idb-keyval'
 import { ActivityIndicator, StyleSheet, Text, TouchableHighlight, View } from 'react-native'
 import { useActiveTrack, useIsPlaying } from 'react-native-track-player'
 
 export type TracksListItemProps = {
-	track: TrackWithClips
-	onTrackSelect: (track: TrackWithClips) => void
+    track: TrackWithClips
+    index: number
+    onTrackSelect: (track: TrackWithClips) => void
 }
 
 export const TracksListItem = ({
-	track,
-	onTrackSelect: handleTrackSelect,
+    track,
+    index,
+    onTrackSelect: handleTrackSelect,
 }: TracksListItemProps) => {
-	const { playing } = useIsPlaying()
-	const { showActionSheetWithOptions } = useActionSheet();
+    const { playing } = useIsPlaying()
+    const { showActionSheetWithOptions } = useActionSheet();
+    const router = useRouter();
 
-	const isActiveTrack = useActiveTrack()?.url === track.uri
+    const isActiveTrack = useActiveTrack()?.url === track.uri
 
-	const handleClipLongPress = (track: TrackWithClips) => {
-		const options = ['Delete', 'Cancel'];
-		const destructiveButtonIndex = 0;
-		const cancelButtonIndex = 1;
+    const handleClipLongPress = (track: TrackWithClips) => {
+        const options = ['Delete', 'Edit', 'Cancel'];
+        const destructiveButtonIndex = 0;
+        const cancelButtonIndex = 2;
 
-		showActionSheetWithOptions({
-			options,
-			cancelButtonIndex,
-			destructiveButtonIndex,
-			containerStyle: {
-				backgroundColor: colors.backgroundHighlighted,
-			},
-			textStyle: {
-				color: colors.text,
-			},
-		}, (selectedIndex) => {
-			switch (selectedIndex) {
-				case destructiveButtonIndex:
-					database.write(async () => {
-						await database.get<TrackWithClips>('tracks')
-							.find(track.id)
-							.then(track => {
-								del(track.uri);
-								track?.destroyPermanently();
-							});
-					});
-					break;
+        showActionSheetWithOptions({
+            options,
+            cancelButtonIndex,
+            destructiveButtonIndex,
+            containerStyle: {
+                backgroundColor: colors.backgroundHighlighted,
+            },
+            textStyle: {
+                color: colors.text,
+            },
+        }, (selectedIndex) => {
+            switch (selectedIndex) {
+                case 1:
+                    router.push(`/(modals)/edit-track?trackId=${track.id}`);
+                    break;
 
-				case cancelButtonIndex:
-			}
-		});
-	}
+                case destructiveButtonIndex:
+                    database.write(async () => {
+                        await database.get<TrackWithClips>('tracks')
+                            .find(track.id)
+                            .then(track => {
+                                del(track.uri);
+                                track?.destroyPermanently();
+                            });
+                    });
+                    break;
 
-	return (
-		<TouchableHighlight
-			onPress={() => handleTrackSelect(track)}
-			onLongPress={() => handleClipLongPress(track)}>
-			<View style={styles.trackItemContainer}>
-				<View>
+                case cancelButtonIndex:
+            }
+        });
+    }
 
-					{isActiveTrack &&
-						(playing ? (
-							<ActivityIndicator size="large" color={colors.icon} />
-						) : (
-							<Ionicons
-								style={styles.trackPausedIndicator}
-								name="play"
-								size={24}
-								color={colors.icon}
-							/>
-						))}
-				</View>
-
-				<View
-					style={{
-						flex: 1,
-						flexDirection: 'row',
-						justifyContent: 'space-between',
-						alignItems: 'center',
-					}}
-				>
-					{/* Track title + artist */}
-					<View style={{ width: '100%' }}>
-						<Text
-							numberOfLines={1}
-							style={{
-								...styles.trackTitleText,
-								color: isActiveTrack ? colors.primary : colors.text,
-							}}
-						>
-							{track.title}
-						</Text>
-					</View>
-				</View>
-			</View>
-		</TouchableHighlight>
-	)
+    return (
+        <TouchableHighlight
+            activeOpacity={0.8}
+            onPress={() => handleTrackSelect(track)}
+            onLongPress={() => handleClipLongPress(track)}
+            style={{ backgroundColor: track.color || '#00000000' }}>
+            <View style={[styles.trackItemContainer, { backgroundColor: track.color || '#00000000' }]}>
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        width: '100%',
+                        paddingLeft: 10,
+                        paddingRight: 10,
+                        paddingTop: 5,
+                        paddingBottom: 5,
+                    }}
+                >
+                    
+                    <Text numberOfLines={1} style={styles.trackIndexText}>
+                        {index + 1}
+                    </Text>
+                    <View style={{ flex: 1, width: "100%" }}>
+                        <Text numberOfLines={1} style={styles.trackTitleText}>
+                            {track.title || 'Untitled Track'}
+                        </Text>
+                    </View>
+                    {isActiveTrack &&
+                        (playing ? (
+                            <ActivityIndicator size="small" color={colors.icon} />
+                        ) : (
+                            <Ionicons name="play" size={24} color={colors.icon} />
+                        ))}
+                </View>
+            </View>
+        </TouchableHighlight>
+    )
 }
 
 const styles = StyleSheet.create({
-	trackItemContainer: {
-		flexDirection: 'row',
-		columnGap: 14,
-		alignItems: 'center',
-		paddingRight: 20,
-	},
-	trackPlayingIconIndicator: {
-		position: 'absolute',
-		top: 18,
-		left: 16,
-		width: 16,
-		height: 16,
-	},
-	trackPausedIndicator: {
-		position: 'absolute',
-		top: 14,
-		left: 14,
-	},
-	trackArtworkImage: {
-		borderRadius: 8,
-		width: 50,
-		height: 50,
-	},
-	trackTitleText: {
-		...defaultStyles.text,
-		fontSize: fontSize.sm,
-		fontWeight: '600',
-		maxWidth: '90%',
-	},
-	trackArtistText: {
-		...defaultStyles.text,
-		color: colors.textMuted,
-		fontSize: 14,
-		marginTop: 4,
-	},
+    trackItemContainer: {
+        columnGap: 14,
+        alignItems: 'flex-start',
+        width: '100%',
+    },
+    trackIndexText: {
+        ...defaultStyles.text,
+        textAlign: 'center',
+        fontSize: 32,
+        fontWeight: '600',
+        maxWidth: '100%',
+        minWidth: 40,
+        paddingRight: 10,
+    },
+    trackTitleText: {
+        ...defaultStyles.text,
+        fontSize: 17,
+        fontWeight: '600',
+        maxWidth: '80%',
+    },
 })

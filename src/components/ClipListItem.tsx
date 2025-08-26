@@ -55,7 +55,7 @@ export const ClipListItem = ({ index, clip, endPosition, ...props }: ClipListIte
 			switch (selectedIndex) {
 				case 1:
 					// Edit
-					router.push(`/(modals)/edit?clipId=${clip.id}`);
+					router.push(`/(modals)/edit-clip?clipId=${clip.id}`);
 					break;
 
 				case destructiveButtonIndex:

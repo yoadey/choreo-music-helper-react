@@ -19,110 +19,111 @@ SplashScreen.preventAutoHideAsync()
 TrackPlayer.registerPlaybackService(() => playbackService)
 
 const App = () => {
-	const { setCurrentTrack } = useCurrentTrack()
-	const handleTrackPlayerLoaded = useCallback(() => {
-		SplashScreen.hideAsync()
+    const { setCurrentTrack } = useCurrentTrack()
+    const handleTrackPlayerLoaded = useCallback(() => {
+        SplashScreen.hideAsync()
 
-		let trackId = getLastTrack();
-		if (trackId) {
-			try {
-				database.get<TrackWithClips>("tracks").query(
-					Q.where("id", trackId)
-				).then(tracks => {
-					if (tracks.length === 1) {
-						setCurrentTrack(tracks[0])
-					}
-				})
-			} catch (error) {
-				console.log("track not found")
-			}
-		}
-	}, [])
+        const trackId = getLastTrack()
+        if (trackId) {
+            try {
+                database
+                    .get<TrackWithClips>('tracks')
+                    .query(Q.where('id', trackId))
+                    .then((tracks) => {
+                        if (tracks.length === 1) {
+                            setCurrentTrack(tracks[0])
+                        }
+                    })
+            } catch (error) {
+                console.log('track not found')
+            }
+        }
+    }, [])
 
-	useSetupTrackPlayer({
-		onLoad: handleTrackPlayerLoaded,
-	})
+    useSetupTrackPlayer({
+        onLoad: handleTrackPlayerLoaded,
+    })
 
-	return (
-		<SafeAreaProvider>
-			<GestureHandlerRootView style={{ flex: 1 }}>
-				<ActionSheetProvider>
-					<RootNavigation />
-					{/*<Tutorial />*/}
-				</ActionSheetProvider>
+    return (
+        <SafeAreaProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+                <ActionSheetProvider>
+                    <RootNavigation />
+                    {/*<Tutorial />*/}
+                </ActionSheetProvider>
 
-				<StatusBar style="auto" />
-			</GestureHandlerRootView>
-		</SafeAreaProvider>
-	)
+                <StatusBar style="auto" />
+            </GestureHandlerRootView>
+        </SafeAreaProvider>
+    )
 }
 
 const RootNavigation = () => {
-	return (
-		<Stack screenOptions={{ headerShown: false }}>
-			<Stack.Screen name="(drawer)" />
+    return (
+        <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(drawer)" />
 
-			<Stack.Screen
-				name="(modals)/speed"
-				options={{
-					presentation: 'transparentModal',
-					headerStyle: {
-						backgroundColor: colors.background,
-					},
-					headerTitle: 'Speed',
-					headerTitleStyle: {
-						color: colors.text,
-					},
-					headerShown: false,
-				}}
-			/>
+            <Stack.Screen
+                name="(modals)/speed"
+                options={{
+                    presentation: 'transparentModal',
+                    headerStyle: {
+                        backgroundColor: colors.background,
+                    },
+                    headerTitle: 'Speed',
+                    headerTitleStyle: {
+                        color: colors.text,
+                    },
+                    headerShown: false,
+                }}
+            />
 
-			<Stack.Screen
-				name="(modals)/loop"
-				options={{
-					presentation: 'transparentModal',
-					headerStyle: {
-						backgroundColor: colors.background,
-					},
-					headerTitle: 'Loop',
-					headerTitleStyle: {
-						color: colors.text,
-					},
-					headerShown: false,
-				}}
-			/>
+            <Stack.Screen
+                name="(modals)/loop"
+                options={{
+                    presentation: 'transparentModal',
+                    headerStyle: {
+                        backgroundColor: colors.background,
+                    },
+                    headerTitle: 'Loop',
+                    headerTitleStyle: {
+                        color: colors.text,
+                    },
+                    headerShown: false,
+                }}
+            />
 
-			<Stack.Screen
-				name="(modals)/edit-clip"
-				options={{
-					presentation: 'transparentModal',
-					headerStyle: {
-						backgroundColor: colors.background,
-					},
-					headerTitle: 'Edit Clip',
-					headerTitleStyle: {
-						color: colors.text,
-					},
-					headerShown: false,
-				}}
-			/>
+            <Stack.Screen
+                name="(modals)/edit-clip"
+                options={{
+                    presentation: 'transparentModal',
+                    headerStyle: {
+                        backgroundColor: colors.background,
+                    },
+                    headerTitle: 'Edit Clip',
+                    headerTitleStyle: {
+                        color: colors.text,
+                    },
+                    headerShown: false,
+                }}
+            />
 
-			<Stack.Screen
-				name="licenses"
-				options={{
-					presentation: 'modal',
-					headerStyle: {
-						backgroundColor: colors.background,
-					},
-					headerTitle: 'Edit Clip',
-					headerTitleStyle: {
-						color: colors.text,
-					},
-					headerShown: false,
-				}}
-			/>
-		</Stack>
-	);
+            <Stack.Screen
+                name="licenses"
+                options={{
+                    presentation: 'modal',
+                    headerStyle: {
+                        backgroundColor: colors.background,
+                    },
+                    headerTitle: 'Edit Clip',
+                    headerTitleStyle: {
+                        color: colors.text,
+                    },
+                    headerShown: false,
+                }}
+            />
+        </Stack>
+    )
 }
 
 export default App

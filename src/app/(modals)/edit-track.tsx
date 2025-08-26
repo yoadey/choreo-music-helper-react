@@ -10,22 +10,22 @@ import React, { useEffect, useState } from 'react'
 import { Button, Pressable, Text, TextInput, View } from 'react-native'
 
 const colorSwatchesSelected = [
-    "#00000000",
-    "#AFB42B",
-    "#E64A19",
-    "#C2185B",
-    "#D32F2F",
-    "#00796B",
-    "#689F38",
-    "#388E3C",
-    "#0097A7",
-    "#0288D1",
-    "#1976D2",
-    "#303F9F",
-    "#512DA8",
-    "#7B1FA2",
-    "#455A64",
-    "#5D4037",
+    '#00000000',
+    '#AFB42B',
+    '#E64A19',
+    '#C2185B',
+    '#D32F2F',
+    '#00796B',
+    '#689F38',
+    '#388E3C',
+    '#0097A7',
+    '#0288D1',
+    '#1976D2',
+    '#303F9F',
+    '#512DA8',
+    '#7B1FA2',
+    '#455A64',
+    '#5D4037',
 ]
 
 const EditTrackModal = ({ track }: { track: TrackWithClips }) => {
@@ -41,11 +41,12 @@ const EditTrackModal = ({ track }: { track: TrackWithClips }) => {
     }, [track])
 
     const handleOk = async () => {
-        database.write(async () =>
-            await track.update(trackUpdate => {
-                trackUpdate.title = title
-                trackUpdate.color = color
-            })
+        database.write(
+            async () =>
+                await track.update((trackUpdate) => {
+                    trackUpdate.title = title
+                    trackUpdate.color = color
+                }),
         )
         router.dismiss()
     }
@@ -61,17 +62,13 @@ const EditTrackModal = ({ track }: { track: TrackWithClips }) => {
             <View style={modalStyles.modal}>
                 <Text style={modalStyles.title}>Track bearbeiten</Text>
                 <View style={containerStyles.inputRow}>
-                    <TextInput
-                        style={inputStyles.input}
-                        value={title}
-                        onChangeText={setTitle}
-                    />
+                    <TextInput style={inputStyles.input} value={title} onChangeText={setTitle} />
                 </View>
 
                 <View style={{ width: 250, padding: 10, paddingTop: 20, paddingBottom: 20 }}>
                     <ColorPicker
                         value={color}
-                        onChange={e => setColor(e)}
+                        onChange={(e) => setColor(e)}
                         colors={colorSwatchesSelected}
                     />
                 </View>
@@ -84,13 +81,11 @@ const EditTrackModal = ({ track }: { track: TrackWithClips }) => {
     )
 }
 
-// @ts-ignore
-const enhance = withObservables<{}, { track: TrackWithClips }>([], ({ }) => {
+// @ts-expect-error - WatermelonDB typing does not expose observe
+const enhance = withObservables<Record<string, never>, { track: TrackWithClips }>([], () => {
     const { trackId } = useLocalSearchParams<{ trackId: string }>()
     return {
-        track: database.collections
-            .get<TrackWithClips>("tracks")
-            .findAndObserve(trackId)
+        track: database.collections.get<TrackWithClips>('tracks').findAndObserve(trackId),
     }
 })
 

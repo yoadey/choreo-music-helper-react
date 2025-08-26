@@ -18,9 +18,7 @@ export const useCurrentTrack = () => {
             return
         }
 
-        database.get<TrackWithClips>('tracks')
-            .find(activeTrack.id)
-            .then(setCurrentTrack)
+        database.get<TrackWithClips>('tracks').find(activeTrack.id).then(setCurrentTrack)
     }, [activeTrack])
 
     const setCurrentTrackIntern = (track: TrackWithClips) => {
@@ -28,19 +26,19 @@ export const useCurrentTrack = () => {
         setLastTrack(track.id)
         setLoopStart(undefined)
         setLoopEnd(undefined)
-        let id = track.id
-        let url = track.uri
-        let title = track.title
+        const id = track.id
+        const url = track.uri
+        const title = track.title
 
         const setEverything = async () => {
             let uri = url
             if (Platform.OS === 'web') {
                 try {
-                    const blob = await get(url);
-                    const blobUrl = URL.createObjectURL(blob);
-                    uri = blobUrl;
+                    const blob = await get(url)
+                    const blobUrl = URL.createObjectURL(blob)
+                    uri = blobUrl
                 } catch (error) {
-                    console.log("File not found locally: " + url)
+                    console.log('File not found locally: ' + url)
                     return
                 }
             }
@@ -50,13 +48,13 @@ export const useCurrentTrack = () => {
                     id: id,
                 },
                 url: uri,
-                title: title
+                title: title,
             })
         }
         setEverything()
     }
     return {
         currentTrack,
-        setCurrentTrack: setCurrentTrackIntern
+        setCurrentTrack: setCurrentTrackIntern,
     }
 }

@@ -11,50 +11,30 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import React, { useEffect, useState } from 'react'
 import { Button, Pressable, Text, TextInput, View } from 'react-native'
 
-const colorSwatches = [
-    "#121212",
-    "#827717",
-    "#BF360C",
-    "#880E4F",
-    "#B71C1C",
-    "#004D40",
-    "#33691E",
-    "#1B5E20",
-    "#006064",
-    "#01579B",
-    "#0D47A1",
-    "#1A237E",
-    "#311B92",
-    "#4A148C",
-    "#263238",
-    "#3E2723",
-]
-
 const colorSwatchesSelected = [
-    "#00000000",
-    "#AFB42B",
-    "#E64A19",
-    "#C2185B",
-    "#D32F2F",
-    "#00796B",
-    "#689F38",
-    "#388E3C",
-    "#0097A7",
-    "#0288D1",
-    "#1976D2",
-    "#303F9F",
-    "#512DA8",
-    "#7B1FA2",
-    "#455A64",
-    "#5D4037",
+    '#00000000',
+    '#AFB42B',
+    '#E64A19',
+    '#C2185B',
+    '#D32F2F',
+    '#00796B',
+    '#689F38',
+    '#388E3C',
+    '#0097A7',
+    '#0288D1',
+    '#1976D2',
+    '#303F9F',
+    '#512DA8',
+    '#7B1FA2',
+    '#455A64',
+    '#5D4037',
 ]
-
 
 const EditClipModal = ({ clip }: { clip: Clip }) => {
     const router = useRouter()
     const headerHeight = useHeaderHeight()
 
-    const [title, setTitle] = useState(clip.title);
+    const [title, setTitle] = useState(clip.title)
     const [position, setPosition] = useState(clip.position)
     const [color, setColor] = useState(clip.color)
     const [speed, setSpeed] = useState(clip.speed ?? 1)
@@ -67,14 +47,15 @@ const EditClipModal = ({ clip }: { clip: Clip }) => {
     }, [clip])
 
     const handleOk = async () => {
-        database.write(async () =>
-            await clip.update(clipUpdate => {
-                clipUpdate.title = title;
-                clipUpdate.position = position;
-                clipUpdate.color = color;
-                clipUpdate.speed = speed;
-            })
-        );
+        database.write(
+            async () =>
+                await clip.update((clipUpdate) => {
+                    clipUpdate.title = title
+                    clipUpdate.position = position
+                    clipUpdate.color = color
+                    clipUpdate.speed = speed
+                }),
+        )
         router.dismiss()
     }
 
@@ -89,17 +70,13 @@ const EditClipModal = ({ clip }: { clip: Clip }) => {
             <View style={modalStyles.modal}>
                 <Text style={modalStyles.title}>Clip bearbeiten</Text>
                 <View style={containerStyles.inputRow}>
-                    <TextInput
-                        style={inputStyles.input}
-                        value={title}
-                        onChangeText={setTitle}
-                    />
+                    <TextInput style={inputStyles.input} value={title} onChangeText={setTitle} />
                 </View>
 
                 <View style={{ width: 250, padding: 10, paddingTop: 20, paddingBottom: 20 }}>
                     <ColorPicker
                         value={color}
-                        onChange={e => setColor(e)}
+                        onChange={(e) => setColor(e)}
                         colors={colorSwatchesSelected}
                     />
                 </View>
@@ -112,19 +89,16 @@ const EditClipModal = ({ clip }: { clip: Clip }) => {
                     <Button title="OK" onPress={handleOk} color={colors.primary} />
                 </View>
             </View>
-        </View >
+        </View>
     )
 }
 
-// @ts-ignore
-const enhance = withObservables<{}, { clip: Clip }>([], ({ }) => {
-    const { clipId } = useLocalSearchParams<{ clipId: string }>();
+// @ts-expect-error - WatermelonDB typing does not expose observe
+const enhance = withObservables<Record<string, never>, { clip: Clip }>([], () => {
+    const { clipId } = useLocalSearchParams<{ clipId: string }>()
     return {
-        clip: database.collections
-            .get<Clip>("clips")
-            .findAndObserve(clipId)
+        clip: database.collections.get<Clip>('clips').findAndObserve(clipId),
     }
-});
-
+})
 
 export default enhance(EditClipModal)

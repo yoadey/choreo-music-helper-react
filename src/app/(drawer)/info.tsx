@@ -1,5 +1,5 @@
 import { colors } from '@/constants/tokens'
-import { Ionicons } from '@expo/vector-icons'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import * as Application from 'expo-application'
 import { useRouter } from 'expo-router'
 import React from 'react'
@@ -29,7 +29,7 @@ export default function InfoScreen() {
             android_ripple={{ color: 'rgba(255,255,255,0.1)' }}
             onPress={onPress}
         >
-            <Ionicons name={icon} size={22} color="#4da6ff" style={styles.iconLeft} />
+            <MaterialCommunityIcons name={icon} size={22} color="#4da6ff" style={styles.iconLeft} />
             <Text style={styles.link}>{label}</Text>
         </Pressable>
     )
@@ -61,13 +61,13 @@ export default function InfoScreen() {
                 </View>
 
                 <LinkItem
-                    icon="mail-outline"
+                    icon="email-outline"
                     label="Kontaktiere uns"
                     onPress={() => Linking.openURL('mailto:info@yoadey.de')}
                 />
 
                 <LinkItem
-                    icon="document-text-outline"
+                    icon="file-document-outline"
                     label="Datenschutzerklärung"
                     onPress={() =>
                         Linking.openURL(
@@ -76,11 +76,11 @@ export default function InfoScreen() {
                     }
                 />
 
-                <LinkItem icon="receipt-outline" label="Lizenzen" onPress={() => openLicenses()} />
+                <LinkItem icon="license" label="Lizenzen" onPress={() => openLicenses()} />
 
                 <View style={styles.row}>
-                    <Ionicons
-                        name="information-circle-outline"
+                    <MaterialCommunityIcons
+                        name="information"
                         size={22}
                         color="#ccc"
                         style={styles.iconLeft}

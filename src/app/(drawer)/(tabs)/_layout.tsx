@@ -1,12 +1,12 @@
 import { PlayerControls } from '@/components/PlayerControls'
 import { colors, fontSize } from '@/constants/tokens'
 import { useNavigationOpenFile } from '@/hooks/useNavigationOpenFile'
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Tabs } from 'expo-router'
 
 const TabsNavigation = () => {
 	
-	useNavigationOpenFile({})
+	useNavigationOpenFile()
 	
 	return (
 		<>
@@ -33,7 +33,7 @@ const TabsNavigation = () => {
 					options={{
 						title: 'Songs',
 						tabBarIcon: ({ color }) => (
-							<Ionicons name="musical-notes-sharp" size={24} color={color} />
+							<MaterialCommunityIcons name="music" size={24} color={color} />
 						),
 						tabBarLabelPosition: 'beside-icon',
 					}}

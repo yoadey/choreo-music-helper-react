@@ -2,7 +2,7 @@ import { appSchema, tableSchema } from '@nozbe/watermelondb'
 
 
 export default appSchema({
-    version: 3,
+    version: 4,
     tables: [
         tableSchema({
           name: 'tracks',
@@ -11,6 +11,7 @@ export default appSchema({
             { name: 'uri', type: 'string' },
             { name: 'length', type: 'number' },
             { name: 'waveform', type: 'string', isOptional: true },
+            { name: 'color', type: 'string' },
           ]
         }),
         tableSchema({

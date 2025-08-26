@@ -2,7 +2,7 @@ import { colors } from '@/constants/tokens'
 import { useProgressWithRange } from '@/hooks/useProgressWithRange'
 import Clip from '@/model/clip'
 import { database } from '@/model/index.web'
-import { useLeadInDuration, useLoopEnd, useLoopStart } from '@/store/playbackState'
+import { getGlobalSpeedOnly, useLeadInDuration, useLoopEnd, useLoopStart } from '@/store/playbackState'
 import { defaultStyles } from '@/styles'
 import { useActionSheet } from '@expo/react-native-action-sheet'
 import { useRouter } from 'expo-router'
@@ -18,6 +18,7 @@ type ClipListItemProps = {
 export const ClipListItem = ({ index, clip, endPosition, ...props }: ClipListItemProps) => {
 	const router = useRouter();
 	const [leadInDuration, setLeadInDuration] = useLeadInDuration()
+	const globalOnly = getGlobalSpeedOnly()
 	const progress = useProgressWithRange({ start: clip.position, end: endPosition })
 	const { showActionSheetWithOptions } = useActionSheet();
 	const [loopStart, setLoopStart] = useLoopStart()
@@ -119,6 +120,9 @@ export const ClipListItem = ({ index, clip, endPosition, ...props }: ClipListIte
 						</Text>
 						<Text numberOfLines={1} style={styles.clipPositionText}>
 							{toTime(clip.position) || '0:00'}
+							{!globalOnly && clip.speed && clip.speed !== 1 &&
+								` \u2022 ${clip.speed.toFixed(2)}x`
+							}
 						</Text>
 					</View>
 					<TouchableHighlight style={loopStart?.id === clip.id ? styles.loopActiveButton : styles.loopButton} onPress={toggleLoopStart}>
@@ -164,9 +168,11 @@ const styles = StyleSheet.create({
 	},
 	clipIndexText: {
 		...defaultStyles.text,
+		textAlign: "center",
 		fontSize: 32,
 		fontWeight: '600',
 		maxWidth: '100%',
+		minWidth: 40,
 		paddingRight: 10,
 	},
 	clipTitleText: {
@@ -180,7 +186,6 @@ const styles = StyleSheet.create({
 		fontSize: 15,
 		fontWeight: '400',
 		color: colors.textMuted,
-		maxWidth: '20%',
 	},
 	loopButton: {
 		backgroundColor: colors.secondary,
@@ -205,4 +210,7 @@ const styles = StyleSheet.create({
 		fontWeight: 600,
 		fontSize: 24,
 	},
+	strike: {
+		textDecorationLine: 'line-through'
+	}
 })

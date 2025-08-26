@@ -2,7 +2,7 @@ import { appSchema, tableSchema } from '@nozbe/watermelondb'
 
 
 export default appSchema({
-    version: 2,
+    version: 3,
     tables: [
         tableSchema({
           name: 'tracks',
@@ -20,6 +20,7 @@ export default appSchema({
             { name: 'position', type: 'number' },
             { name: 'title', type: 'string' },
             { name: 'color', type: 'string' },
+            { name: 'speed', type: 'number', isOptional: true },
           ]
         }),
     ]

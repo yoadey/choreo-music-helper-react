@@ -1,11 +1,11 @@
 import { colors } from '@/constants/tokens'
-import { useSpeed } from '@/store/playbackState'
+import { useGlobalSpeedOnly, useSpeed } from '@/store/playbackState'
 import { modalStyles } from '@/styles'
 import Slider from '@react-native-community/slider'
 import { useHeaderHeight } from '@react-navigation/elements'
 import { useRouter } from 'expo-router'
 import React, { useEffect, useState } from 'react'
-import { Button, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { Button, Platform, Pressable, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native'
 
 const MIN_SPEED = 0.5
 const MAX_SPEED = 2.0
@@ -16,12 +16,15 @@ const SpeedModal = () => {
 	const headerHeight = useHeaderHeight()
 
 	const [speed, setSpeed] = useSpeed()
+	const [globalOnly, setGlobalOnly] = useGlobalSpeedOnly()
 	const [speedLocal, setSpeedLocal] = useState(speed ?? 1.0)
+	const [globalOnlyLocal, setGlobalOnlyLocal] = useState(globalOnly ?? false)
 
 	// Always use current speed when modal opens
 	useEffect(() => {
 		setSpeedLocal(speed ?? 1.0)
-	}, [speed])
+		setGlobalOnlyLocal(globalOnly ?? false)
+	}, [speed, globalOnly])
 
 	const setAndApplySpeedLocal = (newSpeed: number) => {
 		const clamped = Math.max(MIN_SPEED, Math.min(MAX_SPEED, newSpeed))
@@ -38,6 +41,7 @@ const SpeedModal = () => {
 
 	const handleOk = async () => {
 		setSpeed(speedLocal)
+		setGlobalOnly(globalOnlyLocal)
 		router.dismiss()
 	}
 
@@ -85,6 +89,20 @@ const SpeedModal = () => {
 					<TouchableOpacity style={styles.button} onPress={() => handleSpeedButton(0.10)}>
 						<Text style={styles.buttonText}>+10</Text>
 					</TouchableOpacity>
+				</View>
+				<View style={styles.globalRow}>
+					<Switch value={globalOnlyLocal}
+						onValueChange={setGlobalOnlyLocal}
+						{
+						...
+						Platform.select({
+							web: {
+								activeThumbColor: colors.primary
+							}
+						})}
+						thumbColor={globalOnlyLocal ? colors.primary : colors.disabled}
+						trackColor={{ true: colors.disabled, false: 'rgb(147, 147, 147)' }} />
+					<Text style={styles.globalLabel}>Überschreibe Clipgeschwindigkeit</Text>
 				</View>
 				<View style={{ marginTop: 24 }}>
 					<Button title="OK" onPress={handleOk} color={colors.primary} />
@@ -141,6 +159,15 @@ const styles = StyleSheet.create({
 		fontWeight: '600',
 		textAlign: 'center',
 		color: colors.primary,
+	},
+	globalRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		marginTop: 16,
+	},
+	globalLabel: {
+		marginLeft: 8,
+		color: colors.text,
 	},
 })
 

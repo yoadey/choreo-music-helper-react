@@ -11,7 +11,7 @@ const ShareScreen = () => {
 
   useEffect(() => {
     const sub = currentTrack?.clips
-      .observeWithColumns(['position'])
+      .observeWithColumns(['position','speed'])
       .subscribe((c) => {
         const sorted = c.sort((a, b) => a.position - b.position)
         setClips(sorted)

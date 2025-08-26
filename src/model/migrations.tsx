@@ -13,5 +13,16 @@ export default schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 3,
+      steps: [
+        addColumns({
+          table: 'clips',
+          columns: [
+            { name: 'speed', type: 'number', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 })

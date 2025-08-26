@@ -71,7 +71,7 @@ const DrawerNavigator = () => {
                                         drawerInactiveTintColor: colors.text,
                                         drawerActiveTintColor: colors.text,
                                         drawerIcon: ({ color, size }) => (
-                                                <FontAwesome6 name="fa-circle-info" size={size} color={color} />
+                                                <FontAwesome6 name="circle-info" size={size} color={color} />
                                         ),
                                 }}
                         />

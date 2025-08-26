@@ -1,4 +1,6 @@
+import { colors } from '@/constants/tokens';
 import { buttonStyles, defaultStyles } from '@/styles';
+import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -18,14 +20,19 @@ export default function TimeEditor({ timeMs, onChange }: TimeEditorProps) {
     const milliseconds = Math.floor((timeMs % 1000) / 100);
 
     return (
-        <View style={[buttonStyles.buttonsRow, {alignItems: 'center'}]}>
-            <Text style={[defaultStyles.text, { flex: 1, textAlign: 'right' }]}>{minutes.toString()}:{seconds.toString().padStart(2, '0')}.{milliseconds.toString()}</Text>
+        <View style={[buttonStyles.buttonsRow, { alignItems: 'center' }]}>
+            <div style={{ flex: 2, textAlign: 'right', verticalAlign: 'center' }}>
+                <MaterialCommunityIcons name="clock-outline" size={25} color={colors.text} />
+            </div>
+            <Text style={[defaultStyles.text, { flex: 1, minWidth: 60, textAlign: 'right' }]}>
+                {minutes.toString()}:{seconds.toString().padStart(2, '0')}.{milliseconds.toString()}
+            </Text>
             <View style={[buttonStyles.buttonsRow, { flex: 0, flexShrink: 1, flexBasis: 'auto', width: 'auto' }]}>
                 <TouchableOpacity style={buttonStyles.button} onPress={() => updateTime(100)}>
-                    <Text style={buttonStyles.buttonText}>+</Text>
+                    <FontAwesome6 name="plus" size={14} color={colors.text} />
                 </TouchableOpacity>
                 <TouchableOpacity style={buttonStyles.button} onPress={() => updateTime(-100)}>
-                    <Text style={buttonStyles.buttonText}>-</Text>
+                    <FontAwesome6 name="minus" size={14} color={colors.text} />
                 </TouchableOpacity>
             </View>
         </View>

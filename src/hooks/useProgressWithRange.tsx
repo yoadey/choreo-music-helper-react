@@ -1,25 +1,17 @@
-import { useEffect, useState } from 'react'
-import TrackPlayer, { Event } from 'react-native-track-player'
+import { useState } from 'react'
+import { useProgress } from 'react-native-track-player'
 
 export const useProgressWithRange = ({ start, end }: { start: number, end: number }) => {
+    const { position } = useProgress(50)
     const [progress, setProgress] = useState<number>(-1)
-
-    useEffect(() => {
-        function handleProgessChanged({ position }: { position: number }) {
-            if (position > start && position < end) {
-                setProgress(position);
-            }
-            else {
-                setProgress(-1);
-            }
-        }
-        const progressListener = TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, handleProgessChanged);
-        const seekListener = TrackPlayer.addEventListener(Event.RemoteSeek, handleProgessChanged)
-        return () => {
-            progressListener.remove()
-            seekListener.remove();
-        };
-    }, [start, end])
+    
+    let newProgress = -1
+    if (position > start && position < end) {
+        newProgress = position;
+    }
+    if (newProgress !== progress) {
+        setProgress(newProgress);
+    }
 
     return progress
 }

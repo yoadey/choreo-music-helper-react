@@ -5,7 +5,7 @@ import Slider from '@react-native-community/slider'
 import { useHeaderHeight } from '@react-navigation/elements'
 import { useRouter } from 'expo-router'
 import React, { useEffect, useState } from 'react'
-import { Button, Pressable, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native'
+import { Button, Platform, Pressable, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native'
 
 const MIN_SPEED = 0.5
 const MAX_SPEED = 2.0
@@ -15,16 +15,16 @@ const SpeedModal = () => {
 	const router = useRouter()
 	const headerHeight = useHeaderHeight()
 
-        const [speed, setSpeed] = useSpeed()
-        const [globalOnly, setGlobalOnly] = useGlobalSpeedOnly()
-        const [speedLocal, setSpeedLocal] = useState(speed ?? 1.0)
-        const [globalOnlyLocal, setGlobalOnlyLocal] = useState(globalOnly ?? false)
+	const [speed, setSpeed] = useSpeed()
+	const [globalOnly, setGlobalOnly] = useGlobalSpeedOnly()
+	const [speedLocal, setSpeedLocal] = useState(speed ?? 1.0)
+	const [globalOnlyLocal, setGlobalOnlyLocal] = useState(globalOnly ?? false)
 
-        // Always use current speed when modal opens
-        useEffect(() => {
-                setSpeedLocal(speed ?? 1.0)
-                setGlobalOnlyLocal(globalOnly ?? false)
-        }, [speed, globalOnly])
+	// Always use current speed when modal opens
+	useEffect(() => {
+		setSpeedLocal(speed ?? 1.0)
+		setGlobalOnlyLocal(globalOnly ?? false)
+	}, [speed, globalOnly])
 
 	const setAndApplySpeedLocal = (newSpeed: number) => {
 		const clamped = Math.max(MIN_SPEED, Math.min(MAX_SPEED, newSpeed))
@@ -40,10 +40,10 @@ const SpeedModal = () => {
 	}
 
 	const handleOk = async () => {
-                setSpeed(speedLocal)
-                setGlobalOnly(globalOnlyLocal)
-                router.dismiss()
-        }
+		setSpeed(speedLocal)
+		setGlobalOnly(globalOnlyLocal)
+		router.dismiss()
+	}
 
 	const handleCancel = () => {
 		router.dismiss()
@@ -90,13 +90,23 @@ const SpeedModal = () => {
 						<Text style={styles.buttonText}>+10</Text>
 					</TouchableOpacity>
 				</View>
-                                <View style={styles.globalRow}>
-                                        <Switch value={globalOnlyLocal} onValueChange={setGlobalOnlyLocal} />
-                                        <Text style={styles.globalLabel}>Nur globale Geschwindigkeit</Text>
-                                </View>
-                                <View style={{ marginTop: 24 }}>
-                                        <Button title="OK" onPress={handleOk} color={colors.primary} />
-                                </View>
+				<View style={styles.globalRow}>
+					<Switch value={globalOnlyLocal}
+						onValueChange={setGlobalOnlyLocal}
+						{
+						...
+						Platform.select({
+							web: {
+								activeThumbColor: colors.primary
+							}
+						})}
+						thumbColor={globalOnlyLocal ? colors.primary : colors.disabled}
+						trackColor={{ true: colors.disabled, false: 'rgb(147, 147, 147)' }} />
+					<Text style={styles.globalLabel}>Überschreibe Clipgeschwindigkeit</Text>
+				</View>
+				<View style={{ marginTop: 24 }}>
+					<Button title="OK" onPress={handleOk} color={colors.primary} />
+				</View>
 			</View>
 		</View>
 	)
@@ -143,22 +153,22 @@ const styles = StyleSheet.create({
 		fontWeight: 'bold',
 		fontSize: 16,
 	},
-        currentSpeedText: {
-                marginBottom: 16,
-                fontSize: 18,
-                fontWeight: '600',
-                textAlign: 'center',
-                color: colors.primary,
-        },
-        globalRow: {
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginTop: 16,
-        },
-        globalLabel: {
-                marginLeft: 8,
-                color: colors.text,
-        },
+	currentSpeedText: {
+		marginBottom: 16,
+		fontSize: 18,
+		fontWeight: '600',
+		textAlign: 'center',
+		color: colors.primary,
+	},
+	globalRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		marginTop: 16,
+	},
+	globalLabel: {
+		marginLeft: 8,
+		color: colors.text,
+	},
 })
 
 export default SpeedModal

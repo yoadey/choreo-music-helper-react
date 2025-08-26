@@ -1,6 +1,7 @@
 export const colors = {
-	primary: '#fc3c44',
+	primary: 'rgb(252, 60, 68)',
 	secondary: 'rgb(53, 53, 53)',
+	disabled: 'rgb(228, 175, 176)',
 	background: 'rgb(28, 28, 30)',
 	backgroundHighlighted: 'rgb(43, 43, 44)',
 	backgroundSecondary: 'rgb(37, 37, 37)',

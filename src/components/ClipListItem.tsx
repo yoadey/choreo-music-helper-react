@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
 		fontSize: 32,
 		fontWeight: '600',
 		maxWidth: '100%',
-		width: 38,
+		minWidth: 40,
 		paddingRight: 10,
 	},
 	clipTitleText: {

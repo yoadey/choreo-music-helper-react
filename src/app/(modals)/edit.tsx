@@ -1,5 +1,5 @@
-import TimeEditor from '@/components/TimeEditor'
 import SpeedEditor from '@/components/SpeedEditor'
+import TimeEditor from '@/components/TimeEditor'
 import { colors } from '@/constants/tokens'
 import Clip from '@/model/clip'
 import { database } from '@/model/index.web'
@@ -31,22 +31,22 @@ const colorSwatches = [
 ]
 
 const colorSwatchesSelected = [
-    "#FFFFFF",
-    "#AFB42B",
-    "#E64A19",
-    "#C2185B",
-    "#D32F2F",
-    "#00796B",
-    "#689F38",
-    "#388E3C",
-    "#0097A7",
-    "#0288D1",
-    "#1976D2",
-    "#303F9F",
-    "#512DA8",
-    "#7B1FA2",
-    "#455A64",
-    "#5D4037",
+	"#FFFFFF",
+	"#AFB42B",
+	"#E64A19",
+	"#C2185B",
+	"#D32F2F",
+	"#00796B",
+	"#689F38",
+	"#388E3C",
+	"#0097A7",
+	"#0288D1",
+	"#1976D2",
+	"#303F9F",
+	"#512DA8",
+	"#7B1FA2",
+	"#455A64",
+	"#5D4037",
 ]
 
 
@@ -54,27 +54,27 @@ const EditClipModal = ({ clip }: { clip: Clip }) => {
 	const router = useRouter()
 	const headerHeight = useHeaderHeight()
 
-        const [title, setTitle] = useState(clip.title);
-        const [position, setPosition] = useState(clip.position)
-        const [color, setColor] = useState(clip.color)
-        const [speed, setSpeed] = useState(clip.speed ?? 1)
+	const [title, setTitle] = useState(clip.title);
+	const [position, setPosition] = useState(clip.position)
+	const [color, setColor] = useState(clip.color)
+	const [speed, setSpeed] = useState(clip.speed ?? 1)
 
 	useEffect(() => {
-                setTitle(clip.title)
-                setPosition(clip.position)
-                setColor(clip.color)
-                setSpeed(clip.speed ?? 1)
+		setTitle(clip.title)
+		setPosition(clip.position)
+		setColor(clip.color)
+		setSpeed(clip.speed ?? 1)
 	}, [clip])
 
 	const handleOk = async () => {
 		database.write(async () =>
 			await clip.update(clipUpdate => {
-                                clipUpdate.title = title;
-                                clipUpdate.position = position;
-                                clipUpdate.color = color;
-                                clipUpdate.speed = speed;
-                        })
-                );
+				clipUpdate.title = title;
+				clipUpdate.position = position;
+				clipUpdate.color = color;
+				clipUpdate.speed = speed;
+			})
+		);
 		router.dismiss()
 	}
 
@@ -103,15 +103,16 @@ const EditClipModal = ({ clip }: { clip: Clip }) => {
 					styles={{ default: { card: { marginTop: "15px", marginBottom: "5px" } } }}
 				/>
 
-                                <TimeEditor timeMs={position*1000} onChange={(ms) => setPosition(ms/1000)} />
-                                <SpeedEditor speed={speed} onChange={setSpeed} />
+				<TimeEditor timeMs={position * 1000} onChange={(ms) => setPosition(ms / 1000)} />
+				<div style={{ height: 10 }} />
+				<SpeedEditor speed={speed} onChange={setSpeed} />
 
-                                <View style={{ marginTop: 24 }}>
-                                        <Button title="OK" onPress={handleOk} color={colors.primary} />
-                                </View>
-                        </View>
-                </View>
-        )
+				<View style={{ marginTop: 24 }}>
+					<Button title="OK" onPress={handleOk} color={colors.primary} />
+				</View>
+			</View>
+		</View>
+	)
 }
 
 // @ts-ignore

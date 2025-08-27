@@ -1,9 +1,11 @@
+import logo from '@/assets/logo192.png';
+import Clip from '@/model/clip';
+import { useLeadInDuration } from '@/store/playbackState';
 import { useEffect, useState } from 'react';
 import TrackPlayer, { useIsPlaying } from 'react-native-track-player';
 import { useCurrentTrack } from './useCurrentTrack';
-import Clip from '@/model/clip';
-import { useLeadInDuration } from '@/store/playbackState';
-import logo from '@/assets/logo192.png';
+
+const SKIP_TO_PREVIOUS_SECONDS = 0.5
 
 export const useMediaSession = () => {
     const { currentTrack } = useCurrentTrack();
@@ -44,10 +46,11 @@ export const useMediaSession = () => {
         const handlePause = () => TrackPlayer.pause();
         const handlePrevious = async () => {
             const progress = await TrackPlayer.getProgress();
+            const leadPosition = progress.position + (leadInDuration ?? 0)
             for (let index = 0; index < clips.length; index++) {
                 const clip = clips[index];
                 const nextClip = clips[index + 1];
-                if (clip.position <= progress.position && (!nextClip || nextClip.position > progress.position)) {
+                if (clip.position <= leadPosition && (!nextClip || nextClip.position > leadPosition)) {
                     const target = clips[Math.max(index - 1, 0)]?.position ?? 0;
                     TrackPlayer.seekTo(Math.max(target - (leadInDuration ?? 0), 0));
                     break;
@@ -56,10 +59,11 @@ export const useMediaSession = () => {
         };
         const handleNext = async () => {
             const progress = await TrackPlayer.getProgress();
+            const leadPosition = progress.position + (leadInDuration ?? 0)
             for (let index = 0; index < clips.length; index++) {
                 const clip = clips[index];
                 const nextClip = clips[index + 1];
-                if (clip.position <= progress.position && nextClip && nextClip.position > progress.position) {
+                if (clip.position <= leadPosition && nextClip && nextClip.position > leadPosition) {
                     TrackPlayer.seekTo(Math.max(nextClip.position - (leadInDuration ?? 0), 0));
                     break;
                 }

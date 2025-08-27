@@ -77,10 +77,11 @@ export const playbackService = async () => {
 
     TrackPlayer.addEventListener(Event.RemoteNext, async () => {
         const progress = await TrackPlayer.getProgress();
+        const leadPosition = progress.position + (leadInDuration ?? 0)
         for (let index = 0; index < clipsSorted.length; index++) {
             const position = clipsSorted[index].start;
             const next = clipsSorted[index + 1].start;
-            if (position <= progress.position && next !== undefined && next > progress.position) {
+            if (position <= leadPosition && next !== undefined && next > leadPosition) {
                 TrackPlayer.seekTo(Math.max(next - leadInDuration, 0));
                 break;
             }
@@ -89,10 +90,11 @@ export const playbackService = async () => {
 
     TrackPlayer.addEventListener(Event.RemotePrevious, async () => {
         const progress = await TrackPlayer.getProgress();
+        const leadPosition = progress.position + (leadInDuration ?? 0)
         for (let index = 0; index < clipsSorted.length; index++) {
             const position = clipsSorted[index].start;
             const next = clipsSorted[index + 1].start;
-            if (position <= progress.position && (next === undefined || next > progress.position)) {
+            if (position <= leadPosition && (next === undefined || next > leadPosition)) {
                 const target = clipsSorted[Math.max(index - 1, 0)].start ?? 0;
                 TrackPlayer.seekTo(Math.max(target - leadInDuration, 0));
                 break;

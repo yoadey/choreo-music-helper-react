@@ -64,7 +64,6 @@ export const playbackService = async () => {
     })
 
     TrackPlayer.addEventListener(Event.RemotePlay, () => {
-        console.log('RemotePlay event received');
         TrackPlayer.play()
     })
 
@@ -145,7 +144,6 @@ export const playbackService = async () => {
             startValue: clipSpeedCurrent,
             endValue: clipSpeedNext
         });
-        console.log("Current total speed: " + speedFaded + " position: " + position + " positionNext: " + positionNext + " clipSpeedCurrent: " + clipSpeedCurrent + " clipSpeedNext: " + clipSpeedNext);
         TrackPlayer.setRate(speed * speedFaded);
     }
 

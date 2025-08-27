@@ -1,8 +1,8 @@
 import { colors } from '@/constants/tokens'
 import { useVolumeFadeDuration, useSpeedFadeDuration } from '@/store/playbackState'
-import Slider from '@react-native-community/slider'
-import React from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { FontAwesome6 } from '@expo/vector-icons'
+import React, { useCallback } from 'react'
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
 const SettingsScreen = () => {
     const [volumeFade, setVolumeFade] = useVolumeFadeDuration()
@@ -11,40 +11,60 @@ const SettingsScreen = () => {
     const volumeValue = volumeFade ?? 2
     const speedValue = speedFade ?? 2
 
+    const clamp = (value: number) => Math.max(0, Math.min(5, Number(value.toFixed(1))))
+
+    const changeVolume = useCallback((next: number) => {
+        setVolumeFade(clamp(next))
+    }, [setVolumeFade])
+
+    const changeSpeed = useCallback((next: number) => {
+        setSpeedFade(clamp(next))
+    }, [setSpeedFade])
+
     return (
         <View style={styles.container}>
             <View style={styles.section}>
                 <Text style={styles.label}>Volume Fade In</Text>
-                <View style={styles.sliderRow}>
-                    <Slider
-                        style={styles.slider}
-                        minimumValue={0}
-                        maximumValue={5}
-                        step={0.1}
-                        value={volumeValue}
-                        onValueChange={(v) => setVolumeFade(Number(v.toFixed(1)))}
-                        minimumTrackTintColor={colors.minimumTrackTintColor}
-                        maximumTrackTintColor={colors.maximumTrackTintColor}
-                        thumbTintColor={colors.primary}
+                <Text style={styles.description}>How long the volume takes to reach full level when starting playback.</Text>
+                <View style={styles.row}>
+                    <TouchableOpacity onPress={() => changeVolume(volumeValue - 0.1)} style={styles.iconButton}>
+                        <FontAwesome6 name="minus" size={16} color={colors.text} />
+                    </TouchableOpacity>
+                    <TextInput
+                        value={volumeValue.toFixed(1)}
+                        onChangeText={(t) => {
+                            const v = parseFloat(t)
+                            if (!isNaN(v)) changeVolume(v)
+                        }}
+                        keyboardType="decimal-pad"
+                        style={styles.input}
                     />
-                    <Text style={styles.value}>{volumeValue.toFixed(1)}s</Text>
+                    <TouchableOpacity onPress={() => changeVolume(volumeValue + 0.1)} style={styles.iconButton}>
+                        <FontAwesome6 name="plus" size={16} color={colors.text} />
+                    </TouchableOpacity>
+                    <Text style={styles.suffix}>s</Text>
                 </View>
             </View>
             <View style={styles.section}>
                 <Text style={styles.label}>Speed Fade In</Text>
-                <View style={styles.sliderRow}>
-                    <Slider
-                        style={styles.slider}
-                        minimumValue={0}
-                        maximumValue={5}
-                        step={0.1}
-                        value={speedValue}
-                        onValueChange={(v) => setSpeedFade(Number(v.toFixed(1)))}
-                        minimumTrackTintColor={colors.minimumTrackTintColor}
-                        maximumTrackTintColor={colors.maximumTrackTintColor}
-                        thumbTintColor={colors.primary}
+                <Text style={styles.description}>How long the playback speed takes to ramp up to the selected speed.</Text>
+                <View style={styles.row}>
+                    <TouchableOpacity onPress={() => changeSpeed(speedValue - 0.1)} style={styles.iconButton}>
+                        <FontAwesome6 name="minus" size={16} color={colors.text} />
+                    </TouchableOpacity>
+                    <TextInput
+                        value={speedValue.toFixed(1)}
+                        onChangeText={(t) => {
+                            const v = parseFloat(t)
+                            if (!isNaN(v)) changeSpeed(v)
+                        }}
+                        keyboardType="decimal-pad"
+                        style={styles.input}
                     />
-                    <Text style={styles.value}>{speedValue.toFixed(1)}s</Text>
+                    <TouchableOpacity onPress={() => changeSpeed(speedValue + 0.1)} style={styles.iconButton}>
+                        <FontAwesome6 name="plus" size={16} color={colors.text} />
+                    </TouchableOpacity>
+                    <Text style={styles.suffix}>s</Text>
                 </View>
             </View>
         </View>
@@ -58,25 +78,40 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     section: {
-        marginBottom: 24,
+        marginBottom: 32,
+        backgroundColor: colors.backgroundHighlighted,
+        padding: 16,
+        borderRadius: 8,
     },
     label: {
         color: colors.text,
-        marginBottom: 8,
+        marginBottom: 4,
+        fontWeight: 'bold',
     },
-    sliderRow: {
+    description: {
+        color: colors.textMuted,
+        marginBottom: 12,
+        fontSize: 14,
+    },
+    row: {
         flexDirection: 'row',
         alignItems: 'center',
     },
-    slider: {
-        flex: 1,
-        height: 40,
+    iconButton: {
+        padding: 8,
     },
-    value: {
+    input: {
         color: colors.text,
-        marginLeft: 12,
-        width: 50,
-        textAlign: 'right',
+        backgroundColor: colors.background,
+        borderRadius: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        textAlign: 'center',
+        width: 60,
+    },
+    suffix: {
+        color: colors.text,
+        marginLeft: 8,
     },
 })
 

@@ -1,6 +1,6 @@
 import Clip from '@/model/clip';
 import { database } from '@/model/index.web';
-import { getGlobalSpeedOnly, getLastTrack, getLeadInDuration, getLeadInVolume, getLeadOutDuration, getLeadOutVolume, getLoopEnd, getLoopStart, getSpeed, getVolumeFadeDuration, getSpeedFadeDuration, preferences } from '@/store/playbackState';
+import { getGlobalSpeedOnly, getLastTrack, getLeadInDuration, getLeadInVolume, getLeadOutDuration, getLeadOutVolume, getLoopEnd, getLoopStart, getSpeed, getSpeedFadeDuration, getVolumeFadeDuration, preferences } from '@/store/playbackState';
 import { Q } from '@nozbe/watermelondb';
 import TrackPlayer, { Event, State } from 'react-native-track-player';
 import type { Subscription } from 'rxjs';
@@ -73,7 +73,8 @@ export const playbackService = async () => {
     })
 
     TrackPlayer.addEventListener(Event.RemoteStop, () => {
-        TrackPlayer.stop()
+        TrackPlayer.seekTo(0)
+        TrackPlayer.pause();
     })
 
     TrackPlayer.addEventListener(Event.RemoteNext, async () => {

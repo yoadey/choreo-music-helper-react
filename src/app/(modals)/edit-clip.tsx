@@ -1,6 +1,5 @@
 import ColorPicker from '@/components/ColorPicker'
-import SpeedEditor from '@/components/SpeedEditor'
-import TimeEditor from '@/components/TimeEditor'
+import PlusMinusEditor from '@/components/PlusMinusEditor'
 import { colors } from '@/constants/tokens'
 import Clip from '@/model/clip'
 import { database } from '@/model/index.web'
@@ -81,9 +80,34 @@ const EditClipModal = ({ clip }: { clip: Clip }) => {
                     />
                 </View>
 
-                <TimeEditor timeMs={position * 1000} onChange={(ms) => setPosition(ms / 1000)} />
+                <PlusMinusEditor
+                    value={position}
+                    onChange={setPosition}
+                    format={(value) => {
+                        const minutes = Math.floor(value / 60);
+                        const seconds = Math.floor((value % 60));
+                        const milliseconds = Math.floor((value * 1000 % 1000) / 100);
+                        return minutes.toString() + ":" + seconds.toString().padStart(2, '0') + "." + milliseconds.toString()
+                    }}
+                    parse={(input) => {
+                        if (!/^\d+:\d+(\.\d+)?$/.test(input)) return NaN;
+                        const [m, s] = input.split(":");
+                        return parseInt(m, 10) * 60 + parseFloat(s);
+                    }}
+                    changeSize={0.1}
+                    icon="clock-outline"
+                />
                 <div style={{ height: 10 }} />
-                <SpeedEditor speed={speed} onChange={setSpeed} />
+
+                <PlusMinusEditor
+                    value={speed}
+                    onChange={setSpeed}
+                    format={(value) => value.toFixed(2)}
+                    parse={(input) => parseFloat(input)}
+                    changeSize={0.01}
+                    icon="speedometer"
+                    suffix="x"
+                />
 
                 <View style={{ marginTop: 24 }}>
                     <Button title="OK" onPress={handleOk} color={colors.primary} />

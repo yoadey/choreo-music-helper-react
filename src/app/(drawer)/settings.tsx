@@ -1,8 +1,8 @@
+import PlusMinusEditor from '@/components/PlusMinusEditor'
 import { colors } from '@/constants/tokens'
-import { useVolumeFadeDuration, useSpeedFadeDuration } from '@/store/playbackState'
-import { FontAwesome6 } from '@expo/vector-icons'
+import { useSpeedFadeDuration, useVolumeFadeDuration } from '@/store/playbackState'
 import React, { useCallback } from 'react'
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 
 const SettingsScreen = () => {
     const [volumeFade, setVolumeFade] = useVolumeFadeDuration()
@@ -26,45 +26,31 @@ const SettingsScreen = () => {
             <View style={styles.section}>
                 <Text style={styles.label}>Volume Fade In</Text>
                 <Text style={styles.description}>How long the volume takes to reach full level when starting playback.</Text>
-                <View style={styles.row}>
-                    <TouchableOpacity onPress={() => changeVolume(volumeValue - 0.1)} style={styles.iconButton}>
-                        <FontAwesome6 name="minus" size={16} color={colors.text} />
-                    </TouchableOpacity>
-                    <TextInput
-                        value={volumeValue.toFixed(1)}
-                        onChangeText={(t) => {
-                            const v = parseFloat(t)
-                            if (!isNaN(v)) changeVolume(v)
-                        }}
-                        keyboardType="decimal-pad"
-                        style={styles.input}
+                <View style={[styles.row, {width: 200}]}>
+                    <PlusMinusEditor
+                        value={volumeValue}
+                        onChange={changeVolume}
+                        format={(value) => value.toFixed(1)}
+                        parse={(input) => parseFloat(input)}
+                        changeSize={0.1}
+                        icon="volume-high"
+                        suffix="s"
                     />
-                    <TouchableOpacity onPress={() => changeVolume(volumeValue + 0.1)} style={styles.iconButton}>
-                        <FontAwesome6 name="plus" size={16} color={colors.text} />
-                    </TouchableOpacity>
-                    <Text style={styles.suffix}>s</Text>
                 </View>
             </View>
             <View style={styles.section}>
                 <Text style={styles.label}>Speed Fade In</Text>
                 <Text style={styles.description}>How long the playback speed takes to ramp up to the selected speed.</Text>
-                <View style={styles.row}>
-                    <TouchableOpacity onPress={() => changeSpeed(speedValue - 0.1)} style={styles.iconButton}>
-                        <FontAwesome6 name="minus" size={16} color={colors.text} />
-                    </TouchableOpacity>
-                    <TextInput
-                        value={speedValue.toFixed(1)}
-                        onChangeText={(t) => {
-                            const v = parseFloat(t)
-                            if (!isNaN(v)) changeSpeed(v)
-                        }}
-                        keyboardType="decimal-pad"
-                        style={styles.input}
+                <View style={[styles.row, {width: 200}]}>
+                    <PlusMinusEditor
+                        value={speedValue}
+                        onChange={changeSpeed}
+                        format={(value) => value.toFixed(1)}
+                        parse={(input) => parseFloat(input)}
+                        changeSize={0.1}
+                        icon="speedometer"
+                        suffix="s"
                     />
-                    <TouchableOpacity onPress={() => changeSpeed(speedValue + 0.1)} style={styles.iconButton}>
-                        <FontAwesome6 name="plus" size={16} color={colors.text} />
-                    </TouchableOpacity>
-                    <Text style={styles.suffix}>s</Text>
                 </View>
             </View>
         </View>

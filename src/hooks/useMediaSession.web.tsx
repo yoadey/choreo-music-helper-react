@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
 import TrackPlayer, { useIsPlaying } from 'react-native-track-player';
 import { useCurrentTrack } from './useCurrentTrack';
 import Clip from '@/model/clip';
@@ -13,7 +12,6 @@ export const useMediaSession = () => {
     const { playing } = useIsPlaying();
 
     useEffect(() => {
-        if (Platform.OS !== 'web') return;
         if (!currentTrack) {
             setClips([]);
             return;
@@ -28,7 +26,6 @@ export const useMediaSession = () => {
     }, [currentTrack]);
 
     useEffect(() => {
-        if (Platform.OS !== 'web') return;
         if (!('mediaSession' in navigator)) return;
         if (currentTrack) {
             navigator.mediaSession.metadata = new MediaMetadata({
@@ -97,7 +94,6 @@ export const useMediaSession = () => {
     }, [currentTrack, clips, leadInDuration]);
 
     useEffect(() => {
-        if (Platform.OS !== 'web') return;
         if (!('mediaSession' in navigator)) return;
         navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
     }, [playing]);

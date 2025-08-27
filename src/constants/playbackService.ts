@@ -18,11 +18,13 @@ export const playbackService = async () => {
         let globalSpeedOnly = false;
         let playerReady = false;
         let clipSpeeds: { start: number; end: number; speed: number }[] = [];
+        let clipPositions: number[] = [];
         let clipSubscription: Subscription | undefined;
 
         const loadClipSpeeds = (trackId?: string | null) => {
                 clipSubscription?.unsubscribe();
                 clipSpeeds = [];
+                clipPositions = [];
                 if (!trackId) return;
                 clipSubscription = database
                         .get<Clip>('clips')
@@ -30,6 +32,7 @@ export const playbackService = async () => {
                         .observeWithColumns(['position', 'speed'])
                         .subscribe((clips) => {
                                 const sorted = clips.sort((a, b) => a.position - b.position);
+                                clipPositions = sorted.map((clip) => clip.position);
                                 clipSpeeds = sorted.map((clip, index) => ({
                                         start: clip.position,
                                         end: index < sorted.length - 1 ? sorted[index + 1].position : Number.POSITIVE_INFINITY,
@@ -74,13 +77,42 @@ export const playbackService = async () => {
 		TrackPlayer.stop()
 	})
 
-	TrackPlayer.addEventListener(Event.RemoteNext, () => {
-		TrackPlayer.skipToNext()
-	})
+        TrackPlayer.addEventListener(Event.RemoteNext, async () => {
+                const progress = await TrackPlayer.getProgress();
+                for (let index = 0; index < clipPositions.length; index++) {
+                        const position = clipPositions[index];
+                        const next = clipPositions[index + 1];
+                        if (position <= progress.position && next !== undefined && next > progress.position) {
+                                TrackPlayer.seekTo(Math.max(next - leadInDuration, 0));
+                                break;
+                        }
+                }
+        })
 
-	TrackPlayer.addEventListener(Event.RemotePrevious, () => {
-		TrackPlayer.skipToPrevious()
-	})
+        TrackPlayer.addEventListener(Event.RemotePrevious, async () => {
+                const progress = await TrackPlayer.getProgress();
+                for (let index = 0; index < clipPositions.length; index++) {
+                        const position = clipPositions[index];
+                        const next = clipPositions[index + 1];
+                        if (position <= progress.position && (next === undefined || next > progress.position)) {
+                                const target = clipPositions[Math.max(index - 1, 0)] ?? 0;
+                                TrackPlayer.seekTo(Math.max(target - leadInDuration, 0));
+                                break;
+                        }
+                }
+        })
+
+        TrackPlayer.addEventListener(Event.RemoteJumpBackward, async ({ interval }) => {
+                const progress = await TrackPlayer.getProgress();
+                const offset = interval ?? 10;
+                TrackPlayer.seekTo(Math.max(progress.position - offset, 0));
+        })
+
+        TrackPlayer.addEventListener(Event.RemoteJumpForward, async ({ interval }) => {
+                const progress = await TrackPlayer.getProgress();
+                const offset = interval ?? 10;
+                TrackPlayer.seekTo(progress.position + offset);
+        })
 
 	const isLoopActive = () => {
 		return loopStart !== undefined && loopEnd !== undefined && loopStart < loopEnd;

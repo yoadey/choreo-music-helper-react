@@ -2,6 +2,7 @@ import { playbackService } from '@/constants/playbackService'
 import { colors } from '@/constants/tokens'
 import { useCurrentTrack } from '@/hooks/useCurrentTrack'
 import { useSetupTrackPlayer } from '@/hooks/useSetupTrackPlayer'
+import { useMediaSession } from '@/hooks/useMediaSession'
 import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { getLastTrack } from '@/store/playbackState'
@@ -43,6 +44,8 @@ const App = () => {
     useSetupTrackPlayer({
         onLoad: handleTrackPlayerLoaded,
     })
+
+    useMediaSession()
 
     return (
         <SafeAreaProvider>

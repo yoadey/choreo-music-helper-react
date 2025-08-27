@@ -13,8 +13,12 @@ const setupPlayer = async () => {
 			Capability.Pause,
 			Capability.SkipToNext,
 			Capability.SkipToPrevious,
+			Capability.JumpForward,
+			Capability.JumpBackward,
 			Capability.Stop,
 		],
+		forwardJumpInterval: 10,
+		backwardJumpInterval: 10,
 		progressUpdateEventInterval: 0.05, // 50ms
 	})
 

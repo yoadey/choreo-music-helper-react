@@ -11,6 +11,38 @@ import React, { useLayoutEffect } from 'react';
 import { Platform, TouchableOpacity } from 'react-native';
 import { useCurrentTrack } from './useCurrentTrack';
 
+const AUDIO_TYPES = [
+  // generisch
+  'audio/*',
+
+  // spezifische MIMEs
+  'audio/mpeg',       // mp3
+  'audio/mp4',        // m4a
+  'audio/aac',
+  'audio/wav',
+  'audio/flac',
+  'audio/ogg',
+  'audio/opus',
+  'audio/webm',
+
+  // Dateiendungen (iOS sehr zuverlässig)
+  '.mp3',
+  '.m4a',
+  '.aac',
+  '.wav',
+  '.flac',
+  '.ogg',
+  '.oga',
+  '.opus',
+  '.weba',
+  '.aiff',
+  '.aif',
+  '.caf',
+  '.alac',
+  '.amr',
+  '.mid',
+  '.midi',
+];
 
 export const useNavigationOpenFile = () => {
         const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
@@ -19,7 +51,7 @@ export const useNavigationOpenFile = () => {
         type PickedFile = { uri: string; name: string; title: string; length: number; waveform: number[]; clips: { title: string; position: number; color: string }[] }
 
         const handlePick = async (): Promise<PickedFile> => {
-                const pickerResult = await DocumentPicker.getDocumentAsync({ type: 'audio/*', copyToCacheDirectory: false });
+                const pickerResult = await DocumentPicker.getDocumentAsync({ type: AUDIO_TYPES, copyToCacheDirectory: false });
 
                 if (pickerResult?.assets?.length) {
                         const file = pickerResult.assets[0];

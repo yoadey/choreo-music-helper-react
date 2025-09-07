@@ -45,11 +45,11 @@ export default function PlusMinusEditor({ value, onChange, changeSize, format, p
                 }
             </div>
             <View style={[buttonStyles.buttonsRow, { flex: 0, flexShrink: 1, flexBasis: 'auto', width: 'auto' }]}>
-                <TouchableOpacity style={buttonStyles.button} onPress={() => updateValue(changeSize)}>
-                    <FontAwesome6 name="plus" size={14} color={colors.text} />
-                </TouchableOpacity>
                 <TouchableOpacity style={buttonStyles.button} onPress={() => updateValue(-1 * changeSize)}>
                     <FontAwesome6 name="minus" size={14} color={colors.text} />
+                </TouchableOpacity>
+                <TouchableOpacity style={buttonStyles.button} onPress={() => updateValue(changeSize)}>
+                    <FontAwesome6 name="plus" size={14} color={colors.text} />
                 </TouchableOpacity>
             </View>
         </View>

@@ -21,8 +21,8 @@ type PlayerButtonProps = {
 
 export const PlayerControls = ({ style }: PlayerControlsProps) => {
 
-        const { currentTrack } = useCurrentTrack()
-        const [clips, setClips] = useState<Clip[]>([]);
+	const { currentTrack } = useCurrentTrack()
+	const [clips, setClips] = useState<Clip[]>([]);
 
 	useMemo(() => {
 		currentTrack?.clips.observeWithColumns(['position']).subscribe((clips) => {
@@ -61,23 +61,26 @@ export const PlayerControls = ({ style }: PlayerControlsProps) => {
 				}
 			});
 	}
-        return (
-                <View style={[styles.container, style]}>
-                        <View style={styles.row}>
+	return (
+		<View style={[styles.container, style]}>
+			<View style={styles.row}>
 
-                                <LoopButton />
+				<LoopButton />
 
-                                <PlayerAddClipButton size={32} />
+				<PlayerAddClipButton size={32} />
 
-                                <SpeedButton />
-                        </View>
+				<SpeedButton />
+			</View>
 			<PlayerProgressBar style={{ marginTop: 10, paddingHorizontal: 10 }} />
 			<View style={styles.row}>
 				<TouchableOpacity activeOpacity={0.7} onPress={handlePrevious} style={[styles.button]}>
 					<FontAwesome6 name={'backward'} size={30} color={colors.text} />
 				</TouchableOpacity>
 
-				<TouchableOpacity activeOpacity={0.7} onPress={() => TrackPlayer.stop()} style={[styles.button]}>
+				<TouchableOpacity activeOpacity={0.7} onPress={() => {
+					TrackPlayer.seekTo(0);
+					TrackPlayer.pause();
+				}} style={[styles.button]}>
 					<FontAwesome6 name="stop" size={30} color={colors.text} />
 				</TouchableOpacity>
 				<PlayPauseButton />
@@ -152,9 +155,9 @@ export const LoopButton = ({ iconSize = 30 }: PlayerButtonProps) => {
 
 export const SpeedButton = ({ iconSize = 30 }: PlayerButtonProps) => {
 	const router = useRouter()
-        const [speed] = useSpeed()
-        const [globalOnly] = useGlobalSpeedOnly()
-        const highlightColor = speed && (speed !== 1 || globalOnly) ? colors.primary : colors.icon;
+	const [speed] = useSpeed()
+	const [globalOnly] = useGlobalSpeedOnly()
+	const highlightColor = speed && (speed !== 1 || globalOnly) ? colors.primary : colors.icon;
 	return (
 		<TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/(modals)/speed')} style={[styles.button]}>
 			<MaterialCommunityIcons

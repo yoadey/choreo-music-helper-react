@@ -1,13 +1,12 @@
 import Clip from '@/model/clip';
 import { database } from '@/model/index.web';
-import { getGlobalSpeedOnly, getLastTrack, getLeadInDuration, getLeadInVolume, getLeadOutDuration, getLeadOutVolume, getLoopEnd, getLoopStart, getSpeed, preferences } from '@/store/playbackState';
+import { getGlobalSpeedOnly, getLastTrack, getLeadInDuration, getLeadInVolume, getLeadOutDuration, getLeadOutVolume, getLoopEnd, getLoopStart, getSpeed, getSpeedFadeDuration, getVolumeFadeDuration, preferences } from '@/store/playbackState';
 import { Q } from '@nozbe/watermelondb';
 import TrackPlayer, { Event, State } from 'react-native-track-player';
-import { setRate } from 'react-native-track-player/lib/src/trackPlayer';
 import type { Subscription } from 'rxjs';
 
-export const VOLUME_FADE_DURATION = 2; // 2 seconds
-export const SPEED_FADE_DURATION = 2; // 2 seconds
+export let VOLUME_FADE_DURATION = getVolumeFadeDuration(); // seconds
+export let SPEED_FADE_DURATION = getSpeedFadeDuration(); // seconds
 
 export const playbackService = async () => {
     let leadInDuration = 0;
@@ -52,6 +51,8 @@ export const playbackService = async () => {
         leadOutVolume = getLeadOutVolume();
         loopEnd = getLoopEnd();
         loopStart = getLoopStart();
+        VOLUME_FADE_DURATION = getVolumeFadeDuration();
+        SPEED_FADE_DURATION = getSpeedFadeDuration();
         loadClipSpeeds(getLastTrack());
 
         if (playerReady) {
@@ -72,7 +73,8 @@ export const playbackService = async () => {
     })
 
     TrackPlayer.addEventListener(Event.RemoteStop, () => {
-        TrackPlayer.stop()
+        TrackPlayer.seekTo(0)
+        TrackPlayer.pause();
     })
 
     TrackPlayer.addEventListener(Event.RemoteNext, async () => {
@@ -121,7 +123,7 @@ export const playbackService = async () => {
 
     const checkSpeed = (position: number) => {
         if (globalSpeedOnly) {
-            setRate(speed);
+            TrackPlayer.setRate(speed);
             return;
         }
         let clipSpeedCurrent = 1;

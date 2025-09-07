@@ -53,6 +53,29 @@ const DrawerNavigator = () => {
                 />
             }
             <Drawer.Screen
+                name="settings"
+                options={{
+                    title: `Settings`,
+                    headerShown: true,
+                    headerStyle: { backgroundColor: colors.backgroundSecondary },
+                    headerTintColor: colors.text,
+                    headerTransparent: false,
+                    headerShadowVisible: false,
+                    drawerStyle: {
+                        backgroundColor: colors.backgroundHighlighted,
+                    },
+                    drawerActiveBackgroundColor: colors.maximumTrackTintColor,
+                    drawerLabelStyle: {
+                        color: colors.text,
+                    },
+                    drawerInactiveTintColor: colors.text,
+                    drawerActiveTintColor: colors.text,
+                    drawerIcon: ({ color, size }) => (
+                        <FontAwesome6 name="gear" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Drawer.Screen
                 name="info"
                 options={{
                     title: `Info`,

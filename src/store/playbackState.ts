@@ -81,3 +81,17 @@ export const getLeadInVolume = () => preferences.getNumber(KEY_LEAD_IN_VOLUME) ?
 export const KEY_LEAD_OUT_VOLUME = 'leadOutVolume';
 export const useLeadOutVolume = () => useMMKVNumber(KEY_LEAD_OUT_VOLUME, preferences);
 export const getLeadOutVolume = () => preferences.getNumber(KEY_LEAD_OUT_VOLUME) ?? 1.0;
+
+/**
+ * Duration of the volume fade in seconds.
+ */
+export const KEY_VOLUME_FADE_DURATION = 'volumeFadeDuration';
+export const useVolumeFadeDuration = () => useMMKVNumber(KEY_VOLUME_FADE_DURATION, preferences);
+export const getVolumeFadeDuration = () => preferences.getNumber(KEY_VOLUME_FADE_DURATION) ?? 2;
+
+/**
+ * Duration of the speed fade in seconds.
+ */
+export const KEY_SPEED_FADE_DURATION = 'speedFadeDuration';
+export const useSpeedFadeDuration = () => useMMKVNumber(KEY_SPEED_FADE_DURATION, preferences);
+export const getSpeedFadeDuration = () => preferences.getNumber(KEY_SPEED_FADE_DURATION) ?? 2;

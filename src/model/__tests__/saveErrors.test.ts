@@ -31,3 +31,37 @@ describe('createSaveFailureReporter', () => {
         expect(show).toHaveBeenLastCalledWith('failed')
     })
 })
+
+describe('createSaveFailureReporter while the app is hidden or reporting itself', () => {
+    const messages = { storageFull: 'full', saveFailed: 'failed' }
+
+    it('shows the message when the app is visible again (alerts are dropped while hidden)', () => {
+        const show = jest.fn()
+        let visible = false
+        const reporter = createSaveFailureReporter(show, messages, () => visible)
+        reporter.failed(new Error('broken'))
+        expect(show).not.toHaveBeenCalled()
+        visible = true
+        reporter.visible()
+        expect(show).toHaveBeenCalledWith('failed')
+    })
+
+    it('does not report failures of saves that are reported by the caller (e.g. the import)', async () => {
+        const show = jest.fn()
+        const reporter = createSaveFailureReporter(show, messages)
+        await expect(
+            reporter.whileReportedByCaller(async () => {
+                reporter.failed(new Error('background save'))
+                throw new Error('import failed')
+            }),
+        ).rejects.toThrow('import failed')
+        expect(show).not.toHaveBeenCalled()
+        // The user was told by the caller: a later failure (e.g. saving the clean up) is not shown again ...
+        reporter.failed(new Error('clean up'))
+        expect(show).not.toHaveBeenCalled()
+        // ... until a save worked in between
+        reporter.succeeded()
+        reporter.failed(new Error('edit'))
+        expect(show).toHaveBeenCalledTimes(1)
+    })
+})

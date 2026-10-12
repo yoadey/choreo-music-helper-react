@@ -40,13 +40,12 @@ const clearCurrentTrack = () => {
 export const selectTrack = async (track: TrackWithClips, { silent = false } = {}) =>
     (await loadAndSelect(track, silent)) === 'loaded'
 
-const loadAndSelect = async (track: TrackWithClips, silent: boolean): Promise<LoadResult> => {
+const loadAndSelect = async (track: TrackWithClips, silent: boolean, reload = false): Promise<LoadResult> => {
     selections++
-    // Selecting the loaded song again keeps it playing (unless another song is loading, which it replaces,
-    // or the player dropped the song after an error)
-    if (useCurrentTrackStore.getState().currentTrack?.id === track.id && !trackLoader.isLoading()) {
-        const { state } = await TrackPlayer.getPlaybackState().catch(() => ({ state: State.Error }))
-        if (state !== State.Error && !trackLoader.isLoading()) return 'loaded'
+    // Selecting the loaded song again keeps it playing (unless another song is loading, which it replaces).
+    // Decided right away, so the last selection always wins.
+    if (!reload && useCurrentTrackStore.getState().currentTrack?.id === track.id && !trackLoader.isLoading()) {
+        return 'loaded'
     }
     const result = await trackLoader.load(track)
     switch (result) {
@@ -89,6 +88,19 @@ export const addClipAtCurrentPosition = async (
         console.warn('Could not add the clip', error)
         showMessage(t.saveFailed)
     }
+}
+
+/** True while a song is being loaded into the player. */
+export const isTrackLoading = () => trackLoader.isLoading()
+
+/**
+ * Loads the current song again after the player dropped it because of an error (e.g. a decode error during
+ * playback), so Play works again. Not while a song is loading: its load failure is handled there.
+ */
+export const reloadCurrentTrackAfterError = async () => {
+    const current = useCurrentTrackStore.getState().currentTrack
+    if (!current || trackLoader.isLoading()) return
+    await loadAndSelect(current, false, true)
 }
 
 /**

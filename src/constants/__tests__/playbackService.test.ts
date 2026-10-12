@@ -275,6 +275,27 @@ describe('preferences', () => {
     })
 })
 
+describe('player errors (state)', () => {
+    it('reloads the current song when the player reports an error, so Play works again', async () => {
+        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
+        const reload = jest.spyOn(helpers, 'reloadCurrentTrackAfterError').mockImplementation(async () => undefined)
+        await startService()
+        await setPlayerState(m.player.State.Error)
+        expect(reload).toHaveBeenCalled()
+    })
+
+    it('does not jump to the loop start of the old song at its end while another song is loading', async () => {
+        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
+        jest.spyOn(helpers, 'isTrackLoading').mockReturnValue(true)
+        m.store.setLoopStart({ id: 'c' })
+        m.store.setLoopEnd({ id: 'c' })
+        await startService()
+        m.player.playerState.position = 30
+        await setPlayerState(m.player.State.Ended)
+        expect(TrackPlayer().seekTo).not.toHaveBeenCalled()
+    })
+})
+
 describe('pause', () => {
     it('never rejects, e.g. before the player is set up', async () => {
         await startService()

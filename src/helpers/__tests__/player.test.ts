@@ -50,13 +50,12 @@ describe('selectTrack', () => {
         expect(reset).not.toHaveBeenCalled()
     })
 
-    it('reloads the current song when the player dropped it after an error', async () => {
+    it('the last selection wins, also when the current song was selected again right before', async () => {
         await m.player.selectTrack(track('1'))
-        m.trackPlayer.playerState.state = 'error'
-        const reset = m.trackPlayer.default.reset as unknown as jest.Mock
-        reset.mockClear()
-        await expect(m.player.selectTrack(track('1'))).resolves.toBe(true)
-        expect(reset).toHaveBeenCalled()
+        const again = m.player.selectTrack(track('1'))
+        const other = m.player.selectTrack(track('2'))
+        await Promise.all([again, other])
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('2'))
     })
 
     it('makes the track current after it was loaded', async () => {
@@ -247,6 +246,39 @@ describe('restoreLastTrack', () => {
             }),
         )
         expect(m.prefs.getLastTrack()).toBe('1')
+    })
+})
+
+describe('reloadCurrentTrackAfterError', () => {
+    it('loads the current song again after the player dropped it (so Play works again)', async () => {
+        await m.player.selectTrack(track('1'))
+        const reset = m.trackPlayer.default.reset as unknown as jest.Mock
+        reset.mockClear()
+        await m.player.reloadCurrentTrackAfterError()
+        expect(reset).toHaveBeenCalled()
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('1'))
+    })
+
+    it('does nothing while a song is loading (its load failure is handled there) or without song', async () => {
+        await m.player.reloadCurrentTrackAfterError()
+        expect(m.trackPlayer.default.reset).not.toHaveBeenCalled()
+        await m.player.selectTrack(track('1'))
+        let releaseLoad: () => void = () => undefined
+        ;(m.trackPlayer.default.load as unknown as jest.Mock).mockImplementationOnce(
+            () =>
+                new Promise<undefined>((resolve) => {
+                    releaseLoad = () => resolve(undefined)
+                }),
+        )
+        const pending = m.player.selectTrack(track('2'))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(m.player.isTrackLoading()).toBe(true)
+        const reset = m.trackPlayer.default.reset as unknown as jest.Mock
+        reset.mockClear()
+        await m.player.reloadCurrentTrackAfterError()
+        expect(reset).not.toHaveBeenCalled()
+        releaseLoad()
+        await pending
     })
 })
 

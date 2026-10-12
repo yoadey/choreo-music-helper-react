@@ -6,7 +6,11 @@ jest.mock('expo-document-picker', () => ({
     getDocumentAsync: jest.fn(() => new Promise((resolve) => (mockResolvePick = resolve))),
 }))
 jest.mock('idb-keyval', () => ({ set: jest.fn(async () => undefined), del: jest.fn(async () => undefined) }))
-jest.mock('@/model/index.web', () => ({ database: {}, flushDatabase: jest.fn(async () => undefined) }))
+jest.mock('@/model/index.web', () => ({
+    database: {},
+    flushDatabase: jest.fn(async () => undefined),
+    withOwnSaveFailureReport: (action: () => Promise<unknown>) => action(),
+}))
 jest.mock('@/model/trackRepository', () => ({
     createTrackWithClips: jest.fn(async () => ({ id: 'new-track' })),
     deleteTrack: jest.fn(async () => undefined),

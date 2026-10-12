@@ -2,7 +2,7 @@ import { decodeAudio, parseAudioMetadata, requestPersistentStorage } from '@/hel
 import { analyzeAudio, chaptersToClips } from '@/helpers/audioImport'
 import { selectTrack } from '@/helpers/player'
 import { t } from '@/i18n'
-import { database, flushDatabase } from '@/model/index.web'
+import { database, flushDatabase, withOwnSaveFailureReport } from '@/model/index.web'
 import { isQuotaError } from '@/model/saveErrors'
 import { createTrackWithClips, deleteTrack } from '@/model/trackRepository'
 import * as DocumentPicker from 'expo-document-picker'
@@ -18,6 +18,11 @@ const importWebFile = async (asset: DocumentPicker.DocumentPickerAsset) => {
 		untitledChapter: t.numberedClip,
 	})
 	await set(audio.key, blob)
+	// A failed save is reported as failed import, not additionally by the background save
+	return withOwnSaveFailureReport(() => createAndSave(audio))
+}
+
+const createAndSave = async (audio: Awaited<ReturnType<typeof analyzeAudio>>) => {
 	let track: Awaited<ReturnType<typeof createTrackWithClips>>
 	try {
 		track = await createTrackWithClips(database, audio)

@@ -322,8 +322,9 @@ test.describe('hosting', () => {
             // Make sure the first tab is controlled by the service worker
             await page.reload()
             await expect(page.getByTestId('open-file')).toBeVisible()
-            // The registration runs on "load": before the update below, as a tab started before the update
-            await page.waitForLoadState('load')
+            // The tab started before the update below: its start (registration) must be done, otherwise it
+            // finds the update while starting as the only tab and activates it (correctly)
+            await expect(page.locator('html[data-service-worker-started="true"]')).toHaveCount(1)
             await page.evaluate(() => ((window as unknown as { marker: boolean }).marker = true))
             // Runtime caches of the old version (and of the first version of the app with the default name)
             await page.evaluate(async () => {

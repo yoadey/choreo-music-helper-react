@@ -60,6 +60,8 @@
                 updateRequested = true
                 registration.waiting.postMessage('SKIP_WAITING')
               }
+              // Lets the end-to-end tests wait until the start of the app is done
+              document.documentElement.dataset.serviceWorkerStarted = 'true'
             })
             .catch((error) => console.error('Service worker registration failed:', error))
         })

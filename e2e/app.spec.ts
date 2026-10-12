@@ -376,6 +376,30 @@ test.describe('hosting', () => {
         await expect(page.getByText(/Version: \d/)).toBeVisible()
     })
 
+    test('a deep link with a trailing slash still finds the service worker and the manifest', async ({ browser }) => {
+        // Fresh context: no service worker is registered yet
+        const context = await browser.newContext()
+        const page = await context.newPage()
+        try {
+            await page.goto(new URL('info/', test.info().project.use.baseURL).toString())
+            await expect(page.getByText(/Version: \d/)).toBeVisible()
+            const scope = await page.evaluate(() =>
+                Promise.race([
+                    navigator.serviceWorker.ready.then((registration) => registration.scope),
+                    new Promise((resolve) => setTimeout(() => resolve('not registered'), 10_000)),
+                ]),
+            )
+            expect(scope).toBe(test.info().project.use.baseURL)
+            const manifest = await page.evaluate(async () => {
+                const href = document.querySelector('link[rel="manifest"]')!.getAttribute('href')!
+                return (await fetch(href)).json()
+            })
+            expect(manifest.icons.length).toBeGreaterThan(0)
+        } finally {
+            await context.close()
+        }
+    })
+
     test('works offline after the first visit', async ({ page, context }) => {
         await page.evaluate(async () => {
             await navigator.serviceWorker.ready

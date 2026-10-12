@@ -126,6 +126,11 @@ export const createTrackLoader = (deps: TrackLoaderDeps) => {
             return promise
         },
 
+        /** True while a load is in progress. */
+        isLoading(): boolean {
+            return running.size > 0
+        },
+
         /** Resolves when no load is in progress anymore (also loads started meanwhile). */
         async whenIdle(): Promise<void> {
             while (running.size > 0) await Promise.allSettled([...running])

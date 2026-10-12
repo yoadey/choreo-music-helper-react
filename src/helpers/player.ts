@@ -9,7 +9,7 @@ import { refreshProgress } from '@/store/progress'
 import { useCurrentTrackStore } from '@/store/store'
 import { get } from 'idb-keyval'
 import { Platform } from 'react-native'
-import TrackPlayer from 'react-native-track-player'
+import TrackPlayer, { State } from 'react-native-track-player'
 
 const trackLoader = createTrackLoader({
     platform: Platform.OS,
@@ -37,22 +37,25 @@ const clearCurrentTrack = () => {
  * audio could be loaded, so the UI never shows a different track than the player plays.
  * Never rejects: problems are reported to the user (unless silent) and result in false.
  */
-export const selectTrack = async (track: TrackWithClips, { silent = false } = {}) => {
+export const selectTrack = async (track: TrackWithClips, { silent = false } = {}) =>
+    (await loadAndSelect(track, silent)) === 'loaded'
+
+const loadAndSelect = async (track: TrackWithClips, silent: boolean) => {
     selections++
     const result = await trackLoader.load(track)
     switch (result) {
         case 'superseded':
-            return false
+            return result
         case 'missing':
         case 'unreadable':
             // The player still plays the previous track
             if (!silent) showMessage(result === 'missing' ? t.fileMissing : t.loadFailed)
-            return false
+            return result
         case 'failed':
             // The player was reset, nothing is loaded anymore
             clearCurrentTrack()
             if (!silent) showMessage(t.loadFailed)
-            return false
+            return result
     }
 
     if (getLastTrack() !== track.id) {
@@ -60,7 +63,7 @@ export const selectTrack = async (track: TrackWithClips, { silent = false } = {}
     }
     setLastTrack(track.id)
     useCurrentTrackStore.getState().setCurrentTrack(track)
-    return true
+    return result
 }
 
 /**
@@ -83,12 +86,25 @@ export const addClipAtCurrentPosition = async (
 }
 
 /**
- * Starts playing. A track that is still loading is played once it is loaded: playing while the player
- * loads makes the web player report "ready" after "playing", so it would not track the playback anymore.
+ * Starts playing the current song. Called directly in the click handler: browsers only allow starting
+ * audio during a user interaction. A song that is still loading is played once it is loaded (playing while
+ * the player loads makes the web player report "ready" after "playing"); the browser may refuse that
+ * delayed start, then the UI is reset to "paused".
  */
 export const playCurrentTrack = async () => {
+    if (!trackLoader.isLoading()) {
+        if (!useCurrentTrackStore.getState().currentTrack) return
+        await TrackPlayer.play()
+        return
+    }
     await trackLoader.whenIdle()
+    if (!useCurrentTrackStore.getState().currentTrack) return
     await TrackPlayer.play()
+    // The web player only logs a refused start (it resolves anyway) but keeps "play when ready"
+    const { state } = await TrackPlayer.getPlaybackState()
+    if (state !== State.Playing && state !== State.Buffering) {
+        await TrackPlayer.setPlayWhenReady(false)
+    }
 }
 
 /**
@@ -111,7 +127,10 @@ export const restoreLastTrack = async (database: Database) => {
         clearLastTrack()
         return
     }
-    await selectTrack(tracks[0], { silent: true })
+    const result = await loadAndSelect(tracks[0], true)
+    // Otherwise the clips and the loop of a song that is not loaded would be used (e.g. the loop shown
+    // as active); the song can be selected again in the list
+    if (result === 'missing' || result === 'unreadable') clearLastTrack()
 }
 
 /** Unloads the current track, e.g. after it was deleted. */

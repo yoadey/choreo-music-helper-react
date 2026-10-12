@@ -103,14 +103,15 @@ export const analyzeWaveform = async (buffer: ArrayBuffer, decode: AnalyzeDeps['
 }
 
 export const analyzeAudio = async (blob: Blob, name: string, deps: AnalyzeDeps): Promise<AnalyzedAudio> => {
-    // Read the metadata first: decoding detaches the ArrayBuffer, it must not be used afterwards.
-    let metadata: AudioMetadata = {}
-    try {
-        metadata = await deps.parseMetadata(blob)
-    } catch (error) {
-        console.warn('Could not read audio metadata', error)
-    }
-    const { waveform, lengthMs } = await analyzeWaveform(await blob.arrayBuffer(), deps.decode)
+    // Metadata and decoding run in parallel. The metadata is read from the Blob, not from the ArrayBuffer
+    // that decoding detaches.
+    const [metadata, { waveform, lengthMs }] = await Promise.all([
+        deps.parseMetadata(blob).catch((error): AudioMetadata => {
+            console.warn('Could not read audio metadata', error)
+            return {}
+        }),
+        blob.arrayBuffer().then((buffer) => analyzeWaveform(buffer, deps.decode)),
+    ])
     const title = metadata.title || name
     return {
         key: makeUniqueAudioKey(name, deps.now()),

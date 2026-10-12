@@ -90,6 +90,16 @@ describe('getLoopSeekTarget', () => {
         expect(getLoopSeekTarget({ position: 22, loop, leadIn: 2, leadOut: 2 })).toBeNull()
     })
 
+    it('jumps back shortly before the track end when the loop reaches it, so the player never stops', () => {
+        const lastClip = { start: 20, end: 30 }
+        expect(getLoopSeekTarget({ position: 29.5, loop: lastClip, leadIn: 3, leadOut: 2, duration: 30 })).toBeNull()
+        expect(getLoopSeekTarget({ position: 29.8, loop: lastClip, leadIn: 3, leadOut: 2, duration: 30 })).toBe(17)
+        // A loop starting within the margin would jump forever, the end of the track restarts it
+        expect(getLoopSeekTarget({ position: 29.9, loop: { start: 29.8, end: 30 }, leadIn: 0, leadOut: 0, duration: 30 })).toBeNull()
+        // A loop that ends before the track end is not affected
+        expect(getLoopSeekTarget({ position: 21.9, loop, leadIn: 2, leadOut: 2, duration: 30 })).toBeNull()
+    })
+
     it('jumps back to the lead in after the lead out', () => {
         expect(getLoopSeekTarget({ position: 22.1, loop, leadIn: 2, leadOut: 2 })).toBe(8)
     })

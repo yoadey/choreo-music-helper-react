@@ -84,23 +84,23 @@ describe('computeWaveform', () => {
 describe('analyzeAudio', () => {
     const blob = new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'audio/mpeg' })
 
-    it('reads the metadata before decoding, so a detached buffer does not break the import', async () => {
-        const calls: string[] = []
+    it('reads the metadata while decoding, a detached buffer does not break reading the metadata', async () => {
+        let decoded: () => void = () => undefined
+        const decodeDone = new Promise<void>((resolve) => (decoded = resolve))
         const result = await analyzeAudio(blob, 'song.mp3', {
             now: () => 42,
             parseMetadata: async (b) => {
-                calls.push('metadata')
-                // Must still be readable
+                // Runs in parallel: waits for the decode, which detached its buffer meanwhile
+                await decodeDone
                 expect(new Uint8Array(await b.arrayBuffer())).toHaveLength(4)
                 return { title: 'Title', chapters: [{ title: 'A', start: 0 }, { title: 'B', start: 2 }] }
             },
             decode: async (buffer) => {
-                calls.push('decode')
                 detach(buffer)
+                decoded()
                 return { channelData: new Float32Array([1, 1, 1, 1]), duration: 3.25 }
             },
         })
-        expect(calls).toEqual(['metadata', 'decode'])
         expect(result).toEqual({
             key: '/audio/song_42.mp3',
             name: 'song.mp3',

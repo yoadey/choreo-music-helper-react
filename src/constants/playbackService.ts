@@ -138,7 +138,13 @@ export const applyPlaybackRules = async (position: number) => {
         setVolume(computeVolume({ position, loop, ...prefs })),
     ])
 
-    const target = getLoopSeekTarget({ position, loop, leadIn: prefs.leadIn, leadOut: prefs.leadOut })
+    const target = getLoopSeekTarget({
+        position,
+        loop,
+        leadIn: prefs.leadIn,
+        leadOut: prefs.leadOut,
+        duration: state.duration,
+    })
     if (target !== null) {
         await seekTo(target)
     }
@@ -190,23 +196,23 @@ const syncPlayWhenReady = (playWhenReady: boolean) => {
     })
 }
 
-/** Seconds before the end of the track that still count as "at the end" */
-const TRACK_END_TOLERANCE = 0.5
-
-/** Restarts an active loop when the track ended (the loop end + lead out can lie behind the track end). */
+/**
+ * Restarts an active loop when the track ended. Usually the loop jumps back shortly before the end (see
+ * getLoopSeekTarget); this covers progress updates that came too late, e.g. in a background tab.
+ */
 const handleTrackEnded = async () => {
     // The player can report the end twice (state "ended" and "queue ended")
     if (state.restartingLoop) return
     state.restartingLoop = true
     try {
-        const { position, duration } = await getProgress()
-        // A second end event after the restart: the position is not at the end anymore
-        if (duration > 0 && position < duration - TRACK_END_TOLERANCE) return
+        // A second end event after the restart: playing again. (The position is not checked: with an
+        // estimated duration, e.g. of a VBR mp3, the track can end before the reported duration.)
+        const { state: playbackState } = await TrackPlayer.getPlaybackState()
+        if (playbackState === State.Playing) return
+        // Updates the duration, which a loop up to the end of the track needs
+        await getProgress()
         const loop = getActiveLoop()
-        if (!loop) {
-            syncPlayWhenReady(false)
-            return
-        }
+        if (!loop) return
         await seekTo(getStopTarget(loop, state.prefs.leadIn))
         await TrackPlayer.play()
     } finally {
@@ -220,7 +226,6 @@ export const playbackService = async () => {
     state.lastVolume = undefined
     state.restartingLoop = false
     subscribeToClips(getLastTrack())
-    recompute()
     TrackPlayer.getPlaybackState()
         .then(({ state: playbackState }) => {
             state.playerState ??= playbackState
@@ -229,17 +234,24 @@ export const playbackService = async () => {
             // The player is not set up yet, the state arrives with the next event
         })
 
+    // Several preferences are often changed at once (e.g. the OK of a dialog): applied to the player once
+    let applyScheduled = false
     preferences.addOnValueChangedListener((key) => {
         state.prefs = readPreferences()
         recompute()
         if (key === KEY_LAST_TRACK) {
             subscribeToClips(getLastTrack())
         }
-        getProgress()
-            .then(({ position }) => applyIfPlaying(position))
-            .catch(() => {
-                // The player is not set up yet
-            })
+        if (applyScheduled) return
+        applyScheduled = true
+        queueMicrotask(() => {
+            applyScheduled = false
+            getProgress()
+                .then(({ position }) => applyIfPlaying(position))
+                .catch(() => {
+                    // The player is not set up yet
+                })
+        })
     })
 
     TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, async ({ position, duration }) => {
@@ -254,9 +266,8 @@ export const playbackService = async () => {
     TrackPlayer.addEventListener(Event.PlaybackState, async ({ state: playbackState }) => {
         state.playerState = playbackState
         // The UI shows Play/Pause from "play when ready". On the web the player does not update it when the
-        // browser pauses (e.g. headphones unplugged) or a new track is loaded. At the end of the track it
-        // is only reset if no loop restarts, so the UI does not flicker.
-        if (playbackState !== State.Buffering && playbackState !== State.Loading && playbackState !== State.Ended) {
+        // browser pauses (e.g. headphones unplugged), the track ends or a new track is loaded.
+        if (playbackState !== State.Buffering && playbackState !== State.Loading) {
             syncPlayWhenReady(playbackState === State.Playing)
         }
         refreshProgress()

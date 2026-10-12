@@ -154,8 +154,27 @@ describe('loop', () => {
         m.store.preferences.set(m.store.KEY_LEAD_IN_DURATION, 3)
         await startService()
         m.player.playerState.position = 30
-        await m.player.emitPlayerEvent(m.player.Event.PlaybackState, { state: m.player.State.Ended })
+        await setPlayerState(m.player.State.Ended)
         expect(TrackPlayer().seekTo).toHaveBeenLastCalledWith(17)
+        expect(TrackPlayer().play).toHaveBeenCalled()
+    })
+
+    it('restarts a loop that reaches the track end before the player stops (no pause at the end)', async () => {
+        m.store.setLoopStart({ id: 'c' })
+        m.store.setLoopEnd({ id: 'c' })
+        m.store.preferences.set(m.store.KEY_LEAD_IN_DURATION, 3)
+        await startService()
+        await progress(29.9)
+        expect(TrackPlayer().seekTo).toHaveBeenLastCalledWith(17)
+    })
+
+    it('restarts the loop when the track ends earlier than its reported duration (estimated VBR length)', async () => {
+        m.store.setLoopStart({ id: 'c' })
+        m.store.setLoopEnd({ id: 'c' })
+        await startService()
+        m.player.playerState.position = 28
+        await setPlayerState(m.player.State.Ended)
+        expect(TrackPlayer().seekTo).toHaveBeenLastCalledWith(20)
         expect(TrackPlayer().play).toHaveBeenCalled()
     })
 
@@ -164,6 +183,7 @@ describe('loop', () => {
         m.store.setLoopEnd({ id: 'c' })
         await startService()
         m.player.playerState.position = 30
+        m.player.playerState.state = m.player.State.Ended
         await Promise.all([
             m.player.emitPlayerEvent(m.player.Event.PlaybackState, { state: m.player.State.Ended }),
             m.player.emitPlayerEvent(m.player.Event.PlaybackQueueEnded, {}),
@@ -177,7 +197,7 @@ describe('loop', () => {
         m.store.setLoopEnd({ id: 'c' })
         await startService()
         m.player.playerState.position = 30
-        await m.player.emitPlayerEvent(m.player.Event.PlaybackState, { state: m.player.State.Ended })
+        await setPlayerState(m.player.State.Ended)
         await m.player.emitPlayerEvent(m.player.Event.PlaybackQueueEnded, {})
         expect(TrackPlayer().seekTo).toHaveBeenCalledTimes(1)
         expect(TrackPlayer().play).toHaveBeenCalledTimes(1)
@@ -185,7 +205,7 @@ describe('loop', () => {
 
     it('does not restart at the track end without loop', async () => {
         await startService()
-        await m.player.emitPlayerEvent(m.player.Event.PlaybackState, { state: m.player.State.Ended })
+        await setPlayerState(m.player.State.Ended)
         expect(TrackPlayer().play).not.toHaveBeenCalled()
     })
 
@@ -218,6 +238,18 @@ describe('loop state for the UI', () => {
     })
 })
 
+describe('preferences', () => {
+    it('applies several preference changes (e.g. the OK of a dialog) once', async () => {
+        await startService()
+        const getProgress = TrackPlayer().getProgress as unknown as jest.Mock
+        getProgress.mockClear()
+        m.store.preferences.set(m.store.KEY_LEAD_IN_DURATION, 3)
+        m.store.preferences.set(m.store.KEY_LEAD_OUT_DURATION, 2)
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(getProgress).toHaveBeenCalledTimes(1)
+    })
+})
+
 describe('play state', () => {
     it('resets "play when ready" when the browser pauses or a new track is ready, so the UI shows Play', async () => {
         await startService()
@@ -238,16 +270,6 @@ describe('play state', () => {
         await setPlayerState(m.player.State.Ready)
         await setPlayerState(m.player.State.Playing)
         expect(TrackPlayer().setPlayWhenReady).toHaveBeenLastCalledWith(true)
-    })
-
-    it('keeps "play when ready" while a loop restarts at the track end, so the UI does not flicker', async () => {
-        m.store.setLoopStart({ id: 'c' })
-        m.store.setLoopEnd({ id: 'c' })
-        await startService()
-        m.player.playerState.position = 30
-        await setPlayerState(m.player.State.Ended)
-        expect(TrackPlayer().setPlayWhenReady).not.toHaveBeenCalledWith(false)
-        expect(TrackPlayer().play).toHaveBeenCalled()
     })
 
     it('resets "play when ready" at the track end without loop', async () => {

@@ -51,21 +51,36 @@ export const resolveLoop = (
     return loop
 }
 
-/** Returns the position to seek to, if the position left the loop (including lead in/out), otherwise null. */
+/**
+ * Seconds before the track end at which a loop that reaches the end jumps back. Jumping before the player
+ * stops avoids the pause/ended states (Play/Pause flicker). Covers a progress interval at double speed.
+ */
+export const TRACK_END_MARGIN = 0.25
+
+/**
+ * Returns the position to seek to, if the position left the loop (including lead in/out), otherwise null.
+ * A loop whose end (plus lead out) reaches the track end jumps back shortly before the end.
+ */
 export const getLoopSeekTarget = ({
     position,
     loop,
     leadIn,
     leadOut,
+    duration = Infinity,
 }: {
     position: number
     loop: LoopRange | undefined
     leadIn: number
     leadOut: number
+    duration?: number
 }): number | null => {
     if (!loop) return null
     const target = Math.max(loop.start - leadIn, 0)
-    if (position > loop.end + leadOut || position < target - POSITION_TOLERANCE) {
+    const end = loop.end + leadOut
+    const trackEnd = duration > 0 ? duration - TRACK_END_MARGIN : Infinity
+    // (A loop starting within the margin is restarted by the end of the track instead, see the playback service)
+    const atTrackEnd = end >= trackEnd && position >= trackEnd && target < trackEnd
+    if (position > end || atTrackEnd || position < target - POSITION_TOLERANCE) {
         return target
     }
     return null

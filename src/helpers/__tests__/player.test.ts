@@ -204,6 +204,14 @@ describe('restoreLastTrack', () => {
         expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('2'))
     })
 
+    it('forgets the last track when its audio file is missing, so its loop is not shown as active', async () => {
+        m.prefs.setLastTrack('1')
+        const { get } = require('idb-keyval') as { get: jest.Mock }
+        get.mockImplementationOnce(async () => undefined)
+        await m.player.restoreLastTrack(databaseWith(async () => [track('1')]))
+        expect(m.prefs.getLastTrack()).toBeUndefined()
+    })
+
     it('keeps the last track when the database cannot be read this time', async () => {
         m.prefs.setLastTrack('1')
         await m.player.restoreLastTrack(
@@ -236,10 +244,41 @@ describe('playCurrentTrack', () => {
         expect(m.trackPlayer.default.play).toHaveBeenCalled()
     })
 
-    it('plays right away when nothing is loading', async () => {
+    it('plays right away when nothing is loading (still inside the click, which browsers require)', async () => {
         await m.player.selectTrack(track('1'))
-        await m.player.playCurrentTrack()
+        const playing = m.player.playCurrentTrack()
         expect(m.trackPlayer.default.play).toHaveBeenCalled()
+        await playing
+    })
+
+    it('does not show "playing" when the browser refused the delayed start', async () => {
+        await m.player.selectTrack(track('1'))
+        let releaseLoad: () => void = () => undefined
+        ;(m.trackPlayer.default.load as unknown as jest.Mock).mockImplementationOnce(
+            () =>
+                new Promise<undefined>((resolve) => {
+                    releaseLoad = () => resolve(undefined)
+                }),
+        )
+        const pending = m.player.selectTrack(track('2'))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        // The web player sets "play when ready" and only logs the refusal (NotAllowedError)
+        ;(m.trackPlayer.default.play as unknown as jest.Mock).mockImplementationOnce(async () => {
+            m.trackPlayer.playerState.playWhenReady = true
+            m.trackPlayer.playerState.state = 'ready'
+        })
+        const playing = m.player.playCurrentTrack()
+        releaseLoad()
+        await pending
+        await playing
+        expect(m.trackPlayer.playerState.playWhenReady).toBe(false)
+    })
+
+    it('does nothing without a loaded song, e.g. after the current song was deleted', async () => {
+        await m.player.selectTrack(track('1'))
+        await m.player.releaseTrack('1')
+        await m.player.playCurrentTrack()
+        expect(m.trackPlayer.default.play).not.toHaveBeenCalled()
     })
 })
 

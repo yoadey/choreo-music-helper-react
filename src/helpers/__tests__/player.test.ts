@@ -212,6 +212,16 @@ describe('restoreLastTrack', () => {
         expect(m.prefs.getLastTrack()).toBeUndefined()
     })
 
+    it('keeps the last track (and its loop) when its file cannot be read this time', async () => {
+        m.prefs.setLastTrack('1')
+        const { get } = require('idb-keyval') as { get: jest.Mock }
+        get.mockImplementationOnce(async () => {
+            throw new Error('Connection to Indexed Database server lost')
+        })
+        await m.player.restoreLastTrack(databaseWith(async () => [track('1')]))
+        expect(m.prefs.getLastTrack()).toBe('1')
+    })
+
     it('keeps the last track when the database cannot be read this time', async () => {
         m.prefs.setLastTrack('1')
         await m.player.restoreLastTrack(
@@ -271,6 +281,16 @@ describe('playCurrentTrack', () => {
         releaseLoad()
         await pending
         await playing
+        expect(m.trackPlayer.playerState.playWhenReady).toBe(false)
+    })
+
+    it('does not show "playing" when the browser refused the start (e.g. media key without user activation)', async () => {
+        await m.player.selectTrack(track('1'))
+        ;(m.trackPlayer.default.play as unknown as jest.Mock).mockImplementationOnce(async () => {
+            m.trackPlayer.playerState.playWhenReady = true
+            m.trackPlayer.playerState.state = 'paused'
+        })
+        await m.player.playCurrentTrack()
         expect(m.trackPlayer.playerState.playWhenReady).toBe(false)
     })
 

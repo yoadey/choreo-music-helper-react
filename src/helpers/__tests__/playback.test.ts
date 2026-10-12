@@ -4,6 +4,7 @@ import {
     calcFade,
     computeSpeedFactor,
     computeVolume,
+    fitLoopToTrack,
     getLoopSeekTarget,
     getNextClipTarget,
     getPreviousClipTarget,
@@ -90,16 +91,6 @@ describe('getLoopSeekTarget', () => {
         expect(getLoopSeekTarget({ position: 22, loop, leadIn: 2, leadOut: 2 })).toBeNull()
     })
 
-    it('jumps back shortly before the track end when the loop reaches it, so the player never stops', () => {
-        const lastClip = { start: 20, end: 30 }
-        expect(getLoopSeekTarget({ position: 29.5, loop: lastClip, leadIn: 3, leadOut: 2, duration: 30 })).toBeNull()
-        expect(getLoopSeekTarget({ position: 29.8, loop: lastClip, leadIn: 3, leadOut: 2, duration: 30 })).toBe(17)
-        // A loop starting within the margin would jump forever, the end of the track restarts it
-        expect(getLoopSeekTarget({ position: 29.9, loop: { start: 29.8, end: 30 }, leadIn: 0, leadOut: 0, duration: 30 })).toBeNull()
-        // A loop that ends before the track end is not affected
-        expect(getLoopSeekTarget({ position: 21.9, loop, leadIn: 2, leadOut: 2, duration: 30 })).toBeNull()
-    })
-
     it('jumps back to the lead in after the lead out', () => {
         expect(getLoopSeekTarget({ position: 22.1, loop, leadIn: 2, leadOut: 2 })).toBe(8)
     })
@@ -131,6 +122,47 @@ describe('calcFade', () => {
         expect(calcFade({ position: 5, fadeEnd: 6, fadeDuration: 2, startValue: 0, endValue: 1 })).toBeCloseTo(0.5)
         expect(calcFade({ position: 3, fadeStart: 4, fadeDuration: 2, startValue: 0, endValue: 1 })).toBe(0)
         expect(calcFade({ position: 7, fadeStart: 4, fadeDuration: 2, startValue: 0, endValue: 1 })).toBe(1)
+    })
+})
+
+describe('fitLoopToTrack', () => {
+    it('ends a loop that reaches the track end shortly before it, so the player never stops', () => {
+        const fitted = fitLoopToTrack({ loop: { start: 20, end: 30 }, leadOut: 2, duration: 30, rate: 1 })
+        expect(fitted.loop.end).toBeCloseTo(29.85)
+        expect(fitted.leadOut).toBe(0)
+        expect(getLoopSeekTarget({ position: 29.8, loop: fitted.loop, leadIn: 3, leadOut: fitted.leadOut })).toBeNull()
+        expect(getLoopSeekTarget({ position: 29.9, loop: fitted.loop, leadIn: 3, leadOut: fitted.leadOut })).toBe(17)
+    })
+
+    it('shortens a lead out that reaches behind the track end', () => {
+        const fitted = fitLoopToTrack({ loop: { start: 10, end: 28 }, leadOut: 10, duration: 30, rate: 1 })
+        expect(fitted.loop).toEqual({ start: 10, end: 28 })
+        expect(fitted.leadOut).toBeCloseTo(1.85)
+    })
+
+    it('leaves more time before the end at higher rates (one progress update covers more of the track)', () => {
+        const fitted = fitLoopToTrack({ loop: { start: 20, end: 30 }, leadOut: 0, duration: 30, rate: 4 })
+        expect(fitted.loop.end).toBeLessThanOrEqual(29.4)
+    })
+
+    it('keeps loops that end before the track end and loops without known duration', () => {
+        const loop = { start: 10, end: 20 }
+        expect(fitLoopToTrack({ loop, leadOut: 2, duration: 30, rate: 1 })).toEqual({ loop, leadOut: 2 })
+        expect(fitLoopToTrack({ loop, leadOut: 2, duration: 0, rate: 1 })).toEqual({ loop, leadOut: 2 })
+    })
+
+    it('keeps a loop that starts within the margin (it would jump forever), the track end restarts it', () => {
+        const loop = { start: 29.9, end: 30 }
+        expect(fitLoopToTrack({ loop, leadOut: 0, duration: 30, rate: 1 })).toEqual({ loop, leadOut: 0 })
+    })
+
+    it('fades the volume towards the jump that happens before the track end (no volume step)', () => {
+        const prefs = { leadIn: 4, leadInVolume: 1, leadOutVolume: 0.2 }
+        const fitted = fitLoopToTrack({ loop: { start: 10, end: 28 }, leadOut: 10, duration: 30, rate: 1 })
+        const jumpAt = fitted.loop.end + fitted.leadOut
+        const before = computeVolume({ ...prefs, loop: fitted.loop, leadOut: fitted.leadOut, position: jumpAt - 0.01 })
+        const after = computeVolume({ ...prefs, loop: fitted.loop, leadOut: fitted.leadOut, position: 6 })
+        expect(Math.abs(before - after)).toBeLessThan(0.05)
     })
 })
 

@@ -4,6 +4,7 @@ import {
     ClipRange,
     computeSpeedFactor,
     computeVolume,
+    fitLoopToTrack,
     getLoopSeekTarget,
     getNextClipTarget,
     getPreviousClipTarget,
@@ -54,7 +55,6 @@ const state = {
     ranges: [] as ClipRange[],
     loop: undefined as LoopRange | undefined,
     playerState: undefined as string | undefined,
-    restartingLoop: false,
     trackId: undefined as string | undefined,
     subscription: undefined as Subscription | undefined,
     lastRate: undefined as number | undefined,
@@ -131,20 +131,19 @@ const setVolume = async (volume: number) => {
 
 /** Applies speed, volume and loop for the current position. */
 export const applyPlaybackRules = async (position: number) => {
-    const { prefs, ranges, loop } = state
+    const { prefs, ranges } = state
+    const rate = prefs.globalSpeedOnly
+        ? prefs.speed
+        : prefs.speed *
+          computeSpeedFactor(position, ranges, SPEED_FADE_DURATION, { loop: state.loop, leadOut: prefs.leadOut })
+    // The loop as it can be played (it ends shortly before the track end), for the volume and the jump
+    const { loop, leadOut } = state.loop
+        ? fitLoopToTrack({ loop: state.loop, leadOut: prefs.leadOut, duration: state.duration, rate })
+        : { loop: undefined, leadOut: prefs.leadOut }
 
-    await Promise.all([
-        setRate(prefs.globalSpeedOnly ? prefs.speed : prefs.speed * computeSpeedFactor(position, ranges, SPEED_FADE_DURATION, { loop, leadOut: prefs.leadOut })),
-        setVolume(computeVolume({ position, loop, ...prefs })),
-    ])
+    await Promise.all([setRate(rate), setVolume(computeVolume({ position, ...prefs, loop, leadOut }))])
 
-    const target = getLoopSeekTarget({
-        position,
-        loop,
-        leadIn: prefs.leadIn,
-        leadOut: prefs.leadOut,
-        duration: state.duration,
-    })
+    const target = getLoopSeekTarget({ position, loop, leadIn: prefs.leadIn, leadOut })
     if (target !== null) {
         await seekTo(target)
     }
@@ -198,33 +197,21 @@ const syncPlayWhenReady = (playWhenReady: boolean) => {
 
 /**
  * Restarts an active loop when the track ended. Usually the loop jumps back shortly before the end (see
- * getLoopSeekTarget); this covers progress updates that came too late, e.g. in a background tab.
+ * fitLoopToTrack); this covers progress updates that came too late, e.g. in a background tab.
  */
 const handleTrackEnded = async () => {
-    // The player can report the end twice (state "ended" and "queue ended")
-    if (state.restartingLoop) return
-    state.restartingLoop = true
-    try {
-        // A second end event after the restart: playing again. (The position is not checked: with an
-        // estimated duration, e.g. of a VBR mp3, the track can end before the reported duration.)
-        const { state: playbackState } = await TrackPlayer.getPlaybackState()
-        if (playbackState === State.Playing) return
-        // Updates the duration, which a loop up to the end of the track needs
-        await getProgress()
-        const loop = getActiveLoop()
-        if (!loop) return
-        await seekTo(getStopTarget(loop, state.prefs.leadIn))
-        await TrackPlayer.play()
-    } finally {
-        state.restartingLoop = false
-    }
+    // Updates the duration, which a loop up to the end of the track needs
+    await getProgress()
+    const loop = getActiveLoop()
+    if (!loop) return
+    await seekTo(getStopTarget(loop, state.prefs.leadIn))
+    await TrackPlayer.play()
 }
 
 export const playbackService = async () => {
     state.prefs = readPreferences()
     state.lastRate = undefined
     state.lastVolume = undefined
-    state.restartingLoop = false
     subscribeToClips(getLastTrack())
     TrackPlayer.getPlaybackState()
         .then(({ state: playbackState }) => {
@@ -234,18 +221,22 @@ export const playbackService = async () => {
             // The player is not set up yet, the state arrives with the next event
         })
 
-    // Several preferences are often changed at once (e.g. the OK of a dialog): applied to the player once
-    let applyScheduled = false
+    // Several preferences are often changed at once (e.g. the OK of a dialog, selecting a song): they are
+    // applied once afterwards, so no intermediate states (e.g. of the loop) are published or played
+    let changeScheduled = false
+    let lastTrackChanged = false
     preferences.addOnValueChangedListener((key) => {
-        state.prefs = readPreferences()
-        recompute()
-        if (key === KEY_LAST_TRACK) {
-            subscribeToClips(getLastTrack())
-        }
-        if (applyScheduled) return
-        applyScheduled = true
+        if (key === KEY_LAST_TRACK) lastTrackChanged = true
+        if (changeScheduled) return
+        changeScheduled = true
         queueMicrotask(() => {
-            applyScheduled = false
+            changeScheduled = false
+            state.prefs = readPreferences()
+            if (lastTrackChanged) {
+                lastTrackChanged = false
+                subscribeToClips(getLastTrack())
+            }
+            recompute()
             getProgress()
                 .then(({ position }) => applyIfPlaying(position))
                 .catch(() => {
@@ -276,7 +267,6 @@ export const playbackService = async () => {
         }
     })
 
-    TrackPlayer.addEventListener(Event.PlaybackQueueEnded, handleTrackEnded)
 
     TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, () => {
         // A newly loaded track starts with the player defaults

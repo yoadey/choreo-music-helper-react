@@ -83,8 +83,10 @@ describe('preferences', () => {
         expect(mockSubscribeCalls).toHaveBeenCalledTimes(1)
         m.store.preferences.set(m.store.KEY_SPEED, 1.2)
         m.store.preferences.set(m.store.KEY_LEAD_IN_DURATION, 2)
+        await new Promise((resolve) => setTimeout(resolve, 0))
         expect(mockSubscribeCalls).toHaveBeenCalledTimes(1)
         m.store.setLastTrack('track2')
+        await new Promise((resolve) => setTimeout(resolve, 0))
         expect(mockSubscribeCalls).toHaveBeenCalledTimes(2)
     })
 })
@@ -178,31 +180,6 @@ describe('loop', () => {
         expect(TrackPlayer().play).toHaveBeenCalled()
     })
 
-    it('restarts the loop only once when the player reports both the state and the queue end', async () => {
-        m.store.setLoopStart({ id: 'c' })
-        m.store.setLoopEnd({ id: 'c' })
-        await startService()
-        m.player.playerState.position = 30
-        m.player.playerState.state = m.player.State.Ended
-        await Promise.all([
-            m.player.emitPlayerEvent(m.player.Event.PlaybackState, { state: m.player.State.Ended }),
-            m.player.emitPlayerEvent(m.player.Event.PlaybackQueueEnded, {}),
-        ])
-        expect(TrackPlayer().seekTo).toHaveBeenCalledTimes(1)
-        expect(TrackPlayer().play).toHaveBeenCalledTimes(1)
-    })
-
-    it('restarts the loop only once when the second end event arrives after the restart', async () => {
-        m.store.setLoopStart({ id: 'c' })
-        m.store.setLoopEnd({ id: 'c' })
-        await startService()
-        m.player.playerState.position = 30
-        await setPlayerState(m.player.State.Ended)
-        await m.player.emitPlayerEvent(m.player.Event.PlaybackQueueEnded, {})
-        expect(TrackPlayer().seekTo).toHaveBeenCalledTimes(1)
-        expect(TrackPlayer().play).toHaveBeenCalledTimes(1)
-    })
-
     it('does not restart at the track end without loop', async () => {
         await startService()
         await setPlayerState(m.player.State.Ended)
@@ -230,15 +207,35 @@ describe('loop state for the UI', () => {
         expect(useLoopStatusStore.getState().active).toBe(false)
         m.store.setLoopStart({ id: 'a' })
         m.store.setLoopEnd({ id: 'b' })
+        await new Promise((resolve) => setTimeout(resolve, 0))
         expect(useLoopStatusStore.getState().active).toBe(true)
         // Inverted loop: both markers set, but the loop is not active
         m.store.setLoopStart({ id: 'c' })
         m.store.setLoopEnd({ id: 'a' })
+        await new Promise((resolve) => setTimeout(resolve, 0))
         expect(useLoopStatusStore.getState().active).toBe(false)
     })
 })
 
 describe('preferences', () => {
+    it('publishes the loop state once for several preference changes, without intermediate states', async () => {
+        const { useLoopStatusStore } = require('@/store/store') as typeof import('@/store/store')
+        await startService()
+        m.store.setLoopStart({ id: 'a' })
+        m.store.setLoopEnd({ id: 'b' })
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        const states: boolean[] = []
+        const unsubscribe = useLoopStatusStore.subscribe((loopState) => states.push(loopState.active))
+        // Selecting another song clears the loop markers one after another
+        m.store.clearLoop()
+        m.store.setLoopStart({ id: 'b' })
+        m.store.setLoopEnd({ id: 'c' })
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        unsubscribe()
+        expect(states).toEqual([])
+        expect(useLoopStatusStore.getState().active).toBe(true)
+    })
+
     it('applies several preference changes (e.g. the OK of a dialog) once', async () => {
         await startService()
         const getProgress = TrackPlayer().getProgress as unknown as jest.Mock

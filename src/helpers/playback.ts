@@ -51,39 +51,56 @@ export const resolveLoop = (
     return loop
 }
 
-/**
- * Seconds before the track end at which a loop that reaches the end jumps back. Jumping before the player
- * stops avoids the pause/ended states (Play/Pause flicker). Covers a progress interval at double speed.
- */
-export const TRACK_END_MARGIN = 0.25
-
-/**
- * Returns the position to seek to, if the position left the loop (including lead in/out), otherwise null.
- * A loop whose end (plus lead out) reaches the track end jumps back shortly before the end.
- */
+/** Returns the position to seek to, if the position left the loop (including lead in/out), otherwise null. */
 export const getLoopSeekTarget = ({
     position,
     loop,
     leadIn,
     leadOut,
-    duration = Infinity,
 }: {
     position: number
     loop: LoopRange | undefined
     leadIn: number
     leadOut: number
-    duration?: number
 }): number | null => {
     if (!loop) return null
     const target = Math.max(loop.start - leadIn, 0)
-    const end = loop.end + leadOut
-    const trackEnd = duration > 0 ? duration - TRACK_END_MARGIN : Infinity
-    // (A loop starting within the margin is restarted by the end of the track instead, see the playback service)
-    const atTrackEnd = end >= trackEnd && position >= trackEnd && target < trackEnd
-    if (position > end || atTrackEnd || position < target - POSITION_TOLERANCE) {
+    if (position > loop.end + leadOut || position < target - POSITION_TOLERANCE) {
         return target
     }
     return null
+}
+
+/**
+ * Playing time (seconds at 1x) before the track end at which a loop that reaches the end jumps back:
+ * jumping before the player stops avoids the pause/ended states (Play/Pause flicker). Covers about three
+ * progress updates; multiplied with the rate, as each update covers more of the track at higher rates.
+ */
+export const TRACK_END_MARGIN = 0.15
+
+/**
+ * The loop as it can be played: a loop end or lead out that reaches the track end is shortened to end
+ * shortly before it. Used for the jump as well as the volume, so the cross fade happens at the actual jump.
+ * A loop starting within the margin is kept (it would jump forever): the end of the track restarts it.
+ */
+export const fitLoopToTrack = ({
+    loop,
+    leadOut,
+    duration,
+    rate,
+}: {
+    loop: LoopRange
+    leadOut: number
+    duration: number
+    rate: number
+}): { loop: LoopRange; leadOut: number } => {
+    if (!(duration > 0)) return { loop, leadOut }
+    const trackEnd = duration - TRACK_END_MARGIN * Math.max(rate, 1)
+    if (loop.end + leadOut < trackEnd || loop.start >= trackEnd) {
+        return { loop, leadOut }
+    }
+    const end = Math.min(loop.end, trackEnd)
+    return { loop: { start: loop.start, end }, leadOut: Math.max(Math.min(leadOut, trackEnd - end), 0) }
 }
 
 /** Position the player should return to when stopped. */

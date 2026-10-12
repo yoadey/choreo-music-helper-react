@@ -87,17 +87,12 @@ export const addClipAtCurrentPosition = async (
 
 /**
  * Starts playing the current song. Called directly in the click handler: browsers only allow starting
- * audio during a user interaction. A song that is still loading is played once it is loaded (playing while
- * the player loads makes the web player report "ready" after "playing"); the browser may refuse that
- * delayed start, then the UI is reset to "paused".
+ * audio during a user interaction (when nothing is loading, play() is called synchronously). A song that is
+ * still loading is played once it is loaded (playing while the player loads makes the web player report
+ * "ready" after "playing"). If the browser refuses to start, the UI is reset to "paused".
  */
 export const playCurrentTrack = async () => {
-    if (!trackLoader.isLoading()) {
-        if (!useCurrentTrackStore.getState().currentTrack) return
-        await TrackPlayer.play()
-        return
-    }
-    await trackLoader.whenIdle()
+    if (trackLoader.isLoading()) await trackLoader.whenIdle()
     if (!useCurrentTrackStore.getState().currentTrack) return
     await TrackPlayer.play()
     // The web player only logs a refused start (it resolves anyway) but keeps "play when ready"
@@ -108,8 +103,8 @@ export const playCurrentTrack = async () => {
 }
 
 /**
- * Restores the track selected before the app was closed. The preference is only cleared when the track
- * no longer exists, not when the database could not be read this time.
+ * Restores the track selected before the app was closed. The preference is only cleared when the track or
+ * its audio file no longer exists, not when the database or the file could not be read this time.
  */
 export const restoreLastTrack = async (database: Database) => {
     const trackId = getLastTrack()
@@ -128,9 +123,9 @@ export const restoreLastTrack = async (database: Database) => {
         return
     }
     const result = await loadAndSelect(tracks[0], true)
-    // Otherwise the clips and the loop of a song that is not loaded would be used (e.g. the loop shown
-    // as active); the song can be selected again in the list
-    if (result === 'missing' || result === 'unreadable') clearLastTrack()
+    // The file is gone for good: otherwise the clips and the loop of a song that is not loaded would be used
+    // (e.g. the loop shown as active). A read error can be temporary, then the song and its loop are kept.
+    if (result === 'missing') clearLastTrack()
 }
 
 /** Unloads the current track, e.g. after it was deleted. */

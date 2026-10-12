@@ -1,9 +1,10 @@
 // GitHub Pages (and most static hosts) have no single page app fallback:
 // serving the app shell as 404.html makes deep links like /info work after a reload.
 //
-// The app shell links the manifest, the icon and the service worker relatively, so the app works in any
-// sub directory. 404.html is served for deep links of any depth (e.g. /info/), where relative links would
-// point into that path: there they are made absolute with the base path of the build (EXPO_BASE_URL).
+// 404.html is served for deep links of any depth (e.g. /info/), where the relative links of the app shell
+// (manifest, icon, service worker) would point into that path. They are made absolute with the base path of
+// the build (EXPO_BASE_URL, which hosting in a sub directory needs anyway, as the scripts are absolute too).
+// This runs before the precache manifest is generated, so its revision of index.html matches.
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs'
 
 const base = (process.env.EXPO_BASE_URL ?? '').replace(/\/$/, '')

@@ -109,7 +109,15 @@ export const calcFade = ({
     return startValue + progress * (endValue - startValue)
 }
 
-/** Volume for the given position. Without an active loop the volume is always 1. */
+/**
+ * Volume for the given position. Without an active loop the volume is always 1.
+ *
+ * One loop iteration runs from the jump target (loop start - lead in) to the jump (loop end + lead out):
+ * lead in at the lead-in volume, the loop itself at full volume, lead out at the lead-out volume.
+ * All transitions are linear fades, shortened if a section is too short, so the volume never jumps.
+ * Around the jump back, the end of one iteration and the start of the next one meet in the middle
+ * (cross fade), so there is no jump there either.
+ */
 export const computeVolume = ({
     position,
     loop,
@@ -126,40 +134,30 @@ export const computeVolume = ({
     leadOutVolume: number
 }): number => {
     if (!loop) return 1
-    if (position < loop.start - leadIn + VOLUME_FADE_DURATION / 2) {
-        return calcFade({
-            position,
-            fadeDuration: VOLUME_FADE_DURATION,
-            fadeEnd: loop.start - leadIn + VOLUME_FADE_DURATION / 2,
-            startValue: leadOutVolume,
-            endValue: leadInVolume,
-        })
-    }
-    if (position < loop.start) {
-        return calcFade({
-            position,
-            fadeEnd: loop.start,
-            fadeDuration: VOLUME_FADE_DURATION,
-            startValue: leadInVolume,
-            endValue: 1,
-        })
-    }
-    if (position < loop.end + VOLUME_FADE_DURATION) {
-        return calcFade({
-            position,
-            fadeStart: loop.end,
-            fadeDuration: VOLUME_FADE_DURATION,
-            startValue: 1,
-            endValue: leadOutVolume,
-        })
-    }
-    return calcFade({
-        position,
-        fadeStart: loop.end + leadOut - VOLUME_FADE_DURATION / 2,
-        fadeDuration: VOLUME_FADE_DURATION,
-        startValue: leadOutVolume,
-        endValue: leadInVolume,
-    })
+    const loopLength = loop.end - loop.start
+    const first = loop.start - leadIn
+    const last = loop.end + leadOut
+
+    // Volumes right before the jump (end of the lead out, or loop end) and right after it
+    const beforeJump = leadOut > 0 ? leadOutVolume : 1
+    const afterJump = leadIn > 0 ? leadInVolume : 1
+    // Half cross fade on each side of the jump
+    const fadeBeforeJump = leadOut > 0 ? Math.min(VOLUME_FADE_DURATION / 2, leadOut / 2) : 0
+    const fadeAfterJump = Math.min(VOLUME_FADE_DURATION / 2, (leadIn > 0 ? leadIn : loopLength) / 2)
+    const atJump = fadeBeforeJump === 0 ? beforeJump : (beforeJump + afterJump) / 2
+    // Fades between lead in / loop and loop / lead out
+    const fadeIntoLoop = leadIn > 0 ? Math.min(VOLUME_FADE_DURATION, leadIn - fadeAfterJump) : 0
+    const fadeOutOfLoop = leadOut > 0 ? Math.min(VOLUME_FADE_DURATION, leadOut - fadeBeforeJump) : 0
+
+    const p = Math.min(Math.max(position, first), last)
+    const fade = (from: number, to: number, fadeStart: number, duration: number) =>
+        duration > 0 ? calcFade({ position: p, fadeStart, fadeDuration: duration, startValue: from, endValue: to }) : to
+
+    if (p < first + fadeAfterJump) return fade(atJump, afterJump, first, fadeAfterJump)
+    if (p < loop.start) return fade(leadInVolume, 1, loop.start - fadeIntoLoop, fadeIntoLoop)
+    if (p <= loop.end) return 1
+    if (p < last - fadeBeforeJump) return fade(1, leadOutVolume, loop.end, fadeOutOfLoop)
+    return fade(leadOutVolume, atJump, last - fadeBeforeJump, fadeBeforeJump)
 }
 
 /**

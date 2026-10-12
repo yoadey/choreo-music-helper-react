@@ -153,6 +153,7 @@ describe('loop', () => {
         m.store.setLoopEnd({ id: 'c' })
         m.store.preferences.set(m.store.KEY_LEAD_IN_DURATION, 3)
         await startService()
+        m.player.playerState.position = 30
         await m.player.emitPlayerEvent(m.player.Event.PlaybackState, { state: m.player.State.Ended })
         expect(TrackPlayer().seekTo).toHaveBeenLastCalledWith(17)
         expect(TrackPlayer().play).toHaveBeenCalled()
@@ -162,10 +163,22 @@ describe('loop', () => {
         m.store.setLoopStart({ id: 'c' })
         m.store.setLoopEnd({ id: 'c' })
         await startService()
+        m.player.playerState.position = 30
         await Promise.all([
             m.player.emitPlayerEvent(m.player.Event.PlaybackState, { state: m.player.State.Ended }),
             m.player.emitPlayerEvent(m.player.Event.PlaybackQueueEnded, {}),
         ])
+        expect(TrackPlayer().seekTo).toHaveBeenCalledTimes(1)
+        expect(TrackPlayer().play).toHaveBeenCalledTimes(1)
+    })
+
+    it('restarts the loop only once when the second end event arrives after the restart', async () => {
+        m.store.setLoopStart({ id: 'c' })
+        m.store.setLoopEnd({ id: 'c' })
+        await startService()
+        m.player.playerState.position = 30
+        await m.player.emitPlayerEvent(m.player.Event.PlaybackState, { state: m.player.State.Ended })
+        await m.player.emitPlayerEvent(m.player.Event.PlaybackQueueEnded, {})
         expect(TrackPlayer().seekTo).toHaveBeenCalledTimes(1)
         expect(TrackPlayer().play).toHaveBeenCalledTimes(1)
     })

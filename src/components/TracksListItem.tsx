@@ -1,11 +1,10 @@
 import { colors } from '@/constants/tokens'
 import { confirmAction } from '@/helpers/dialogs'
-import { unloadCurrentTrack } from '@/helpers/player'
+import { releaseTrack } from '@/helpers/player'
 import { t } from '@/i18n'
 import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { deleteTrack } from '@/model/trackRepository'
-import { useCurrentTrackStore } from '@/store/store'
 import { defaultStyles } from '@/styles'
 import { useActionSheet } from '@expo/react-native-action-sheet'
 import { Ionicons } from '@expo/vector-icons'
@@ -37,9 +36,7 @@ export const TracksListItem = ({ track, title, color, index, isActive, onTrackSe
 
     const handleDelete = async () => {
         if (!(await confirmAction(t.confirmDeleteTrack(displayTitle)))) return
-        if (useCurrentTrackStore.getState().currentTrack?.id === track.id) {
-            await unloadCurrentTrack()
-        }
+        await releaseTrack(track.id)
         await deleteTrack(database, track, removeStoredFile)
     }
 

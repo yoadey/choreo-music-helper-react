@@ -124,6 +124,58 @@ describe('createTrackLoader', () => {
         expect(env.deps.revokeObjectURL).not.toHaveBeenCalled()
     })
 
+    it('is not superseded by a newer selection that never reaches the player', async () => {
+        let releaseFirstLoad: () => void = () => undefined
+        env.deps.load.mockImplementationOnce(
+            () =>
+                new Promise<undefined>((resolve) => {
+                    releaseFirstLoad = () => resolve(undefined)
+                }),
+        )
+        const loader = createTrackLoader(env.deps)
+        const first = loader.load(track('1'))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        // The newer selection fails before touching the player
+        await expect(loader.load(track('missing'))).resolves.toBe('missing')
+        releaseFirstLoad()
+        await expect(first).resolves.toBe('loaded')
+        expect(env.deps.revokeObjectURL).not.toHaveBeenCalledWith('blob:1')
+    })
+
+    it('can cancel a pending load of a track that is being read', async () => {
+        let releaseBlob: () => void = () => undefined
+        env.deps.getBlob.mockImplementationOnce(
+            (key: string) =>
+                new Promise((resolve) => {
+                    releaseBlob = () => resolve(new Blob([key]))
+                }),
+        )
+        const loader = createTrackLoader(env.deps)
+        const pending = loader.load(track('1'))
+        expect(loader.cancel('other')).toBe('none')
+        expect(loader.cancel('1')).toBe('reading')
+        releaseBlob()
+        await expect(pending).resolves.toBe('superseded')
+        expect(env.deps.reset).not.toHaveBeenCalled()
+    })
+
+    it('reports when a cancelled load already reset the player', async () => {
+        let releaseLoad: () => void = () => undefined
+        env.deps.load.mockImplementationOnce(
+            () =>
+                new Promise<undefined>((resolve) => {
+                    releaseLoad = () => resolve(undefined)
+                }),
+        )
+        const loader = createTrackLoader(env.deps)
+        const pending = loader.load(track('1'))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(loader.cancel('1')).toBe('player')
+        releaseLoad()
+        await expect(pending).resolves.toBe('superseded')
+        expect(env.deps.revokeObjectURL).toHaveBeenCalledWith('blob:1')
+    })
+
     it('uses the uri directly on native platforms', async () => {
         const loader = createTrackLoader({ ...env.deps, platform: 'android' })
         await loader.load({ id: '9', uri: 'file:///song.mp3', title: 'Song' })

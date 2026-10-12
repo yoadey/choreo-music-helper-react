@@ -31,8 +31,6 @@ import { Q } from '@nozbe/watermelondb'
 import TrackPlayer, { Event, State } from 'react-native-track-player'
 import type { Subscription } from 'rxjs'
 
-export { SPEED_FADE_DURATION, VOLUME_FADE_DURATION } from '@/helpers/playback'
-
 const readPreferences = () => ({
     speed: getSpeed(),
     globalSpeedOnly: getGlobalSpeedOnly(),
@@ -161,13 +159,18 @@ export const jumpBy = async (seconds: number) => {
     await TrackPlayer.seekTo(duration > 0 ? Math.min(target, duration) : target)
 }
 
+/** Seconds before the end of the track that still count as "at the end" */
+const TRACK_END_TOLERANCE = 0.5
+
 /** Restarts an active loop when the track ended (the loop end + lead out can lie behind the track end). */
 const handleTrackEnded = async () => {
     // The player can report the end twice (state "ended" and "queue ended")
     if (state.restartingLoop) return
     state.restartingLoop = true
     try {
-        await getProgress()
+        const { position, duration } = await getProgress()
+        // A second end event after the restart: the position is not at the end anymore
+        if (duration > 0 && position < duration - TRACK_END_TOLERANCE) return
         const loop = getActiveLoop()
         if (!loop) return
         await TrackPlayer.seekTo(getStopTarget(loop, state.prefs.leadIn))

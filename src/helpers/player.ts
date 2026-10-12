@@ -60,3 +60,14 @@ export const unloadCurrentTrack = async () => {
     clearLoop()
     clearCurrentTrack()
 }
+
+/**
+ * Releases the track before it is deleted: cancels a pending load of it and unloads it if it is the
+ * current track (or a pending load of it already replaced the current track in the player).
+ */
+export const releaseTrack = async (trackId: string) => {
+    const stage = trackLoader.cancel(trackId)
+    if (stage === 'player' || useCurrentTrackStore.getState().currentTrack?.id === trackId) {
+        await unloadCurrentTrack()
+    }
+}

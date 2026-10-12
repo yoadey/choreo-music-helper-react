@@ -3,7 +3,7 @@ import { analyzeAudio, chaptersToClips } from '@/helpers/audioImport'
 import { showMessage } from '@/helpers/dialogs'
 import { selectTrack } from '@/helpers/player'
 import { t } from '@/i18n'
-import { database, flushDatabase } from '@/model/index.web'
+import { database } from '@/model/index.web'
 import { createTrackWithClips } from '@/model/trackRepository'
 import { FontAwesome6 } from '@expo/vector-icons'
 import * as DocumentPicker from 'expo-document-picker'
@@ -22,9 +22,8 @@ const importWebFile = async (asset: DocumentPicker.DocumentPickerAsset) => {
 	await requestPersistentStorage()
 	await set(audio.key, blob)
 	try {
-		const track = await createTrackWithClips(database, audio)
-		await flushDatabase()
-		return track
+		// Persisted right away by the change subscription in model/index.web
+		return await createTrackWithClips(database, audio)
 	} catch (error) {
 		// Do not leave an orphaned file behind
 		await del(audio.key)

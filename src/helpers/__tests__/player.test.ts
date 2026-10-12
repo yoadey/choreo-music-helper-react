@@ -80,3 +80,53 @@ describe('selectTrack', () => {
         expect(m.dialogs.showMessage).not.toHaveBeenCalled()
     })
 })
+
+describe('releaseTrack (before deleting a track)', () => {
+    it('unloads the current track', async () => {
+        await m.player.selectTrack(track('1'))
+        await m.player.releaseTrack('1')
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toBeNull()
+        expect(m.prefs.getLastTrack()).toBeUndefined()
+    })
+
+    it('keeps another current track', async () => {
+        await m.player.selectTrack(track('1'))
+        await m.player.releaseTrack('2')
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('1'))
+    })
+
+    it('prevents a track that is still loading from becoming current after it was deleted', async () => {
+        await m.player.selectTrack(track('1'))
+        const { get } = require('idb-keyval') as { get: jest.Mock }
+        let releaseBlob: () => void = () => undefined
+        get.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    releaseBlob = () => resolve(new Blob(['audio']))
+                }),
+        )
+        const pending = m.player.selectTrack(track('2'))
+        await m.player.releaseTrack('2')
+        releaseBlob()
+        await expect(pending).resolves.toBe(false)
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('1'))
+    })
+
+    it('clears the current track when the deleted track had already reset the player', async () => {
+        await m.player.selectTrack(track('1'))
+        let releaseLoad: () => void = () => undefined
+        ;(m.trackPlayer.default.load as unknown as jest.Mock).mockImplementationOnce(
+            () =>
+                new Promise<undefined>((resolve) => {
+                    releaseLoad = () => resolve(undefined)
+                }),
+        )
+        const pending = m.player.selectTrack(track('2'))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        await m.player.releaseTrack('2')
+        releaseLoad()
+        await expect(pending).resolves.toBe(false)
+        // Track 1 is not in the player anymore
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toBeNull()
+    })
+})

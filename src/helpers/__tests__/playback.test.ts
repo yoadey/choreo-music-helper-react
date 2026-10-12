@@ -161,6 +161,56 @@ describe('computeVolume', () => {
     })
 })
 
+describe('computeVolume continuity', () => {
+    const loop = { start: 10, end: 20 }
+    const configs = [
+        { leadIn: 0, leadOut: 0 },
+        { leadIn: 0, leadOut: 4 },
+        { leadIn: 2, leadOut: 0 },
+        { leadIn: 1.5, leadOut: 1 },
+        { leadIn: 0.5, leadOut: 0.5 },
+        { leadIn: 4, leadOut: 6 },
+    ]
+
+    for (const { leadIn, leadOut } of configs) {
+        const base = { loop, leadIn, leadOut, leadInVolume: 0.2, leadOutVolume: 0.6 }
+        const first = loop.start - leadIn
+        const last = loop.end + leadOut
+
+        it(`has no jumps (lead-in ${leadIn} s, lead-out ${leadOut} s)`, () => {
+            // A jump shows up as a large change within a tiny step, a fade (even a short one) does not
+            const step = 0.001
+            let maxChange = 0
+            let previous = computeVolume({ ...base, position: first })
+            for (let position = first + step; position <= last; position += step) {
+                const volume = computeVolume({ ...base, position })
+                maxChange = Math.max(maxChange, Math.abs(volume - previous))
+                previous = volume
+            }
+            expect(maxChange).toBeLessThanOrEqual(0.01)
+        })
+
+        it(`continues seamlessly after jumping back (lead-in ${leadIn} s, lead-out ${leadOut} s)`, () => {
+            expect(computeVolume({ ...base, position: last })).toBeCloseTo(computeVolume({ ...base, position: first }), 5)
+        })
+    }
+
+    it('never applies the lead-in volume inside the loop', () => {
+        const base = { loop, leadIn: 0, leadOut: 0, leadInVolume: 0.2, leadOutVolume: 1 }
+        for (let position = 10; position <= 20; position += 0.25) {
+            expect(computeVolume({ ...base, position })).toBe(1)
+        }
+    })
+
+    it('reaches full volume at the loop start and keeps it during the loop', () => {
+        const base = { loop, leadIn: 2, leadOut: 2, leadInVolume: 0.2, leadOutVolume: 0.4 }
+        expect(computeVolume({ ...base, position: 10 })).toBeCloseTo(1)
+        expect(computeVolume({ ...base, position: 15 })).toBe(1)
+        expect(computeVolume({ ...base, position: 20 })).toBeCloseTo(1)
+        expect(computeVolume({ ...base, position: 21.5 })).toBeLessThan(1)
+    })
+})
+
 describe('computeSpeedFactor', () => {
     const ranges = buildClipRanges(
         [

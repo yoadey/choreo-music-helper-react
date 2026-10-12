@@ -46,7 +46,7 @@ const getLoki = (): Loki | undefined =>
  * Writes pending changes to IndexedDB. LokiJS only autosaves every 500 ms, so changes made right before
  * the tab is closed or reloaded (e.g. directly after an import) would otherwise be lost.
  */
-export const flushDatabase = () =>
+const flushDatabase = () =>
     new Promise<void>((resolve) => {
         const loki = getLoki()
         if (!loki) return resolve()

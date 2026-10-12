@@ -36,7 +36,11 @@ export const parseAudioMetadata = async (blob: Blob): Promise<AudioMetadata> => 
     const metadata = await parseBlob(blob, { includeChapters: true, skipCovers: true })
     return {
         title: metadata.common.title,
-        chapters: metadata.format.chapters?.map((chapter) => ({ title: chapter.title, start: chapter.start })),
+        chapters: metadata.format.chapters?.map((chapter) => ({
+            title: chapter.title,
+            start: chapter.start,
+            timeScale: chapter.timeScale,
+        })),
     }
 }
 

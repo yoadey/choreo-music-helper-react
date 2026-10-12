@@ -32,6 +32,18 @@ describe('chaptersToClips', () => {
         ])
     })
 
+    it('converts MP4 chapter timestamps using their time scale', () => {
+        expect(
+            chaptersToClips(
+                [
+                    { title: 'Kapitel 1', start: 0, timeScale: 1000 },
+                    { title: 'Kapitel 2', start: 60000, timeScale: 1000 },
+                ],
+                'Book',
+            ).map((c) => c.position),
+        ).toEqual([0, 60])
+    })
+
     it('numbers untitled chapters', () => {
         expect(chaptersToClips([{ start: 0 }, { title: '', start: 3 }], 'Song').map((c) => c.title)).toEqual([
             'Clip 1',

@@ -1,6 +1,7 @@
 import {
     buildClipRanges,
     ClipLike,
+    ClipRange,
     computeSpeedFactor,
     computeVolume,
     getLoopSeekTarget,
@@ -48,10 +49,20 @@ const state = {
     prefs: readPreferences(),
     clips: [] as ClipLike[],
     duration: 0,
+    // Derived from clips, duration and preferences, recomputed only when one of them changes
+    ranges: [] as ClipRange[],
+    loop: undefined as LoopRange | undefined,
+    playerState: undefined as string | undefined,
+    restartingLoop: false,
     trackId: undefined as string | undefined,
     subscription: undefined as Subscription | undefined,
     lastRate: undefined as number | undefined,
     lastVolume: undefined as number | undefined,
+}
+
+const recompute = () => {
+    state.ranges = buildClipRanges(state.clips, state.duration)
+    state.loop = resolveLoop(state.prefs.loopStartId, state.prefs.loopEndId, state.ranges)
 }
 
 const subscribeToClips = (trackId: string | undefined) => {
@@ -60,6 +71,7 @@ const subscribeToClips = (trackId: string | undefined) => {
     state.subscription = undefined
     state.trackId = trackId
     state.clips = []
+    recompute()
     if (!trackId) return
     state.subscription = database
         .get<Clip>('clips')
@@ -67,12 +79,14 @@ const subscribeToClips = (trackId: string | undefined) => {
         .observeWithColumns(['position', 'speed'])
         .subscribe((clips) => {
             state.clips = clips.map((clip) => ({ id: clip.id, position: clip.position, speed: clip.speed }))
+            recompute()
         })
 }
 
 const updateDuration = (duration: number | undefined) => {
-    if (duration && Number.isFinite(duration) && duration > 0) {
+    if (duration && Number.isFinite(duration) && duration > 0 && duration !== state.duration) {
         state.duration = duration
+        recompute()
     }
 }
 
@@ -83,8 +97,7 @@ const getProgress = async () => {
 }
 
 /** The active loop resolved from the current clips, or undefined. */
-export const getActiveLoop = (): LoopRange | undefined =>
-    resolveLoop(state.prefs.loopStartId, state.prefs.loopEndId, buildClipRanges(state.clips, state.duration))
+export const getActiveLoop = (): LoopRange | undefined => state.loop
 
 const setRate = (rate: number) => {
     if (state.lastRate !== undefined && Math.abs(state.lastRate - rate) < 0.001) return
@@ -100,9 +113,7 @@ const setVolume = (volume: number) => {
 
 /** Applies speed, volume and loop for the current position. */
 export const applyPlaybackRules = async (position: number) => {
-    const { prefs } = state
-    const ranges = buildClipRanges(state.clips, state.duration)
-    const loop = resolveLoop(prefs.loopStartId, prefs.loopEndId, ranges)
+    const { prefs, ranges, loop } = state
 
     setRate(prefs.globalSpeedOnly ? prefs.speed : prefs.speed * computeSpeedFactor(position, ranges, SPEED_FADE_DURATION))
     setVolume(computeVolume({ position, loop, ...prefs }))
@@ -114,8 +125,7 @@ export const applyPlaybackRules = async (position: number) => {
 }
 
 const applyIfPlaying = async (position: number) => {
-    const { state: playbackState } = await TrackPlayer.getPlaybackState()
-    if (playbackState === State.Playing) {
+    if (state.playerState === State.Playing) {
         await applyPlaybackRules(position)
     }
 }
@@ -153,21 +163,38 @@ export const jumpBy = async (seconds: number) => {
 
 /** Restarts an active loop when the track ended (the loop end + lead out can lie behind the track end). */
 const handleTrackEnded = async () => {
-    await getProgress()
-    const loop = getActiveLoop()
-    if (!loop) return
-    await TrackPlayer.seekTo(getStopTarget(loop, state.prefs.leadIn))
-    await TrackPlayer.play()
+    // The player can report the end twice (state "ended" and "queue ended")
+    if (state.restartingLoop) return
+    state.restartingLoop = true
+    try {
+        await getProgress()
+        const loop = getActiveLoop()
+        if (!loop) return
+        await TrackPlayer.seekTo(getStopTarget(loop, state.prefs.leadIn))
+        await TrackPlayer.play()
+    } finally {
+        state.restartingLoop = false
+    }
 }
 
 export const playbackService = async () => {
     state.prefs = readPreferences()
     state.lastRate = undefined
     state.lastVolume = undefined
+    state.restartingLoop = false
     subscribeToClips(getLastTrack())
+    recompute()
+    TrackPlayer.getPlaybackState()
+        .then(({ state: playbackState }) => {
+            state.playerState ??= playbackState
+        })
+        .catch(() => {
+            // The player is not set up yet, the state arrives with the next event
+        })
 
     preferences.addOnValueChangedListener((key) => {
         state.prefs = readPreferences()
+        recompute()
         if (key === KEY_LAST_TRACK) {
             subscribeToClips(getLastTrack())
         }
@@ -184,6 +211,7 @@ export const playbackService = async () => {
     })
 
     TrackPlayer.addEventListener(Event.PlaybackState, async ({ state: playbackState }) => {
+        state.playerState = playbackState
         if (playbackState === State.Ended) {
             await handleTrackEnded()
         }
@@ -194,6 +222,7 @@ export const playbackService = async () => {
     TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, () => {
         // A newly loaded track starts with the player defaults
         state.duration = 0
+        recompute()
         state.lastRate = undefined
         state.lastVolume = undefined
     })

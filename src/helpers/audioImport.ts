@@ -17,7 +17,12 @@ export type AnalyzedAudio = {
     clips: ImportedClip[]
 }
 
-export type AudioMetadata = { title?: string; chapters?: { title?: string; start: number }[] }
+/**
+ * Chapter start: seconds, or units of timeScale if given (MP4 chapters), as reported by music-metadata.
+ */
+export type AudioChapter = { title?: string; start: number; timeScale?: number }
+
+export type AudioMetadata = { title?: string; chapters?: AudioChapter[] }
 
 export type DecodedAudio = { channelData: Float32Array; duration: number }
 
@@ -36,14 +41,16 @@ export const makeUniqueAudioKey = (name: string, timestamp: number) => {
     return `/audio/${encodeURIComponent(`${base}_${timestamp}${extension}`)}`
 }
 
-/** Converts chapters (start in seconds) into clips. Without chapters a single clip at the start is created. */
+const chapterStartSeconds = ({ start, timeScale }: AudioChapter) => (timeScale && timeScale > 0 ? start / timeScale : start)
+
+/** Converts chapters into clips (positions in seconds). Without chapters a single clip at the start is created. */
 export const chaptersToClips = (chapters: AudioMetadata['chapters'], fallbackTitle: string): ImportedClip[] => {
     if (!chapters?.length) {
         return [{ title: fallbackTitle, position: 0, color: TRANSPARENT }]
     }
     return chapters.map((chapter, index) => ({
         title: chapter.title || `Clip ${index + 1}`,
-        position: Math.max(chapter.start, 0),
+        position: Math.max(chapterStartSeconds(chapter), 0),
         color: TRANSPARENT,
     }))
 }

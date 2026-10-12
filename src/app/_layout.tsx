@@ -31,6 +31,12 @@ const restoreLastTrack = async () => {
     }
 }
 
+/** Separate component, so the frequent progress updates of the media session do not re-render the app. */
+const MediaSession = () => {
+    useMediaSession()
+    return null
+}
+
 const App = () => {
     const handleTrackPlayerLoaded = useCallback((success: boolean) => {
         SplashScreen.hideAsync()
@@ -40,7 +46,6 @@ const App = () => {
     }, [])
 
     useSetupTrackPlayer({ onLoad: handleTrackPlayerLoaded })
-    useMediaSession()
 
     return (
         <SafeAreaProvider>
@@ -48,6 +53,7 @@ const App = () => {
                 <ActionSheetProvider>
                     <RootNavigation />
                 </ActionSheetProvider>
+                <MediaSession />
                 <StatusBar style="light" />
             </GestureHandlerRootView>
         </SafeAreaProvider>

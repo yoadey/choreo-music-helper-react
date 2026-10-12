@@ -41,11 +41,16 @@ const progress = async (position: number, duration = 30) => {
     await m.player.emitPlayerEvent(m.player.Event.PlaybackProgressUpdated, { position, duration })
 }
 
+const setPlayerState = async (state: string) => {
+    m.player.playerState.state = state
+    await m.player.emitPlayerEvent(m.player.Event.PlaybackState, { state })
+}
+
 const startService = async () => {
     await m.service.playbackService()
     mockClipSubscriber?.(clips)
-    m.player.playerState.state = m.player.State.Playing
     m.player.playerState.duration = 30
+    await setPlayerState(m.player.State.Playing)
 }
 
 beforeEach(() => {
@@ -153,6 +158,18 @@ describe('loop', () => {
         expect(TrackPlayer().play).toHaveBeenCalled()
     })
 
+    it('restarts the loop only once when the player reports both the state and the queue end', async () => {
+        m.store.setLoopStart({ id: 'c' })
+        m.store.setLoopEnd({ id: 'c' })
+        await startService()
+        await Promise.all([
+            m.player.emitPlayerEvent(m.player.Event.PlaybackState, { state: m.player.State.Ended }),
+            m.player.emitPlayerEvent(m.player.Event.PlaybackQueueEnded, {}),
+        ])
+        expect(TrackPlayer().seekTo).toHaveBeenCalledTimes(1)
+        expect(TrackPlayer().play).toHaveBeenCalledTimes(1)
+    })
+
     it('does not restart at the track end without loop', async () => {
         await startService()
         await m.player.emitPlayerEvent(m.player.Event.PlaybackState, { state: m.player.State.Ended })
@@ -170,6 +187,40 @@ describe('loop', () => {
         m.store.setLoopStart(undefined)
         await progress(8.1)
         expect(TrackPlayer().setVolume).toHaveBeenLastCalledWith(1)
+    })
+})
+
+describe('efficiency', () => {
+    it('tracks the player state from events instead of querying it on every progress tick', async () => {
+        await startService()
+        ;(TrackPlayer().getPlaybackState as unknown as jest.Mock).mockClear()
+        await progress(5)
+        await progress(5.05)
+        await progress(5.1)
+        expect(TrackPlayer().getPlaybackState).not.toHaveBeenCalled()
+    })
+
+    it('does not apply the loop while paused', async () => {
+        m.store.setLoopStart({ id: 'b' })
+        m.store.setLoopEnd({ id: 'b' })
+        await startService()
+        await setPlayerState(m.player.State.Paused)
+        await progress(25)
+        expect(TrackPlayer().seekTo).not.toHaveBeenCalled()
+    })
+
+    it('computes the clip ranges only when clips, duration or preferences change', async () => {
+        const playback = require('@/helpers/playback') as typeof import('@/helpers/playback')
+        const buildClipRanges = jest.spyOn(playback, 'buildClipRanges')
+        await startService()
+        await progress(5)
+        const calls = buildClipRanges.mock.calls.length
+        await progress(5.05)
+        await progress(5.1)
+        await progress(5.15)
+        expect(buildClipRanges.mock.calls.length).toBe(calls)
+        mockClipSubscriber?.([...clips, { id: 'd', position: 25, speed: 1 }])
+        expect(buildClipRanges.mock.calls.length).toBe(calls + 1)
     })
 })
 

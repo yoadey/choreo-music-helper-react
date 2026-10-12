@@ -2,7 +2,14 @@ export type LoadableTrack = { id: string; uri: string; title: string }
 
 export type PlayerTrack = { id: string; url: string; title: string }
 
-export type LoadResult = 'loaded' | 'missing' | 'superseded'
+/**
+ * - loaded: the track is in the player
+ * - missing: the stored audio file does not exist (anymore), the player is unchanged
+ * - superseded: a newer selection replaced this one
+ * - unreadable: the stored file could not be read, the player is unchanged
+ * - failed: the player could not load the file, the player is empty
+ */
+export type LoadResult = 'loaded' | 'missing' | 'superseded' | 'unreadable' | 'failed'
 
 export type TrackLoaderDeps = {
     platform: string
@@ -30,23 +37,48 @@ export const createTrackLoader = (deps: TrackLoaderDeps) => {
     return {
         async load(track: LoadableTrack): Promise<LoadResult> {
             const current = ++generation
+            const isSuperseded = () => current !== generation
             let url = track.uri
             let objectUrl: string | undefined
+            const releaseObjectUrl = () => {
+                if (objectUrl) deps.revokeObjectURL(objectUrl)
+            }
 
             if (deps.platform === 'web') {
-                const blob = await deps.getBlob(track.uri)
-                if (current !== generation) return 'superseded'
+                let blob: Blob | undefined
+                try {
+                    blob = await deps.getBlob(track.uri)
+                } catch (error) {
+                    console.warn(`Could not read ${track.uri}`, error)
+                    return isSuperseded() ? 'superseded' : 'unreadable'
+                }
+                if (isSuperseded()) return 'superseded'
                 if (!blob) return 'missing'
                 objectUrl = deps.createObjectURL(blob)
                 url = objectUrl
             }
 
-            await deps.reset()
-            if (current !== generation) {
-                if (objectUrl) deps.revokeObjectURL(objectUrl)
+            try {
+                await deps.reset()
+                if (isSuperseded()) {
+                    releaseObjectUrl()
+                    return 'superseded'
+                }
+                await deps.load({ id: track.id, url, title: track.title })
+            } catch (error) {
+                releaseObjectUrl()
+                if (isSuperseded()) return 'superseded'
+                console.warn(`Could not load ${track.uri}`, error)
+                // The player was reset, the previous track is not loaded anymore
+                releaseCurrentUrl()
+                return 'failed'
+            }
+
+            if (isSuperseded()) {
+                // A newer selection was loaded in the meantime and owns the player
+                releaseObjectUrl()
                 return 'superseded'
             }
-            await deps.load({ id: track.id, url, title: track.title })
             releaseCurrentUrl()
             currentUrl = objectUrl
             return 'loaded'

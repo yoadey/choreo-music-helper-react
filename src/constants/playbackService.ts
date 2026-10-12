@@ -54,7 +54,9 @@ const state = {
     ranges: [] as ClipRange[],
     loop: undefined as LoopRange | undefined,
     playerState: undefined as string | undefined,
-    trackId: undefined as string | undefined,
+    // null: not subscribed yet (undefined: no song)
+    trackId: null as string | undefined | null,
+    clipsPending: false,
     subscription: undefined as Subscription | undefined,
     lastRate: undefined as number | undefined,
     lastVolume: undefined as number | undefined,
@@ -62,17 +64,22 @@ const state = {
 
 const recompute = () => {
     state.ranges = buildClipRanges(state.clips, state.duration)
-    state.loop = resolveLoop(state.prefs.loopStartId, state.prefs.loopEndId, state.ranges)
+    state.loop = state.clipsPending
+        ? undefined
+        : resolveLoop(state.prefs.loopStartId, state.prefs.loopEndId, state.ranges)
+    // While the clips of a newly selected song are read, a set loop is shown as active (not as invalid)
+    const active = state.clipsPending ? !!(state.prefs.loopStartId && state.prefs.loopEndId) : !!state.loop
     const loopStatus = useLoopStatusStore.getState()
-    if (loopStatus.active !== !!state.loop) loopStatus.setActive(!!state.loop)
+    if (loopStatus.active !== active) loopStatus.setActive(active)
 }
 
 const subscribeToClips = (trackId: string | undefined) => {
-    if (trackId === state.trackId && state.subscription) return
+    if (trackId === state.trackId) return
     state.subscription?.unsubscribe()
     state.subscription = undefined
     state.trackId = trackId
     state.clips = []
+    state.clipsPending = !!trackId
     recompute()
     if (!trackId) return
     state.subscription = database
@@ -81,6 +88,7 @@ const subscribeToClips = (trackId: string | undefined) => {
         .observeWithColumns(['position', 'speed'])
         .subscribe((clips) => {
             state.clips = clips.map((clip) => ({ id: clip.id, position: clip.position, speed: clip.speed }))
+            state.clipsPending = false
             recompute()
         })
 }
@@ -171,6 +179,8 @@ const applyIfPlaying = async (position: number) => {
     }
 }
 
+export const pausePlayback = control(() => TrackPlayer.pause())
+
 /** Stops the playback without unloading the track, so it can be played again directly. */
 export const stopPlayback = control(async () => {
     await TrackPlayer.pause()
@@ -221,7 +231,8 @@ const handleTrackEnded = async () => {
     const loop = getActiveLoop()
     if (!loop) return
     await seekAndPublish(getStopTarget(loop, state.prefs.leadIn))
-    await playCurrentTrack()
+    // Not if the user selected another song meanwhile: selecting a song never starts it
+    await playCurrentTrack({ unlessLoading: true })
 }
 
 export const playbackService = async () => {
@@ -289,8 +300,8 @@ export const playbackService = async () => {
         refreshProgress()
     })
 
-    TrackPlayer.addEventListener(Event.RemotePlay, playCurrentTrack)
-    TrackPlayer.addEventListener(Event.RemotePause, () => TrackPlayer.pause())
+    TrackPlayer.addEventListener(Event.RemotePlay, () => playCurrentTrack())
+    TrackPlayer.addEventListener(Event.RemotePause, pausePlayback)
     TrackPlayer.addEventListener(Event.RemoteStop, stopPlayback)
     TrackPlayer.addEventListener(Event.RemoteNext, skipToNextClip)
     TrackPlayer.addEventListener(Event.RemotePrevious, skipToPreviousClip)

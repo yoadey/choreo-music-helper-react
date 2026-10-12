@@ -50,6 +50,15 @@ describe('selectTrack', () => {
         expect(reset).not.toHaveBeenCalled()
     })
 
+    it('reloads the current song when the player dropped it after an error', async () => {
+        await m.player.selectTrack(track('1'))
+        m.trackPlayer.playerState.state = 'error'
+        const reset = m.trackPlayer.default.reset as unknown as jest.Mock
+        reset.mockClear()
+        await expect(m.player.selectTrack(track('1'))).resolves.toBe(true)
+        expect(reset).toHaveBeenCalled()
+    })
+
     it('makes the track current after it was loaded', async () => {
         await expect(m.player.selectTrack(track('1'))).resolves.toBe(true)
         expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('1'))
@@ -300,6 +309,31 @@ describe('playCurrentTrack', () => {
         })
         await m.player.playCurrentTrack()
         expect(m.trackPlayer.playerState.playWhenReady).toBe(false)
+    })
+
+    it('never rejects, e.g. before the player is set up', async () => {
+        await m.player.selectTrack(track('1'))
+        ;(m.trackPlayer.default.play as unknown as jest.Mock).mockImplementationOnce(async () => {
+            throw new Error('The player is not set up')
+        })
+        await expect(m.player.playCurrentTrack()).resolves.toBeUndefined()
+    })
+
+    it('can skip the start when another song is loading (e.g. restarting a loop)', async () => {
+        await m.player.selectTrack(track('1'))
+        let releaseLoad: () => void = () => undefined
+        ;(m.trackPlayer.default.load as unknown as jest.Mock).mockImplementationOnce(
+            () =>
+                new Promise<undefined>((resolve) => {
+                    releaseLoad = () => resolve(undefined)
+                }),
+        )
+        const pending = m.player.selectTrack(track('2'))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        await m.player.playCurrentTrack({ unlessLoading: true })
+        releaseLoad()
+        await pending
+        expect(m.trackPlayer.default.play).not.toHaveBeenCalled()
     })
 
     it('does nothing without a loaded song, e.g. after the current song was deleted', async () => {

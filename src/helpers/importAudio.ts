@@ -3,6 +3,7 @@ import { analyzeAudio, chaptersToClips } from '@/helpers/audioImport'
 import { selectTrack } from '@/helpers/player'
 import { t } from '@/i18n'
 import { database, flushDatabase } from '@/model/index.web'
+import { isQuotaError } from '@/model/saveErrors'
 import { createTrackWithClips, deleteTrack } from '@/model/trackRepository'
 import * as DocumentPicker from 'expo-document-picker'
 import { del, set } from 'idb-keyval'
@@ -49,8 +50,7 @@ const importNativeFile = (asset: DocumentPicker.DocumentPickerAsset) =>
 	})
 
 /** Message for a failed import */
-export const importErrorMessage = (error: unknown) =>
-	error instanceof Error && error.name === 'QuotaExceededError' ? t.storageFull : t.importFailed
+export const importErrorMessage = (error: unknown) => (isQuotaError(error) ? t.storageFull : t.importFailed)
 
 /**
  * Lets the user pick an audio file, imports it and selects it. onStart is called once a file was picked:

@@ -42,9 +42,11 @@ export const selectTrack = async (track: TrackWithClips, { silent = false } = {}
 
 const loadAndSelect = async (track: TrackWithClips, silent: boolean): Promise<LoadResult> => {
     selections++
-    // Selecting the loaded song again keeps it playing (unless another song is loading, which it replaces)
+    // Selecting the loaded song again keeps it playing (unless another song is loading, which it replaces,
+    // or the player dropped the song after an error)
     if (useCurrentTrackStore.getState().currentTrack?.id === track.id && !trackLoader.isLoading()) {
-        return 'loaded'
+        const { state } = await TrackPlayer.getPlaybackState().catch(() => ({ state: State.Error }))
+        if (state !== State.Error && !trackLoader.isLoading()) return 'loaded'
     }
     const result = await trackLoader.load(track)
     switch (result) {
@@ -95,14 +97,23 @@ export const addClipAtCurrentPosition = async (
  * still loading is played once it is loaded (playing while the player loads makes the web player report
  * "ready" after "playing"). If the browser refuses to start, the UI is reset to "paused".
  */
-export const playCurrentTrack = async () => {
-    if (trackLoader.isLoading()) await trackLoader.whenIdle()
-    if (!useCurrentTrackStore.getState().currentTrack) return
-    await TrackPlayer.play()
-    // The web player only logs a refused start (it resolves anyway) but keeps "play when ready"
-    const { state } = await TrackPlayer.getPlaybackState()
-    if (state !== State.Playing && state !== State.Buffering) {
-        await TrackPlayer.setPlayWhenReady(false)
+export const playCurrentTrack = async ({ unlessLoading = false } = {}) => {
+    try {
+        if (trackLoader.isLoading()) {
+            // E.g. a loop restart must not start a song the user only selected
+            if (unlessLoading) return
+            await trackLoader.whenIdle()
+        }
+        if (!useCurrentTrackStore.getState().currentTrack) return
+        await TrackPlayer.play()
+        // The web player only logs a refused start (it resolves anyway) but keeps "play when ready"
+        const { state } = await TrackPlayer.getPlaybackState()
+        if (state !== State.Playing && state !== State.Buffering) {
+            await TrackPlayer.setPlayWhenReady(false)
+        }
+    } catch (error) {
+        // E.g. the player is not set up (yet)
+        console.warn('Could not start playing', error)
     }
 }
 

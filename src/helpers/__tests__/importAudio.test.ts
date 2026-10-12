@@ -91,5 +91,9 @@ describe('importErrorMessage', () => {
         const { t } = require('@/i18n') as typeof import('@/i18n')
         expect(importErrorMessage(new DOMException('full', 'QuotaExceededError'))).toBe(t.storageFull)
         expect(importErrorMessage(new Error('decode'))).toBe(t.importFailed)
+        // LokiJS reports a failed save with the IndexedDB event
+        expect(importErrorMessage({ target: { error: new DOMException('full', 'QuotaExceededError') } })).toBe(
+            t.storageFull,
+        )
     })
 })

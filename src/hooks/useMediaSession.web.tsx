@@ -1,5 +1,5 @@
 import logo from '@/assets/logo192.png'
-import { jumpBy, seekTo, skipToNextClip, skipToPreviousClip, stopPlayback } from '@/constants/playbackService'
+import { jumpBy, pausePlayback, seekTo, skipToNextClip, skipToPreviousClip, stopPlayback } from '@/constants/playbackService'
 import { playCurrentTrack } from '@/helpers/player'
 import { useEffect } from 'react'
 import { usePlayerProgressStore } from '@/store/progress'
@@ -18,7 +18,7 @@ const setHandler = (action: MediaSessionAction, handler: Handler) => {
 
 const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
     ['play', () => playCurrentTrack()],
-    ['pause', () => TrackPlayer.pause()],
+    ['pause', () => pausePlayback()],
     ['stop', () => stopPlayback()],
     ['previoustrack', () => skipToPreviousClip()],
     ['nexttrack', () => skipToNextClip()],

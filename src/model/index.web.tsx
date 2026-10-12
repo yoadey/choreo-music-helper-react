@@ -3,6 +3,7 @@ import { t } from '@/i18n'
 import { Database } from '@nozbe/watermelondb'
 import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs'
 import Clip from './clip'
+import { createSaveFailureReporter, toSaveError } from './saveErrors'
 import migrations from './migrations'
 import schema from './schema'
 import TrackWithClips from './track'
@@ -49,14 +50,19 @@ export const flushDatabase = () =>
     new Promise<void>((resolve, reject) => {
         const loki = getLoki()
         if (!loki) return resolve()
-        loki.saveDatabase((error) => (error ? reject(error) : resolve()))
+        loki.saveDatabase((error) => (error ? reject(toSaveError(error)) : resolve()))
     })
 
+const saveFailures = createSaveFailureReporter(showMessage, t)
+
 const flushInBackground = () => {
-    flushDatabase().catch((error) => {
-        // Reported to the user by onQuotaExceededError, LokiJS tries again with the next change
-        console.warn('Could not save the database', error)
-    })
+    flushDatabase()
+        .then(() => saveFailures.succeeded())
+        .catch((error) => {
+            // LokiJS tries again with the next change; the user is told, edits would be lost after a reload
+            console.warn('Could not save the database', error)
+            saveFailures.failed(error)
+        })
 }
 
 if (typeof window !== 'undefined') {

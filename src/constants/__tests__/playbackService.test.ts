@@ -275,6 +275,34 @@ describe('preferences', () => {
     })
 })
 
+describe('pause', () => {
+    it('never rejects, e.g. before the player is set up', async () => {
+        await startService()
+        ;(TrackPlayer().pause as unknown as jest.Mock).mockImplementationOnce(async () => {
+            throw new Error('The player is not set up')
+        })
+        await expect(m.service.pausePlayback()).resolves.toBeUndefined()
+    })
+})
+
+describe('switching songs', () => {
+    it('keeps showing a set loop as active while the clips of the new song are read', async () => {
+        const { useLoopStatusStore } = require('@/store/store') as typeof import('@/store/store')
+        m.store.setLoopStart({ id: 'a' })
+        m.store.setLoopEnd({ id: 'b' })
+        await startService()
+        expect(useLoopStatusStore.getState().active).toBe(true)
+        const states: boolean[] = []
+        const unsubscribe = useLoopStatusStore.subscribe((loopState) => states.push(loopState.active))
+        setCurrentTrack('track2')
+        // The clips are not read yet
+        expect(states).not.toContain(false)
+        mockClipSubscriber?.(clips)
+        unsubscribe()
+        expect(useLoopStatusStore.getState().active).toBe(true)
+    })
+})
+
 describe('without a loaded song', () => {
     it('ignores the controls (e.g. before the player is set up) instead of failing', async () => {
         await startService()

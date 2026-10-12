@@ -1,12 +1,12 @@
 import { colors } from '@/constants/tokens'
-import { skipToNextClip, skipToPreviousClip, stopPlayback } from '@/constants/playbackService'
+import { pausePlayback, skipToNextClip, skipToPreviousClip, stopPlayback } from '@/constants/playbackService'
 import { playCurrentTrack } from '@/helpers/player'
 import { useGlobalSpeedOnly, useLeadInDuration, useLeadOutDuration, useSpeed } from '@/store/playbackState'
 import { useLoopStatusStore } from '@/store/store'
 import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native'
-import TrackPlayer, { useIsPlaying } from 'react-native-track-player'
+import { useIsPlaying } from 'react-native-track-player'
 import { PlayerAddClipButton } from './PlayerAddClipButton'
 import { PlayerProgressBar } from './PlayerProgressbar'
 
@@ -73,7 +73,7 @@ export const PlayPauseButton = ({ style, iconSize = 48 }: PlayerButtonProps) => 
 			<TouchableOpacity
 				activeOpacity={0.85}
 				style={styles.button}
-				onPress={() => (playing ? TrackPlayer.pause() : playCurrentTrack())}
+				onPress={() => (playing ? pausePlayback() : playCurrentTrack())}
 				accessibilityRole="button"
 				accessibilityLabel={playing ? 'Pause' : 'Play'}
 			>

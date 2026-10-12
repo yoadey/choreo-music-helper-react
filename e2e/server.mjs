@@ -20,7 +20,9 @@ const types = {
 
 const send = (res, status, file) => {
     res.writeHead(status, { 'Content-Type': types[extname(file)] ?? 'application/octet-stream' })
-    createReadStream(file).pipe(res)
+    createReadStream(file)
+        .on('error', () => res.destroy())
+        .pipe(res)
 }
 
 createServer((req, res) => {
@@ -31,7 +33,12 @@ createServer((req, res) => {
         res.writeHead(400).end('Bad request')
         return
     }
-    if (!pathname.startsWith(`${basePath}/`) && pathname !== basePath) {
+    // Like GitHub Pages: the directory of the app without trailing slash redirects to it with slash
+    if (basePath && pathname === basePath) {
+        res.writeHead(301, { Location: `${basePath}/` }).end()
+        return
+    }
+    if (!pathname.startsWith(`${basePath}/`)) {
         res.writeHead(404).end('Not found')
         return
     }

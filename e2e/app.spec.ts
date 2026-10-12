@@ -320,9 +320,12 @@ test.describe('hosting', () => {
 
             // Once only one tab is left, starting the app activates the new version
             await page.close()
-            await second.reload()
-            await expect(second.getByTestId('open-file')).toBeVisible()
-            await expect.poll(() => waitingWorker(second), { timeout: 10_000 }).toBe(false)
+            // The closed tab may still be listed for a moment, then the next start applies the update
+            await expect(async () => {
+                await second.reload()
+                await expect(second.getByTestId('open-file')).toBeVisible()
+                await expect.poll(() => waitingWorker(second), { timeout: 3_000 }).toBe(false)
+            }).toPass({ timeout: 20_000 })
             await second.close()
         } finally {
             fs.writeFileSync(swPath, original)

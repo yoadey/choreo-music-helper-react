@@ -28,7 +28,9 @@ registerRoute(
 self.addEventListener('message', (event) => {
     if (event.data !== 'SKIP_WAITING') return
     event.waitUntil(
-        self.clients.matchAll({ type: 'window' }).then((windows) => {
+        // includeUncontrolled: from the waiting worker's view no window is controlled by it, so without it the
+        // result is always empty
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
             if (windows.length <= 1) return self.skipWaiting()
             return undefined
         }),

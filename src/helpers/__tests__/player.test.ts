@@ -183,3 +183,41 @@ describe('restoreLastTrack', () => {
         expect(m.prefs.getLastTrack()).toBe('1')
     })
 })
+
+describe('switching tracks', () => {
+    it('loads the new track paused, so the UI does not show it as playing', async () => {
+        await m.player.selectTrack(track('1'))
+        m.trackPlayer.playerState.playWhenReady = true
+        await m.player.selectTrack(track('2'))
+        expect(m.trackPlayer.playerState.playWhenReady).toBe(false)
+    })
+})
+
+describe('addClipAtCurrentPosition', () => {
+    const createClip = jest.fn(async () => undefined)
+
+    it('adds a clip at the player position of the loaded track', async () => {
+        await m.player.selectTrack(track('1'))
+        m.trackPlayer.playerState.position = 12.5
+        await m.player.addClipAtCurrentPosition(track('1'), createClip)
+        expect(createClip).toHaveBeenCalledWith(track('1'), 12.5)
+    })
+
+    it('does not add a clip to the old track while another track is loading', async () => {
+        await m.player.selectTrack(track('1'))
+        createClip.mockClear()
+        let releaseLoad: () => void = () => undefined
+        ;(m.trackPlayer.default.load as unknown as jest.Mock).mockImplementationOnce(
+            () =>
+                new Promise<undefined>((resolve) => {
+                    releaseLoad = () => resolve(undefined)
+                }),
+        )
+        const pending = m.player.selectTrack(track('2'))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        await m.player.addClipAtCurrentPosition(track('1'), createClip)
+        expect(createClip).not.toHaveBeenCalled()
+        releaseLoad()
+        await pending
+    })
+})

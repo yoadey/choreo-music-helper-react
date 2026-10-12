@@ -314,6 +314,16 @@ describe('clip navigation', () => {
         expect(TrackPlayer().seekTo).toHaveBeenLastCalledWith(0)
     })
 
+    it('updates the shared progress after seeking (also while paused)', async () => {
+        const { usePlayerProgressStore } = require('@/store/progress') as typeof import('@/store/progress')
+        await startService()
+        await setPlayerState(m.player.State.Paused)
+        await m.service.seekToClip(20)
+        expect(usePlayerProgressStore.getState().position).toBe(20)
+        await m.service.seekTo(7)
+        expect(usePlayerProgressStore.getState().position).toBe(7)
+    })
+
     it('respects the lead in', async () => {
         m.store.preferences.set(m.store.KEY_LEAD_IN_DURATION, 2)
         await startService()

@@ -12,6 +12,8 @@ type Props = {
     onVolumeChange: (newVolume: number) => void
     title: string
     testID?: string
+    /** False if the browser ignores volume changes (iOS Safari) */
+    volumeSupported?: boolean
 }
 
 export const DurationVolumeComponent: React.FC<Props> = ({
@@ -21,6 +23,7 @@ export const DurationVolumeComponent: React.FC<Props> = ({
     onVolumeChange,
     title,
     testID,
+    volumeSupported = true,
 }) => {
     // The text is kept separately, so the field can be cleared while typing
     const [text, setText] = useState(String(seconds))
@@ -64,6 +67,7 @@ export const DurationVolumeComponent: React.FC<Props> = ({
                 </View>
                 <View style={styles.inputRow}>
                     <Slider
+                        disabled={!volumeSupported}
                         style={styles.slider}
                         minimumValue={0}
                         maximumValue={1}

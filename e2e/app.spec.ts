@@ -118,6 +118,29 @@ test.describe('playback', () => {
         await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
     })
 
+    test('shows the correct play state after switching songs during playback', async ({ page }) => {
+        await importFile(page, 'plain.mp3')
+        const row = (title: string) => page.getByTestId(/^track-\d+$/).filter({ hasText: title })
+        await expect(row('Ohne Kapitel').getByTestId('active-track')).toBeVisible()
+        await play(page)
+        await waitForAudio(page, '!a.paused && a.currentTime > 0.5')
+        // Switch to the other song while playing
+        await row('Testsong').click()
+        await expect(row('Testsong').getByTestId('active-track')).toBeVisible()
+        await waitForAudio(page, 'a.readyState > 0 && a.currentTime === 0')
+        await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible()
+        expect((await audio(page)).paused).toBe(true)
+        // A single tap plays the new song
+        await play(page)
+        await waitForAudio(page, '!a.paused && a.currentTime > 0.5')
+    })
+
+    test('the lead-in volume can be set in browsers that support it', async ({ page }) => {
+        await page.getByRole('button', { name: 'Preparation time' }).click()
+        await expect(page.getByTestId('lead-in-seconds')).toBeVisible()
+        await expect(page.getByTestId('volume-not-supported')).toHaveCount(0)
+    })
+
     test('next and previous clip also work at the start and end', async ({ page }) => {
         await page.getByRole('button', { name: 'Previous clip' }).click()
         expect((await audio(page)).time).toBe(0)
@@ -264,10 +287,12 @@ test.describe('hosting', () => {
         await expect(page.getByText(/^react-native-track-player \(/)).toHaveCount(0)
     })
 
-    test('a service worker update started in another tab does not reload a running tab', async ({ page, context }) => {
+    test('a new version is not activated while another tab still runs the old one', async ({ page, context }) => {
         const fs = await import('node:fs')
         const swPath = path.join(__dirname, '..', 'dist', 'sw.js')
         const original = fs.readFileSync(swPath, 'utf8')
+        const waitingWorker = (target: Page) =>
+            target.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())?.waiting)
         try {
             await page.evaluate(async () => {
                 await navigator.serviceWorker.ready
@@ -282,23 +307,22 @@ test.describe('hosting', () => {
             await page.evaluate(async () => {
                 const registration = await navigator.serviceWorker.getRegistration()
                 await registration?.update()
-                await new Promise<void>((resolve) => {
-                    const check = () => (registration?.waiting ? resolve() : setTimeout(check, 50))
-                    check()
-                })
             })
+            await expect.poll(() => waitingWorker(page)).toBe(true)
 
-            // Starting the app in a second tab activates the new version there
+            // Starting the app in a second tab must not activate it: the first tab still needs the old files
             const second = await context.newPage()
             await second.goto(page.url())
             await expect(second.getByTestId('open-file')).toBeVisible()
-            await expect
-                .poll(() => second.evaluate(() => navigator.serviceWorker.controller?.scriptURL))
-                .toContain('sw.js')
             await page.waitForTimeout(1500)
-
-            // The first tab was not reloaded
+            expect(await waitingWorker(second)).toBe(true)
             expect(await page.evaluate(() => (window as unknown as { marker?: boolean }).marker)).toBe(true)
+
+            // Once only one tab is left, starting the app activates the new version
+            await page.close()
+            await second.reload()
+            await expect(second.getByTestId('open-file')).toBeVisible()
+            await expect.poll(() => waitingWorker(second), { timeout: 10_000 }).toBe(false)
             await second.close()
         } finally {
             fs.writeFileSync(swPath, original)

@@ -22,9 +22,15 @@ registerRoute(
     new NetworkFirst({ cacheName: 'runtime', networkTimeoutSeconds: 3 }),
 )
 
-// Activates a new version when the app is started (see the registration in public/index.html)
+// Activates a new version when the app is started (see the registration in public/index.html), but only
+// if no other tab is open: activating removes the old precached files, which another tab still running
+// the old version may need (e.g. lazily loaded chunks). Otherwise the update is applied on a later start.
 self.addEventListener('message', (event) => {
-    if (event.data === 'SKIP_WAITING') {
-        self.skipWaiting()
-    }
+    if (event.data !== 'SKIP_WAITING') return
+    event.waitUntil(
+        self.clients.matchAll({ type: 'window' }).then((windows) => {
+            if (windows.length <= 1) return self.skipWaiting()
+            return undefined
+        }),
+    )
 })

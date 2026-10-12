@@ -5,7 +5,7 @@ import { useWaveform } from '@/hooks/useWaveform'
 import { defaultStyles } from '@/styles'
 import { StyleSheet, Text, View, ViewProps } from 'react-native'
 import { usePlayerProgressStore } from '@/store/progress'
-import TrackPlayer from 'react-native-track-player'
+import { seekTo } from '@/constants/playbackService'
 import WaveformView from './waveform/WaveformView'
 
 export const PlayerProgressBar = ({ style }: ViewProps) => {
@@ -20,7 +20,7 @@ export const PlayerProgressBar = ({ style }: ViewProps) => {
 				waveform={currentTrack ? waveform : []}
 				progress={position}
 				duration={duration}
-				onSeek={(newProgress) => TrackPlayer.seekTo(newProgress)}
+				onSeek={seekTo}
 				elapsedBarColor={colors.minimumTrackTintColor}
 				remainingBarColor={colors.maximumTrackTintColor}
 			/>

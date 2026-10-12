@@ -27,6 +27,7 @@ import {
     KEY_LAST_TRACK,
     preferences,
 } from '@/store/playbackState'
+import { refreshProgress } from '@/store/progress'
 import { useLoopStatusStore } from '@/store/store'
 import { Q } from '@nozbe/watermelondb'
 import TrackPlayer, { Event, State } from 'react-native-track-player'
@@ -97,6 +98,15 @@ const getProgress = async () => {
     return progress
 }
 
+/** Seeks and publishes the new position right away (no progress polling while paused). */
+export const seekTo = async (position: number) => {
+    await TrackPlayer.seekTo(position)
+    await refreshProgress()
+}
+
+/** True while the player is playing (tracked from the player events). */
+export const isPlayerPlaying = () => state.playerState === State.Playing
+
 /** The active loop resolved from the current clips, or undefined. */
 export const getActiveLoop = (): LoopRange | undefined => state.loop
 
@@ -132,7 +142,7 @@ export const applyPlaybackRules = async (position: number) => {
 
     const target = getLoopSeekTarget({ position, loop, leadIn: prefs.leadIn, leadOut: prefs.leadOut })
     if (target !== null) {
-        await TrackPlayer.seekTo(target)
+        await seekTo(target)
     }
 }
 
@@ -146,7 +156,7 @@ const applyIfPlaying = async (position: number) => {
 export const stopPlayback = async () => {
     await TrackPlayer.pause()
     await getProgress()
-    await TrackPlayer.seekTo(getStopTarget(getActiveLoop(), state.prefs.leadIn))
+    await seekTo(getStopTarget(getActiveLoop(), state.prefs.leadIn))
 }
 
 /** Clip start positions, sorted (the ranges are sorted when they are computed) */
@@ -156,24 +166,24 @@ export const skipToNextClip = async () => {
     const { position } = await getProgress()
     const target = getNextClipTarget(position, clipStarts(), state.prefs.leadIn)
     if (target !== null) {
-        await TrackPlayer.seekTo(target)
+        await seekTo(target)
     }
 }
 
 export const skipToPreviousClip = async () => {
     const { position } = await getProgress()
-    await TrackPlayer.seekTo(getPreviousClipTarget(position, clipStarts(), state.prefs.leadIn))
+    await seekTo(getPreviousClipTarget(position, clipStarts(), state.prefs.leadIn))
 }
 
 /** Seeks to the start of a clip, including the lead in. */
 export const seekToClip = async (clipPosition: number) => {
-    await TrackPlayer.seekTo(Math.max(clipPosition - state.prefs.leadIn, 0))
+    await seekTo(Math.max(clipPosition - state.prefs.leadIn, 0))
 }
 
 export const jumpBy = async (seconds: number) => {
     const { position, duration } = await getProgress()
     const target = Math.max(position + seconds, 0)
-    await TrackPlayer.seekTo(duration > 0 ? Math.min(target, duration) : target)
+    await seekTo(duration > 0 ? Math.min(target, duration) : target)
 }
 
 /** Seconds before the end of the track that still count as "at the end" */
@@ -190,7 +200,7 @@ const handleTrackEnded = async () => {
         if (duration > 0 && position < duration - TRACK_END_TOLERANCE) return
         const loop = getActiveLoop()
         if (!loop) return
-        await TrackPlayer.seekTo(getStopTarget(loop, state.prefs.leadIn))
+        await seekTo(getStopTarget(loop, state.prefs.leadIn))
         await TrackPlayer.play()
     } finally {
         state.restartingLoop = false
@@ -232,6 +242,7 @@ export const playbackService = async () => {
 
     TrackPlayer.addEventListener(Event.PlaybackState, async ({ state: playbackState }) => {
         state.playerState = playbackState
+        refreshProgress()
         if (playbackState === State.Ended) {
             await handleTrackEnded()
         }
@@ -245,6 +256,7 @@ export const playbackService = async () => {
         recompute()
         state.lastRate = undefined
         state.lastVolume = undefined
+        refreshProgress()
     })
 
     TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play())
@@ -252,7 +264,7 @@ export const playbackService = async () => {
     TrackPlayer.addEventListener(Event.RemoteStop, stopPlayback)
     TrackPlayer.addEventListener(Event.RemoteNext, skipToNextClip)
     TrackPlayer.addEventListener(Event.RemotePrevious, skipToPreviousClip)
-    TrackPlayer.addEventListener(Event.RemoteSeek, ({ position }) => TrackPlayer.seekTo(position))
+    TrackPlayer.addEventListener(Event.RemoteSeek, ({ position }) => seekTo(position))
     TrackPlayer.addEventListener(Event.RemoteJumpBackward, ({ interval }) => jumpBy(-(interval ?? 10)))
     TrackPlayer.addEventListener(Event.RemoteJumpForward, ({ interval }) => jumpBy(interval ?? 10))
 }

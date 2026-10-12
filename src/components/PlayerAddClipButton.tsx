@@ -1,4 +1,5 @@
 import { colors } from '@/constants/tokens'
+import { addClipAtCurrentPosition } from '@/helpers/player'
 import { useCurrentTrack } from '@/hooks/useCurrentTrack'
 import { t } from '@/i18n'
 import { database } from '@/model/index.web'
@@ -6,7 +7,6 @@ import { createClip } from '@/model/trackRepository'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { ComponentProps } from 'react'
 import { TouchableOpacity } from 'react-native'
-import TrackPlayer from 'react-native-track-player'
 
 type IconProps = Omit<ComponentProps<typeof MaterialCommunityIcons>, 'name'>
 
@@ -15,8 +15,9 @@ export const PlayerAddClipButton = ({ ...iconProps }: IconProps) => {
 
     const addClipToTrack = async () => {
         if (!currentTrack) return
-        const { position } = await TrackPlayer.getProgress()
-        await createClip(database, currentTrack, { title: t.newClip, position })
+        await addClipAtCurrentPosition(currentTrack, (track, position) =>
+            createClip(database, track, { title: t.newClip, position }),
+        )
     }
 
     return (

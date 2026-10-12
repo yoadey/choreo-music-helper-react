@@ -1,12 +1,11 @@
 import { colors } from '@/constants/tokens'
 import { seekToClip } from '@/constants/playbackService'
-import { confirmAction } from '@/helpers/dialogs'
+import { removeClip } from '@/helpers/clips'
+import { confirmAction, showMessage } from '@/helpers/dialogs'
 import { formatClipTime } from '@/helpers/miscellaneous'
 import { t } from '@/i18n'
 import Clip from '@/model/clip'
-import { database } from '@/model/index.web'
-import { deleteClip } from '@/model/trackRepository'
-import { clearLoopMarkersForClip, setLoopEnd, setLoopStart } from '@/store/playbackState'
+import { setLoopEnd, setLoopStart } from '@/store/playbackState'
 import { defaultStyles } from '@/styles'
 import { useActionSheet } from '@expo/react-native-action-sheet'
 import { useRouter } from 'expo-router'
@@ -61,8 +60,12 @@ export const ClipListItem = memo(function ClipListItem({
 				if (selectedIndex === 1) {
 					router.push(`/(modals)/edit-clip?clipId=${clip.id}`)
 				} else if (selectedIndex === 0 && (await confirmAction(t.confirmDeleteClip(displayTitle)))) {
-					clearLoopMarkersForClip(clip.id)
-					await deleteClip(database, clip)
+					try {
+						await removeClip(clip)
+					} catch (error) {
+						console.warn('Could not delete the clip', error)
+						showMessage(t.clipDeleteFailed)
+					}
 				}
 			},
 		)

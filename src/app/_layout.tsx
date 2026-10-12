@@ -1,4 +1,4 @@
-import { playbackService } from '@/constants/playbackService'
+import { isPlayerPlaying, playbackService } from '@/constants/playbackService'
 import { colors } from '@/constants/tokens'
 import { restoreLastTrack } from '@/helpers/player'
 import { useMediaSession } from '@/hooks/useMediaSession'
@@ -33,8 +33,11 @@ const App = () => {
     }, [])
 
     useSetupTrackPlayer({ onLoad: handleTrackPlayerLoaded })
-    // One progress poll for the whole app, components subscribe to the store
-    useEffect(() => startProgressPolling(50), [])
+    // One progress poll for the whole app (only while playing and visible), components use the store
+    useEffect(
+        () => startProgressPolling(50, () => isPlayerPlaying() && !(typeof document !== 'undefined' && document.hidden)),
+        [],
+    )
 
     return (
         <SafeAreaProvider>

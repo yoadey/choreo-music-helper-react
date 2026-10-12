@@ -1,5 +1,5 @@
 import { colors } from '@/constants/tokens'
-import { formatClipTime } from '@/helpers/miscellaneous'
+import { formatClipTime, stepSeconds } from '@/helpers/miscellaneous'
 import { buttonStyles, defaultStyles } from '@/styles'
 import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons'
 import React from 'react'
@@ -17,8 +17,7 @@ const STEP = 0.1
 
 export default function TimeEditor({ seconds, max, onChange }: TimeEditorProps) {
     const update = (delta: number) => {
-        const next = Math.round((seconds + delta) * 10) / 10
-        onChange(Math.min(Math.max(next, 0), max && max > 0 ? max : Number.POSITIVE_INFINITY))
+        onChange(Math.min(stepSeconds(seconds, delta), max && max > 0 ? max : Number.POSITIVE_INFINITY))
     }
 
     return (

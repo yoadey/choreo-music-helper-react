@@ -1,5 +1,5 @@
 import logo from '@/assets/logo192.png'
-import { jumpBy, skipToNextClip, skipToPreviousClip, stopPlayback } from '@/constants/playbackService'
+import { jumpBy, seekTo, skipToNextClip, skipToPreviousClip, stopPlayback } from '@/constants/playbackService'
 import { useEffect } from 'react'
 import { usePlayerProgressStore } from '@/store/progress'
 import TrackPlayer, { useIsPlaying } from 'react-native-track-player'
@@ -23,7 +23,7 @@ const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
     ['nexttrack', () => skipToNextClip()],
     ['seekbackward', (details) => jumpBy(-(details.seekOffset ?? 10))],
     ['seekforward', (details) => jumpBy(details.seekOffset ?? 10)],
-    ['seekto', (details) => details.seekTime != null && TrackPlayer.seekTo(details.seekTime)],
+    ['seekto', (details) => details.seekTime != null && seekTo(details.seekTime)],
 ]
 
 /** Lock screen / hardware media key integration of the browser. */

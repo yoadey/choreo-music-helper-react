@@ -1,5 +1,6 @@
 import { DurationVolumeComponent } from '@/components/DurationVolume'
 import { colors } from '@/constants/tokens'
+import { supportsVolumeControl } from '@/helpers/volumeSupport'
 import { t } from '@/i18n'
 import { useLeadInDuration, useLeadInVolume, useLeadOutDuration, useLeadOutVolume } from '@/store/playbackState'
 import { modalStyles } from '@/styles'
@@ -17,6 +18,7 @@ const LoopModal = () => {
 	const [leadInVolumeLocal, setLeadInVolumeLocal] = useState(leadInVolume ?? 1)
 	const [leadOutDurationLocal, setLeadOutDurationLocal] = useState(leadOutDuration ?? 0)
 	const [leadOutVolumeLocal, setLeadOutVolumeLocal] = useState(leadOutVolume ?? 1)
+	const [volumeSupported] = useState(() => supportsVolumeControl())
 
 	const close = useCloseModal()
 
@@ -39,6 +41,7 @@ const LoopModal = () => {
 					onVolumeChange={setLeadInVolumeLocal}
 					title={t.leadIn}
 					testID="lead-in"
+					volumeSupported={volumeSupported}
 				/>
 				<DurationVolumeComponent
 					seconds={leadOutDurationLocal}
@@ -47,7 +50,13 @@ const LoopModal = () => {
 					onVolumeChange={setLeadOutVolumeLocal}
 					title={t.leadOut}
 					testID="lead-out"
+					volumeSupported={volumeSupported}
 				/>
+				{!volumeSupported && (
+					<Text style={[modalStyles.text, { maxWidth: 320 }]} testID="volume-not-supported">
+						{t.volumeNotSupported}
+					</Text>
+				)}
 				<View style={{ marginTop: 24 }}>
 					<Button title={t.ok} onPress={handleOk} color={colors.primary} testID="loop-ok" />
 				</View>

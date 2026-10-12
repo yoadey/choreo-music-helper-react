@@ -19,6 +19,9 @@ const trackLoader = createTrackLoader({
     reset: () => TrackPlayer.reset(),
     load: async (track) => {
         await TrackPlayer.load(track)
+        // A new track starts paused; otherwise the player still reports "play when ready" from the
+        // previous track and the UI shows it as playing although it is not
+        await TrackPlayer.setPlayWhenReady(false)
     },
 })
 
@@ -55,6 +58,20 @@ export const selectTrack = async (track: TrackWithClips, { silent = false } = {}
     setLastTrack(track.id)
     useCurrentTrackStore.getState().setCurrentTrack(track)
     return true
+}
+
+/**
+ * Adds a clip at the current player position, but only if the track is the one loaded in the player
+ * (while another track is loading, the position belongs to that track).
+ */
+export const addClipAtCurrentPosition = async (
+    track: TrackWithClips,
+    create: (track: TrackWithClips, position: number) => Promise<unknown>,
+) => {
+    const activeTrack = await TrackPlayer.getActiveTrack()
+    if (activeTrack?.id !== track.id) return
+    const { position } = await TrackPlayer.getProgress()
+    await create(track, position)
 }
 
 /**

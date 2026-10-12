@@ -12,6 +12,8 @@ export const playerState = {
     state: 'none' as string,
     volume: 1,
     rate: 1,
+    activeTrack: undefined as any,
+    playWhenReady: false,
 }
 
 const TrackPlayer = {
@@ -24,8 +26,15 @@ const TrackPlayer = {
     setupPlayer: jest.fn(async () => undefined),
     updateOptions: jest.fn(async () => undefined),
     setRepeatMode: jest.fn(async () => undefined),
-    reset: jest.fn(async () => undefined),
-    load: jest.fn(async () => undefined),
+    reset: jest.fn(async () => {
+        playerState.activeTrack = undefined
+    }),
+    load: jest.fn(async (track: any) => {
+        playerState.activeTrack = track
+    }),
+    setPlayWhenReady: jest.fn(async (playWhenReady: boolean) => {
+        playerState.playWhenReady = playWhenReady
+    }),
     play: jest.fn(async () => {
         playerState.state = 'playing'
     }),
@@ -47,7 +56,7 @@ const TrackPlayer = {
     getRate: jest.fn(async () => playerState.rate),
     getProgress: jest.fn(async () => ({ position: playerState.position, duration: playerState.duration, buffered: 0 })),
     getPlaybackState: jest.fn(async () => ({ state: playerState.state })),
-    getActiveTrack: jest.fn(async () => undefined),
+    getActiveTrack: jest.fn(async () => playerState.activeTrack),
     updateMetadataForTrack: jest.fn(async () => undefined),
 }
 
@@ -58,7 +67,15 @@ export const emitPlayerEvent = async (event: string, payload: any = {}) => {
 
 export const resetTrackPlayerMock = () => {
     listeners.clear()
-    Object.assign(playerState, { position: 0, duration: 0, state: 'none', volume: 1, rate: 1 })
+    Object.assign(playerState, {
+        position: 0,
+        duration: 0,
+        state: 'none',
+        volume: 1,
+        rate: 1,
+        activeTrack: undefined,
+        playWhenReady: false,
+    })
     Object.values(TrackPlayer).forEach((fn) => (fn as jest.Mock).mockClear())
 }
 

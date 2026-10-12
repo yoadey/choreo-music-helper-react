@@ -1,7 +1,7 @@
 import { colors } from '@/constants/tokens'
 import { t } from '@/i18n'
 import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, Button, FlatList, Linking, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Button, FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 
 type LicenseEntry = {
   name: string
@@ -9,11 +9,14 @@ type LicenseEntry = {
   type: string
   url?: string
   description?: string
+  // Full license text (copyright notice and conditions), which most licenses require to be shipped
+  content?: string
 }
 
 const LicenseItem = React.memo(function LicenseItem({ info }: { info: LicenseEntry }) {
+  const [expanded, setExpanded] = useState(false)
   return (
-    <View style={styles.item}>
+    <View style={styles.item} testID={`license-${info.name}`}>
       <Text style={[styles.text, styles.name]}>
         {info.name} ({info.version})
       </Text>
@@ -29,6 +32,14 @@ const LicenseItem = React.memo(function LicenseItem({ info }: { info: LicenseEnt
         <Text style={styles.link} onPress={() => Linking.openURL(info.url!)}>
           {info.url}
         </Text>
+      )}
+      {info.content && (
+        <>
+          <Pressable accessibilityRole="button" onPress={() => setExpanded((value) => !value)}>
+            <Text style={styles.link}>{expanded ? t.hideLicenseText : t.showLicenseText}</Text>
+          </Pressable>
+          {expanded && <Text style={[styles.text, styles.content]}>{info.content}</Text>}
+        </>
       )}
     </View>
   )
@@ -95,4 +106,5 @@ const styles = StyleSheet.create({
   item: { marginBottom: 24 },
   name: { fontWeight: 'bold', fontSize: 16 },
   link: { color: '#4da6ff' },
+  content: { marginTop: 8, fontSize: 12 },
 })

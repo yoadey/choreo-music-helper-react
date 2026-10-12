@@ -272,6 +272,22 @@ describe('computeSpeedFactor', () => {
         }
     })
 
+    it('does not fade towards the clip after the loop end, which the loop never plays', () => {
+        const ranges3 = buildClipRanges(
+            [
+                { id: 'a', position: 0, speed: 1 },
+                { id: 'b', position: 10, speed: 0.5 },
+                { id: 'c', position: 20, speed: 1 },
+            ],
+            30,
+        )
+        const loop = { start: 10, end: 20 }
+        expect(computeSpeedFactor(19, ranges3, 2, { loop, leadOut: 0 })).toBeCloseTo(0.5)
+        expect(computeSpeedFactor(19.9, ranges3, 2, { loop, leadOut: 0 })).toBeCloseTo(0.5)
+        // With a lead-out the next clip is played, so the fade stays
+        expect(computeSpeedFactor(19, ranges3, 2, { loop, leadOut: 3 })).toBeCloseTo(0.75)
+    })
+
     it('returns 1 without clips', () => {
         expect(computeSpeedFactor(9, [], 2)).toBe(1)
     })

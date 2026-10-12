@@ -27,7 +27,7 @@ import {
     KEY_LAST_TRACK,
     preferences,
 } from '@/store/playbackState'
-import { refreshProgress } from '@/store/progress'
+import { publishProgress, refreshProgress } from '@/store/progress'
 import { useLoopStatusStore } from '@/store/store'
 import { Q } from '@nozbe/watermelondb'
 import TrackPlayer, { Event, State } from 'react-native-track-player'
@@ -104,9 +104,6 @@ export const seekTo = async (position: number) => {
     await refreshProgress()
 }
 
-/** True while the player is playing (tracked from the player events). */
-export const isPlayerPlaying = () => state.playerState === State.Playing
-
 /** The active loop resolved from the current clips, or undefined. */
 export const getActiveLoop = (): LoopRange | undefined => state.loop
 
@@ -136,7 +133,7 @@ export const applyPlaybackRules = async (position: number) => {
     const { prefs, ranges, loop } = state
 
     await Promise.all([
-        setRate(prefs.globalSpeedOnly ? prefs.speed : prefs.speed * computeSpeedFactor(position, ranges, SPEED_FADE_DURATION)),
+        setRate(prefs.globalSpeedOnly ? prefs.speed : prefs.speed * computeSpeedFactor(position, ranges, SPEED_FADE_DURATION, { loop, leadOut: prefs.leadOut })),
         setVolume(computeVolume({ position, loop, ...prefs })),
     ])
 
@@ -237,11 +234,20 @@ export const playbackService = async () => {
 
     TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, async ({ position, duration }) => {
         updateDuration(duration)
+        // The UI is updated from these events, not while hidden (refreshed when visible again)
+        if (!(typeof document !== 'undefined' && document.hidden)) publishProgress(position, duration)
         await applyIfPlaying(position)
     })
 
     TrackPlayer.addEventListener(Event.PlaybackState, async ({ state: playbackState }) => {
         state.playerState = playbackState
+        // The UI shows Play/Pause from "play when ready". On the web the player does not update it when the
+        // browser pauses (e.g. headphones unplugged), a new track is loaded or Play was pressed while loading
+        if (playbackState !== State.Buffering && playbackState !== State.Loading) {
+            TrackPlayer.setPlayWhenReady(playbackState === State.Playing).catch(() => {
+                // The player is not set up, there is nothing to sync
+            })
+        }
         refreshProgress()
         if (playbackState === State.Ended) {
             await handleTrackEnded()

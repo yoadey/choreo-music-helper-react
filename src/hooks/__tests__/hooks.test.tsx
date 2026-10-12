@@ -60,6 +60,32 @@ describe('useWaveform', () => {
         expect(get.mock.calls.length).toBe(calls)
     })
 
+    it('stores a computed waveform even if another track was selected meanwhile', async () => {
+        const { get } = require('idb-keyval') as { get: jest.Mock }
+        get.mockImplementationOnce(async () => {
+            const blob = new Blob(['audio'])
+            Object.defineProperty(blob, 'arrayBuffer', { value: async () => new ArrayBuffer(4) })
+            return blob
+        })
+        const audio = require('@/helpers/audio') as { decodeAudio: jest.Mock }
+        let finishDecode: () => void = () => undefined
+        audio.decodeAudio.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    finishDecode = () => resolve({ channelData: new Float32Array(8), duration: 2 })
+                }),
+        )
+        const update = jest.fn(async () => undefined)
+        const { useWaveform } = require('../useWaveform') as typeof import('../useWaveform')
+        const first = track({ id: 't5', update })
+        const { rerender } = renderHook(({ current }) => useWaveform(current), { initialProps: { current: first } })
+        await waitFor(() => expect(audio.decodeAudio).toHaveBeenCalled())
+        // Another track is selected before the decode finished
+        rerender({ current: track({ id: 't6', waveform: '[0.1]' }) })
+        finishDecode()
+        await waitFor(() => expect(update).toHaveBeenCalled())
+    })
+
     it('uses the stored waveform', () => {
         const { useWaveform } = require('../useWaveform') as typeof import('../useWaveform')
         const { result } = renderHook(() => useWaveform(track({ waveform: '[0.5,0.25]' })))

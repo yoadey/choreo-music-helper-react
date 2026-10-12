@@ -166,13 +166,20 @@ export const computeVolume = ({
  * Speed factor of the clips for the given position. The speed fades into the speed of the next clip
  * during the fade duration before that clip starts. The fade takes at most half of the current clip, so
  * every clip (also one shorter than the fade) is played at its own speed. Before the first clip the
- * speed is 1.
+ * speed is 1. With an active loop there is no fade towards a clip that starts after the loop end and
+ * lead out: the loop jumps back before that clip is played.
  */
-export const computeSpeedFactor = (position: number, ranges: readonly ClipRange[], fadeDuration: number): number => {
+export const computeSpeedFactor = (
+    position: number,
+    ranges: readonly ClipRange[],
+    fadeDuration: number,
+    { loop, leadOut = 0 }: { loop?: LoopRange; leadOut?: number } = {},
+): number => {
     const index = findClipIndex(position, ranges.map((range) => range.start), 0)
     const currentSpeed = index >= 0 ? ranges[index].speed : 1
     const next = ranges[index + 1]
     if (!next) return currentSpeed
+    if (loop && next.start >= loop.end + Math.max(leadOut, 0) - POSITION_TOLERANCE) return currentSpeed
     const sectionStart = index >= 0 ? ranges[index].start : 0
     const sectionLength = next.start - sectionStart
     const fade = Math.min(fadeDuration, index >= 0 ? sectionLength / 2 : sectionLength)

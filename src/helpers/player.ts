@@ -5,6 +5,7 @@ import { t } from '@/i18n'
 import TrackWithClips from '@/model/track'
 import { Q, type Database } from '@nozbe/watermelondb'
 import { clearLastTrack, clearLoop, getLastTrack, setLastTrack } from '@/store/playbackState'
+import { refreshProgress } from '@/store/progress'
 import { useCurrentTrackStore } from '@/store/store'
 import { get } from 'idb-keyval'
 import { Platform } from 'react-native'
@@ -17,11 +18,9 @@ const trackLoader = createTrackLoader({
     createObjectURL: (blob) => URL.createObjectURL(blob),
     revokeObjectURL: (url) => URL.revokeObjectURL(url),
     reset: () => TrackPlayer.reset(),
+    // The play state of the new track is synced by the playback service (state "ready")
     load: async (track) => {
         await TrackPlayer.load(track)
-        // A new track starts paused; otherwise the player still reports "play when ready" from the
-        // previous track and the UI shows it as playing although it is not
-        await TrackPlayer.setPlayWhenReady(false)
     },
 })
 
@@ -97,9 +96,14 @@ export const restoreLastTrack = async (database: Database) => {
 
 /** Unloads the current track, e.g. after it was deleted. */
 export const unloadCurrentTrack = async () => {
+    // Unloading does not pause the audio element, without it the player would still report "playing"
+    await TrackPlayer.pause().catch(() => {
+        // The player is not set up, nothing plays
+    })
     await trackLoader.unload()
     clearLoop()
     clearCurrentTrack()
+    refreshProgress()
 }
 
 /**

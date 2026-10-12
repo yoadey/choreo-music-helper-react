@@ -218,6 +218,36 @@ describe('loop state for the UI', () => {
     })
 })
 
+describe('play state', () => {
+    it('resets "play when ready" when the browser pauses or a new track is ready, so the UI shows Play', async () => {
+        await startService()
+        const setPlayWhenReady = TrackPlayer().setPlayWhenReady as unknown as jest.Mock
+        setPlayWhenReady.mockClear()
+        await setPlayerState(m.player.State.Paused)
+        expect(setPlayWhenReady).toHaveBeenLastCalledWith(false)
+        setPlayWhenReady.mockClear()
+        await setPlayerState(m.player.State.Ready)
+        expect(setPlayWhenReady).toHaveBeenLastCalledWith(false)
+        setPlayWhenReady.mockClear()
+        await setPlayerState(m.player.State.Buffering)
+        expect(setPlayWhenReady).not.toHaveBeenCalled()
+    })
+
+    it('sets "play when ready" when the audio plays, e.g. after Play was pressed while the track was loading', async () => {
+        await startService()
+        await setPlayerState(m.player.State.Ready)
+        await setPlayerState(m.player.State.Playing)
+        expect(TrackPlayer().setPlayWhenReady).toHaveBeenLastCalledWith(true)
+    })
+
+    it('publishes the progress events for the UI (no separate polling)', async () => {
+        const { usePlayerProgressStore } = require('@/store/progress') as typeof import('@/store/progress')
+        await startService()
+        await progress(12.5, 30)
+        expect(usePlayerProgressStore.getState()).toMatchObject({ position: 12.5, duration: 30 })
+    })
+})
+
 describe('player errors', () => {
     it('retries the rate after a failed setRate instead of skipping it forever', async () => {
         await startService()

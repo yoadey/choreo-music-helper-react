@@ -1,4 +1,4 @@
-import { expect, Page, test } from '@playwright/test'
+import { expect, Page, Route, test } from '@playwright/test'
 import path from 'node:path'
 
 const fixture = (name: string) => path.join(__dirname, 'fixtures', name)
@@ -285,6 +285,13 @@ test.describe('hosting', () => {
         await expect(page.getByText(/^@babel\/core \(/)).toBeVisible()
         // Virtualized list: not all of the more than thousand entries are rendered at once
         await expect(page.getByText(/^react-native-track-player \(/)).toHaveCount(0)
+        // The license texts with the copyright notices are shipped and can be expanded
+        const babel = page.getByTestId('license-@babel/core')
+        await expect(babel.getByText(/Copyright/)).toHaveCount(0)
+        await babel.getByRole('button', { name: 'Lizenztext anzeigen' }).click()
+        await expect(babel.getByText(/Copyright .*Sebastian McKenzie/)).toBeVisible()
+        await babel.getByRole('button', { name: 'Lizenztext ausblenden' }).click()
+        await expect(babel.getByText(/Copyright/)).toHaveCount(0)
     })
 
     test('a new version is not activated while another tab still runs the old one', async ({ page, context }) => {
@@ -349,6 +356,9 @@ test.describe('hosting', () => {
         await page.reload()
         await expect(page.getByTestId('open-file')).toBeVisible()
         await context.setOffline(true)
+        // setOffline does not apply to the network requests of the service worker, context.route does
+        const blockNetwork = (route: Route) => route.abort('internetdisconnected')
+        await context.route('**/*', blockNetwork)
         await page.reload()
         await expect(page.getByTestId('open-file')).toBeVisible()
         // The icon fonts are available offline
@@ -359,12 +369,15 @@ test.describe('hosting', () => {
                 ),
             )
             .toEqual(expect.arrayContaining([expect.stringMatching(/material/), expect.stringMatching(/fontawesome6/)]))
-        // The licenses are available offline as well
+        // The license texts are not precached (several MB): a message is shown and they can be loaded later
         await page.getByRole('button', { name: /Show navigation menu|Navigationsmenü/ }).click()
         await page.getByText('Info', { exact: true }).click()
         await page.getByText('Lizenzen', { exact: true }).click()
-        await expect(page.getByText(/^@babel\/core \(/)).toBeVisible()
+        await expect(page.getByText(/Lizenzen konnten nicht geladen werden/)).toBeVisible()
         await context.setOffline(false)
+        await context.unroute('**/*', blockNetwork)
+        await page.getByRole('button', { name: 'Erneut versuchen' }).click()
+        await expect(page.getByText(/^@babel\/core \(/)).toBeVisible()
     })
 
     test('has an installable web app manifest', async ({ page, request }) => {

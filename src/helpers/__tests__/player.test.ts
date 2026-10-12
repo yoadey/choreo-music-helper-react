@@ -90,6 +90,16 @@ describe('selectTrack', () => {
 })
 
 describe('releaseTrack (before deleting a track)', () => {
+    it('pauses before unloading, so the player reports the paused state', async () => {
+        await m.player.selectTrack(track('1'))
+        const pause = m.trackPlayer.default.pause as unknown as jest.Mock
+        const reset = m.trackPlayer.default.reset as unknown as jest.Mock
+        reset.mockClear()
+        await m.player.releaseTrack('1')
+        expect(pause).toHaveBeenCalled()
+        expect(pause.mock.invocationCallOrder[0]).toBeLessThan(reset.mock.invocationCallOrder[0])
+    })
+
     it('unloads the current track', async () => {
         await m.player.selectTrack(track('1'))
         await m.player.releaseTrack('1')
@@ -181,15 +191,6 @@ describe('restoreLastTrack', () => {
             }),
         )
         expect(m.prefs.getLastTrack()).toBe('1')
-    })
-})
-
-describe('switching tracks', () => {
-    it('loads the new track paused, so the UI does not show it as playing', async () => {
-        await m.player.selectTrack(track('1'))
-        m.trackPlayer.playerState.playWhenReady = true
-        await m.player.selectTrack(track('2'))
-        expect(m.trackPlayer.playerState.playWhenReady).toBe(false)
     })
 })
 

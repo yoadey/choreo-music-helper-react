@@ -1,4 +1,4 @@
-import { isPlayerPlaying, playbackService } from '@/constants/playbackService'
+import { playbackService } from '@/constants/playbackService'
 import { colors } from '@/constants/tokens'
 import { restoreLastTrack } from '@/helpers/player'
 import { useMediaSession } from '@/hooks/useMediaSession'
@@ -8,7 +8,7 @@ import { database } from '@/model/index.web'
 import { ActionSheetProvider } from '@expo/react-native-action-sheet'
 import { SplashScreen, Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import { startProgressPolling } from '@/store/progress'
+import { refreshProgress } from '@/store/progress'
 import { useCallback, useEffect } from 'react'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -33,11 +33,15 @@ const App = () => {
     }, [])
 
     useSetupTrackPlayer({ onLoad: handleTrackPlayerLoaded })
-    // One progress poll for the whole app (only while playing and visible), components use the store
-    useEffect(
-        () => startProgressPolling(50, () => isPlayerPlaying() && !(typeof document !== 'undefined' && document.hidden)),
-        [],
-    )
+    // While hidden no progress is published (see the playback service), catch up when the app is visible again
+    useEffect(() => {
+        if (typeof document === 'undefined') return undefined
+        const onVisibilityChange = () => {
+            if (!document.hidden) refreshProgress()
+        }
+        document.addEventListener('visibilitychange', onVisibilityChange)
+        return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+    }, [])
 
     return (
         <SafeAreaProvider>

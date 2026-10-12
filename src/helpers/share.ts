@@ -1,6 +1,6 @@
-import TrackWithClips from '@/model/track';
-import Clip from '@/model/clip';
+import Clip from '@/model/clip'
+import TrackWithClips from '@/model/track'
 
-export async function shareTrackWithClips(track: TrackWithClips, clips: Clip[]): Promise<void> {
-  throw new Error('Sharing not supported on this platform');
+export async function shareTrackWithClips(_track: TrackWithClips, _clips: Clip[]): Promise<void> {
+  throw new Error('Sharing not supported on this platform')
 }

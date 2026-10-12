@@ -1,69 +1,30 @@
-// sw.js (ESM-kompatibel, lokal gebundelt)
-import { del, get, set } from 'idb-keyval';
-import { precacheAndRoute } from 'workbox-precaching';
-import { registerRoute } from 'workbox-routing';
-import { NetworkFirst } from 'workbox-strategies';
+// Service worker: makes the app work offline. It is bundled during the web build (see package.json build:web).
+// The app has no server part: all data (audio files and clips) is stored in the browser.
+import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
+import { NavigationRoute, registerRoute } from 'workbox-routing'
+import { NetworkFirst } from 'workbox-strategies'
 
-// Upload abfangen und lokal speichern
+// Precached files must be registered first, routes are matched in registration order
+precacheAndRoute(self.__WB_MANIFEST)
+cleanupOutdatedCaches()
+
+// Single page app: every navigation (also deep links like /info) is answered with the app shell, also offline
 registerRoute(
-  ({ request }) => request.method === 'POST' && request.url.includes('/audio'),
-  async ({ request }) => {
-    const body = await request.blob();
-    const url = new URL(request.url);
-    const key = url.pathname;
+    new NavigationRoute(createHandlerBoundToURL('index.html'), {
+        // Real files (e.g. licenses.md) are not part of the app shell
+        denylist: [/\/[^/?]+\.[a-z0-9]+(\?.*)?$/i],
+    }),
+)
 
-    await set(key, body);
-
-    return new Response(JSON.stringify({ success: true, stored: key }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  },
-  'POST'
-);
-
-// GET zum Abrufen lokal gespeicherter Uploads
+// Everything else from this origin that is not precached (e.g. rarely used icon fonts)
 registerRoute(
-  ({ request }) => request.method === 'GET' && request.url.includes('/audio'),
-  async ({ request }) => {
-    const url = new URL(request.url);
-    const key = url.pathname;
-    const data = await get(key);
+    ({ url, request }) => url.origin === self.location.origin && request.method === 'GET',
+    new NetworkFirst({ cacheName: 'runtime', networkTimeoutSeconds: 3 }),
+)
 
-    if (!data) {
-      return new Response('Not Found', { status: 404 });
+// Activates a new version when the app is started (see the registration in public/index.html)
+self.addEventListener('message', (event) => {
+    if (event.data === 'SKIP_WAITING') {
+        self.skipWaiting()
     }
-
-    return new Response(data, {
-      status: 200,
-      headers: { 'Content-Type': 'audio/mpeg' },
-    });
-  },
-  'GET'
-);
-
-// DELETE zum Löschen lokal gespeicherter Uploads
-registerRoute(
-  ({ request }) => request.method === 'DELETE' && request.url.includes('/audio'),
-  async ({ request }) => {
-    const url = new URL(request.url);
-    const key = url.pathname;
-
-    await del(key);
-
-    return new Response(JSON.stringify({ success: true, deleted: key }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  },
-  'DELETE'
-);
-
-// Workbox Standardrouting für alle anderen GET-Requests
-registerRoute(
-  ({ request }) => request.method === 'GET' && !request.url.includes('/audio'),
-  new NetworkFirst()
-);
-
-// Precache-Ressourcen (wird bei injectManifest ersetzt)
-precacheAndRoute(self.__WB_MANIFEST);
+})

@@ -1,13 +1,13 @@
 import { playbackService } from '@/constants/playbackService'
 import { colors } from '@/constants/tokens'
-import { useCurrentTrack } from '@/hooks/useCurrentTrack'
-import { useSetupTrackPlayer } from '@/hooks/useSetupTrackPlayer'
+import { selectTrack } from '@/helpers/player'
 import { useMediaSession } from '@/hooks/useMediaSession'
+import { useSetupTrackPlayer } from '@/hooks/useSetupTrackPlayer'
+import { t } from '@/i18n'
 import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
-import { getLastTrack } from '@/store/playbackState'
+import { clearLastTrack, getLastTrack } from '@/store/playbackState'
 import { ActionSheetProvider } from '@expo/react-native-action-sheet'
-import { Q } from '@nozbe/watermelondb'
 import { SplashScreen, Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useCallback } from 'react'
@@ -19,32 +19,27 @@ SplashScreen.preventAutoHideAsync()
 
 TrackPlayer.registerPlaybackService(() => playbackService)
 
-const App = () => {
-    const { setCurrentTrack } = useCurrentTrack()
-    const handleTrackPlayerLoaded = useCallback(() => {
-        SplashScreen.hideAsync()
+const restoreLastTrack = async () => {
+    const trackId = getLastTrack()
+    if (!trackId) return
+    try {
+        const track = await database.get<TrackWithClips>('tracks').find(trackId)
+        await selectTrack(track, { silent: true })
+    } catch {
+        // The track was deleted
+        clearLastTrack()
+    }
+}
 
-        const trackId = getLastTrack()
-        if (trackId) {
-            try {
-                database
-                    .get<TrackWithClips>('tracks')
-                    .query(Q.where('id', trackId))
-                    .then((tracks) => {
-                        if (tracks.length === 1) {
-                            setCurrentTrack(tracks[0])
-                        }
-                    })
-            } catch (error) {
-                console.log('track not found')
-            }
+const App = () => {
+    const handleTrackPlayerLoaded = useCallback((success: boolean) => {
+        SplashScreen.hideAsync()
+        if (success) {
+            restoreLastTrack()
         }
     }, [])
 
-    useSetupTrackPlayer({
-        onLoad: handleTrackPlayerLoaded,
-    })
-
+    useSetupTrackPlayer({ onLoad: handleTrackPlayerLoaded })
     useMediaSession()
 
     return (
@@ -52,81 +47,40 @@ const App = () => {
             <GestureHandlerRootView style={{ flex: 1 }}>
                 <ActionSheetProvider>
                     <RootNavigation />
-                    {/*<Tutorial />*/}
                 </ActionSheetProvider>
-
-                <StatusBar style="auto" />
+                <StatusBar style="light" />
             </GestureHandlerRootView>
         </SafeAreaProvider>
     )
 }
 
-const RootNavigation = () => {
-    return (
-        <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(drawer)" />
+const modalOptions = (title: string) =>
+    ({
+        presentation: 'transparentModal',
+        headerStyle: { backgroundColor: colors.background },
+        headerTitle: title,
+        headerTitleStyle: { color: colors.text },
+        headerShown: false,
+    }) as const
 
-            <Stack.Screen
-                name="(modals)/speed"
-                options={{
-                    presentation: 'transparentModal',
-                    headerStyle: {
-                        backgroundColor: colors.background,
-                    },
-                    headerTitle: 'Speed',
-                    headerTitleStyle: {
-                        color: colors.text,
-                    },
-                    headerShown: false,
-                }}
-            />
-
-            <Stack.Screen
-                name="(modals)/loop"
-                options={{
-                    presentation: 'transparentModal',
-                    headerStyle: {
-                        backgroundColor: colors.background,
-                    },
-                    headerTitle: 'Loop',
-                    headerTitleStyle: {
-                        color: colors.text,
-                    },
-                    headerShown: false,
-                }}
-            />
-
-            <Stack.Screen
-                name="(modals)/edit-clip"
-                options={{
-                    presentation: 'transparentModal',
-                    headerStyle: {
-                        backgroundColor: colors.background,
-                    },
-                    headerTitle: 'Edit Clip',
-                    headerTitleStyle: {
-                        color: colors.text,
-                    },
-                    headerShown: false,
-                }}
-            />
-
-            <Stack.Screen
-                name="licenses"
-                options={{
-                    presentation: 'modal',
-                    headerStyle: {
-                        backgroundColor: colors.background,
-                    },
-                    headerTitle: 'Edit Clip',
-                    headerTitleStyle: {
-                        color: colors.text,
-                    },
-                    headerShown: false,
-                }}
-            />
-        </Stack>
-    )
-}
+const RootNavigation = () => (
+    <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(drawer)" />
+        <Stack.Screen name="(modals)/speed" options={modalOptions(t.speed)} />
+        <Stack.Screen name="(modals)/loop" options={modalOptions(t.preparationTime)} />
+        <Stack.Screen name="(modals)/edit-clip" options={modalOptions(t.editClip)} />
+        <Stack.Screen name="(modals)/edit-track" options={modalOptions(t.editTrack)} />
+        <Stack.Screen
+            name="licenses"
+            options={{
+                presentation: 'modal',
+                headerShown: true,
+                headerTitle: t.licenses,
+                headerStyle: { backgroundColor: colors.background },
+                headerTintColor: colors.text,
+            }}
+        />
+    </Stack>
+)
 
 export default App

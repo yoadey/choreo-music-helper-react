@@ -1,22 +1,12 @@
 import TrackWithClips from '@/model/track'
 import { create } from 'zustand'
 
-type CurrentTrack = {
+type CurrentTrackStore = {
 	currentTrack: TrackWithClips | null
-	setCurrentTrack: (track: TrackWithClips) => void
+	setCurrentTrack: (track: TrackWithClips | null) => void
 }
 
-export const useCurrentTrackStore = create<CurrentTrack>()((set) => ({
+export const useCurrentTrackStore = create<CurrentTrackStore>()((set) => ({
 	currentTrack: null,
 	setCurrentTrack: (track) => set({ currentTrack: track }),
-}))
-
-type AudioFilesStore = {
-	audioFiles: Map<string, string>
-	setAudioFiles: (audioFiles: Map<string, string>) => void
-}
-
-export const useAudioFilesStore = create<AudioFilesStore>()((set) => ({
-	audioFiles: new Map<string, string>(),
-	setAudioFiles: (audioFiles) => set({ audioFiles: audioFiles }),
 }))

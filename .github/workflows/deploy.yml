@@ -9,14 +9,22 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
+      - id: pages
+        uses: actions/configure-pages@v6
       - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test -- --ci
       - run: npm run build:web
-      - uses: actions/upload-pages-artifact@v3
+        env:
+          # Empty for a custom domain, "/<repository>" for a project site
+          EXPO_BASE_URL: ${{ steps.pages.outputs.base_path }}
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
   deploy:
@@ -30,5 +38,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
-
+        uses: actions/deploy-pages@v5

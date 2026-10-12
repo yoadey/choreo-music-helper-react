@@ -1,21 +1,45 @@
-# Choreo Music Player
+# Choreo Music Helper
 
-A music player application built with Expo, React Native, Typescript and Zustand.
+Web app (PWA) to rehearse choreographies: split a song into clips, loop parts of it (A/B loop with
+lead-in and lead-out) and practice them at different speeds.
 
-## Installation
+The app runs completely in the browser. There is no server part: audio files and clips are stored in
+the browser (IndexedDB), the built app is a set of static files that can be hosted anywhere
+(e.g. GitHub Pages) and works offline after the first visit.
+
+Built with Expo (React Native for Web), Expo Router, WatermelonDB and react-native-track-player.
+
+## Requirements
+
+- Node.js 24 (see `.nvmrc`)
+
+## Development
 
 ```bash
-yarn install
+npm install
+npm run web          # development server
+npm run lint
+npm run typecheck
+npm test             # unit tests (Jest)
 ```
 
-## Run web
+## Build and end-to-end tests
 
 ```bash
-npx expo start --web
+npm run build:web               # static files in dist/ (including the service worker)
+npx playwright install chromium # once
+npm run test:e2e                # end-to-end tests against dist/
 ```
 
-## Build web
+To host the app in a sub directory (e.g. a GitHub Pages project site), set the base path for the build
+and the tests:
 
 ```bash
-npx expo export --platform web
+EXPO_BASE_URL=/choreo-music-helper-react npm run build:web
+BASE_PATH=/choreo-music-helper-react npm run test:e2e
 ```
+
+## Deployment
+
+Pushing a tag `v*` builds the app and deploys it to GitHub Pages (`.github/workflows/deploy.yml`).
+The base path is taken from the GitHub Pages configuration automatically.

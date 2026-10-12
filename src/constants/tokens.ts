@@ -24,3 +24,23 @@ export const fontSize = {
 export const screenPadding = {
 	horizontal: 24,
 }
+
+/** Colors selectable for tracks and clips. The first one is transparent (no color). */
+export const colorSwatches = [
+	'#00000000',
+	'#AFB42B',
+	'#E64A19',
+	'#C2185B',
+	'#D32F2F',
+	'#00796B',
+	'#689F38',
+	'#388E3C',
+	'#0097A7',
+	'#0288D1',
+	'#1976D2',
+	'#303F9F',
+	'#512DA8',
+	'#7B1FA2',
+	'#455A64',
+	'#5D4037',
+]

@@ -2,23 +2,13 @@
 	"extends": "expo/tsconfig.base",
 	"compilerOptions": {
 		"strict": true,
-		"target": "ES2022",
-		"module": "ES2022",
-		"moduleResolution": "bundler",
-		"emitDecoratorMetadata": true,
 		"experimentalDecorators": true,
-		"jsx": "react-native",
-		"lib": ["dom", "esnext"],
-		"noEmit": true,
-		"allowSyntheticDefaultImports": true,
-		"skipLibCheck": true,
-		"resolveJsonModule": true,
-		"baseUrl": ".",
+		"types": ["jest", "node"],
 		"paths": {
-			"@/*": ["./src/*"],
-			"@/assets/*": ["./assets/*"]
+			"@/assets/*": ["./assets/*"],
+			"@/*": ["./src/*"]
 		}
 	},
 	"include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
-	"exclude": ["node_modules"]
+	"exclude": ["node_modules", "dist", "temp", "e2e", "babel.config.js", "metro.config.js", "jest.config.js"]
 }

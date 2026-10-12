@@ -1,241 +1,209 @@
-import Clip from '@/model/clip';
-import { database } from '@/model/index.web';
-import { getGlobalSpeedOnly, getLastTrack, getLeadInDuration, getLeadInVolume, getLeadOutDuration, getLeadOutVolume, getLoopEnd, getLoopStart, getSpeed, preferences } from '@/store/playbackState';
-import { Q } from '@nozbe/watermelondb';
-import TrackPlayer, { Event, State } from 'react-native-track-player';
-import { setRate } from 'react-native-track-player/lib/src/trackPlayer';
-import type { Subscription } from 'rxjs';
+import {
+    buildClipRanges,
+    ClipLike,
+    computeSpeedFactor,
+    computeVolume,
+    getLoopSeekTarget,
+    getNextClipTarget,
+    getPreviousClipTarget,
+    getStopTarget,
+    LoopRange,
+    resolveLoop,
+    SPEED_FADE_DURATION,
+} from '@/helpers/playback'
+import Clip from '@/model/clip'
+import { database } from '@/model/index.web'
+import {
+    getGlobalSpeedOnly,
+    getLastTrack,
+    getLeadInDuration,
+    getLeadInVolume,
+    getLeadOutDuration,
+    getLeadOutVolume,
+    getLoopEndId,
+    getLoopStartId,
+    getSpeed,
+    KEY_LAST_TRACK,
+    preferences,
+} from '@/store/playbackState'
+import { Q } from '@nozbe/watermelondb'
+import TrackPlayer, { Event, State } from 'react-native-track-player'
+import type { Subscription } from 'rxjs'
 
-export const VOLUME_FADE_DURATION = 2; // 2 seconds
-export const SPEED_FADE_DURATION = 2; // 2 seconds
+export { SPEED_FADE_DURATION, VOLUME_FADE_DURATION } from '@/helpers/playback'
+
+const readPreferences = () => ({
+    speed: getSpeed(),
+    globalSpeedOnly: getGlobalSpeedOnly(),
+    leadIn: getLeadInDuration(),
+    leadOut: getLeadOutDuration(),
+    leadInVolume: getLeadInVolume(),
+    leadOutVolume: getLeadOutVolume(),
+    loopStartId: getLoopStartId(),
+    loopEndId: getLoopEndId(),
+})
+
+/** State shared by the playback service and the player controls. */
+const state = {
+    prefs: readPreferences(),
+    clips: [] as ClipLike[],
+    duration: 0,
+    trackId: undefined as string | undefined,
+    subscription: undefined as Subscription | undefined,
+    lastRate: undefined as number | undefined,
+    lastVolume: undefined as number | undefined,
+}
+
+const subscribeToClips = (trackId: string | undefined) => {
+    if (trackId === state.trackId && state.subscription) return
+    state.subscription?.unsubscribe()
+    state.subscription = undefined
+    state.trackId = trackId
+    state.clips = []
+    if (!trackId) return
+    state.subscription = database
+        .get<Clip>('clips')
+        .query(Q.where('track_id', trackId))
+        .observeWithColumns(['position', 'speed'])
+        .subscribe((clips) => {
+            state.clips = clips.map((clip) => ({ id: clip.id, position: clip.position, speed: clip.speed }))
+        })
+}
+
+const updateDuration = (duration: number | undefined) => {
+    if (duration && Number.isFinite(duration) && duration > 0) {
+        state.duration = duration
+    }
+}
+
+const getProgress = async () => {
+    const progress = await TrackPlayer.getProgress()
+    updateDuration(progress.duration)
+    return progress
+}
+
+/** The active loop resolved from the current clips, or undefined. */
+export const getActiveLoop = (): LoopRange | undefined =>
+    resolveLoop(state.prefs.loopStartId, state.prefs.loopEndId, buildClipRanges(state.clips, state.duration))
+
+const setRate = (rate: number) => {
+    if (state.lastRate !== undefined && Math.abs(state.lastRate - rate) < 0.001) return
+    state.lastRate = rate
+    TrackPlayer.setRate(rate)
+}
+
+const setVolume = (volume: number) => {
+    if (state.lastVolume !== undefined && Math.abs(state.lastVolume - volume) < 0.001) return
+    state.lastVolume = volume
+    TrackPlayer.setVolume(volume)
+}
+
+/** Applies speed, volume and loop for the current position. */
+export const applyPlaybackRules = async (position: number) => {
+    const { prefs } = state
+    const ranges = buildClipRanges(state.clips, state.duration)
+    const loop = resolveLoop(prefs.loopStartId, prefs.loopEndId, ranges)
+
+    setRate(prefs.globalSpeedOnly ? prefs.speed : prefs.speed * computeSpeedFactor(position, ranges, SPEED_FADE_DURATION))
+    setVolume(computeVolume({ position, loop, ...prefs }))
+
+    const target = getLoopSeekTarget({ position, loop, leadIn: prefs.leadIn, leadOut: prefs.leadOut })
+    if (target !== null) {
+        await TrackPlayer.seekTo(target)
+    }
+}
+
+const applyIfPlaying = async (position: number) => {
+    const { state: playbackState } = await TrackPlayer.getPlaybackState()
+    if (playbackState === State.Playing) {
+        await applyPlaybackRules(position)
+    }
+}
+
+/** Stops the playback without unloading the track, so it can be played again directly. */
+export const stopPlayback = async () => {
+    await TrackPlayer.pause()
+    await getProgress()
+    await TrackPlayer.seekTo(getStopTarget(getActiveLoop(), state.prefs.leadIn))
+}
+
+export const skipToNextClip = async () => {
+    const { position } = await getProgress()
+    const target = getNextClipTarget(position, state.clips.map((c) => c.position), state.prefs.leadIn)
+    if (target !== null) {
+        await TrackPlayer.seekTo(target)
+    }
+}
+
+export const skipToPreviousClip = async () => {
+    const { position } = await getProgress()
+    await TrackPlayer.seekTo(getPreviousClipTarget(position, state.clips.map((c) => c.position), state.prefs.leadIn))
+}
+
+/** Seeks to the start of a clip, including the lead in. */
+export const seekToClip = async (clipPosition: number) => {
+    await TrackPlayer.seekTo(Math.max(clipPosition - state.prefs.leadIn, 0))
+}
+
+export const jumpBy = async (seconds: number) => {
+    const { position, duration } = await getProgress()
+    const target = Math.max(position + seconds, 0)
+    await TrackPlayer.seekTo(duration > 0 ? Math.min(target, duration) : target)
+}
+
+/** Restarts an active loop when the track ended (the loop end + lead out can lie behind the track end). */
+const handleTrackEnded = async () => {
+    await getProgress()
+    const loop = getActiveLoop()
+    if (!loop) return
+    await TrackPlayer.seekTo(getStopTarget(loop, state.prefs.leadIn))
+    await TrackPlayer.play()
+}
 
 export const playbackService = async () => {
-    let leadInDuration = 0;
-    let leadInVolume = 1;
-    let leadOutDuration = 0;
-    let leadOutVolume = 1;
-    let loopStart: number | undefined = undefined;
-    let loopEnd: number | undefined = undefined;
-    let speed = 1;
-    let globalSpeedOnly = false;
-    let playerReady = false;
-    let clipsSorted: { start: number; end: number; speed: number }[] = [];
-    let clipSubscription: Subscription | undefined;
+    state.prefs = readPreferences()
+    state.lastRate = undefined
+    state.lastVolume = undefined
+    subscribeToClips(getLastTrack())
 
-    const loadClipSpeeds = (trackId?: string | null) => {
-        clipSubscription?.unsubscribe();
-        clipsSorted = [];
-        if (!trackId) return;
-        clipSubscription = database
-            .get<Clip>('clips')
-            .query(Q.where('track_id', trackId))
-            .observeWithColumns(['position', 'speed'])
-            .subscribe((clipsResult) => {
-                const sorted = clipsResult.sort((a, b) => a.position - b.position);
-                clipsSorted = sorted.map((clip, index) => ({
-                    start: clip.position,
-                    end: index < sorted.length - 1 ? sorted[index + 1].position : Number.POSITIVE_INFINITY,
-                    speed: clip.speed ?? 1,
-                }));
-            });
-    };
-
-    loadClipSpeeds(getLastTrack());
-
-    // MMKV Listener for settings changes
-    preferences.addOnValueChangedListener(() => {
-        speed = getSpeed();
-        globalSpeedOnly = getGlobalSpeedOnly();
-        leadInDuration = getLeadInDuration();
-        leadInVolume = getLeadInVolume();
-        leadOutDuration = getLeadOutDuration();
-        leadOutVolume = getLeadOutVolume();
-        loopEnd = getLoopEnd();
-        loopStart = getLoopStart();
-        loadClipSpeeds(getLastTrack());
-
-        if (playerReady) {
-            TrackPlayer.getProgress().then(loopChecks);
+    preferences.addOnValueChangedListener((key) => {
+        state.prefs = readPreferences()
+        if (key === KEY_LAST_TRACK) {
+            subscribeToClips(getLastTrack())
         }
-    });
-
-    TrackPlayer.addEventListener(Event.PlaybackState, () => {
-        playerReady = true;
+        getProgress()
+            .then(({ position }) => applyIfPlaying(position))
+            .catch(() => {
+                // The player is not set up yet
+            })
     })
 
-    TrackPlayer.addEventListener(Event.RemotePlay, () => {
-        TrackPlayer.play()
+    TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, async ({ position, duration }) => {
+        updateDuration(duration)
+        await applyIfPlaying(position)
     })
 
-    TrackPlayer.addEventListener(Event.RemotePause, () => {
-        TrackPlayer.pause()
-    })
-
-    TrackPlayer.addEventListener(Event.RemoteStop, () => {
-        TrackPlayer.stop()
-    })
-
-    TrackPlayer.addEventListener(Event.RemoteNext, async () => {
-        const progress = await TrackPlayer.getProgress();
-        const leadPosition = progress.position + (leadInDuration ?? 0)
-        for (let index = 0; index < clipsSorted.length; index++) {
-            const position = clipsSorted[index].start;
-            const next = clipsSorted[index + 1].start;
-            if (position <= leadPosition && next !== undefined && next > leadPosition) {
-                TrackPlayer.seekTo(Math.max(next - leadInDuration, 0));
-                break;
-            }
+    TrackPlayer.addEventListener(Event.PlaybackState, async ({ state: playbackState }) => {
+        if (playbackState === State.Ended) {
+            await handleTrackEnded()
         }
     })
 
-    TrackPlayer.addEventListener(Event.RemotePrevious, async () => {
-        const progress = await TrackPlayer.getProgress();
-        const leadPosition = progress.position + (leadInDuration ?? 0)
-        for (let index = 0; index < clipsSorted.length; index++) {
-            const position = clipsSorted[index].start;
-            const next = clipsSorted[index + 1].start;
-            if (position <= leadPosition && (next === undefined || next > leadPosition)) {
-                const target = clipsSorted[Math.max(index - 1, 0)].start ?? 0;
-                TrackPlayer.seekTo(Math.max(target - leadInDuration, 0));
-                break;
-            }
-        }
+    TrackPlayer.addEventListener(Event.PlaybackQueueEnded, handleTrackEnded)
+
+    TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, () => {
+        // A newly loaded track starts with the player defaults
+        state.duration = 0
+        state.lastRate = undefined
+        state.lastVolume = undefined
     })
 
-    TrackPlayer.addEventListener(Event.RemoteJumpBackward, async ({ interval }) => {
-        const progress = await TrackPlayer.getProgress();
-        const offset = interval ?? 10;
-        TrackPlayer.seekTo(Math.max(progress.position - offset, 0));
-    })
-
-    TrackPlayer.addEventListener(Event.RemoteJumpForward, async ({ interval }) => {
-        const progress = await TrackPlayer.getProgress();
-        const offset = interval ?? 10;
-        TrackPlayer.seekTo(progress.position + offset);
-    })
-
-    const isLoopActive = () => {
-        return loopStart !== undefined && loopEnd !== undefined && loopStart < loopEnd;
-    }
-
-
-    const checkSpeed = (position: number) => {
-        if (globalSpeedOnly) {
-            setRate(speed);
-            return;
-        }
-        let clipSpeedCurrent = 1;
-        let clipSpeedNext = 1;
-        let positionNext = -1;
-        for (const cs of clipsSorted) {
-            clipSpeedCurrent = clipSpeedNext
-            clipSpeedNext = cs.speed;
-            if (position + SPEED_FADE_DURATION >= cs.start && position + SPEED_FADE_DURATION < cs.end) {
-                positionNext = cs.start;
-                break;
-            }
-        }
-        if (positionNext === -1) {
-            TrackPlayer.setRate(speed * clipSpeedNext);
-            return;
-        }
-        const speedFaded = calcFade({
-            position: position,
-            fadeDuration: SPEED_FADE_DURATION,
-            fadeEnd: positionNext,
-            startValue: clipSpeedCurrent,
-            endValue: clipSpeedNext
-        });
-        TrackPlayer.setRate(speed * speedFaded);
-    }
-
-    const loopChecks = async ({ position }: { position: number }) => {
-        const state = await TrackPlayer.getPlaybackState();
-        if (state.state === State.Playing) {
-            checkSpeed(position);
-            if (isLoopActive()) {
-                checkVolume(position);
-            }
-            if (position > loopEnd! + leadOutDuration ||
-                position < loopStart! - leadInDuration) {
-                TrackPlayer.seekTo(loopStart! - leadInDuration);
-            }
-        }
-    }
-
-    const calcFade = ({
-        position,
-        fadeStart,
-        fadeEnd,
-        fadeDuration,
-        startValue,
-        endValue
-    }: {
-        position: number;
-        fadeStart?: number;
-        fadeEnd?: number;
-        fadeDuration?: number;
-        startValue: number;
-        endValue: number
-    }) => {
-        if (fadeStart != null && fadeEnd != null && fadeDuration == null) {
-            fadeDuration = fadeEnd - fadeStart;
-        } else if (fadeStart != null && fadeDuration != null && fadeEnd == null) {
-            fadeEnd = fadeStart + fadeDuration;
-        } else if (fadeEnd != null && fadeDuration != null && fadeStart == null) {
-            fadeStart = fadeEnd - fadeDuration;
-        }
-
-        if (fadeStart == null || fadeEnd == null || fadeDuration == null) {
-            throw new Error("Fade calc failed, missing value!");
-        }
-
-        if (position <= fadeStart) return startValue;
-        if (position >= fadeEnd) return endValue;
-
-        const progress = (position - fadeStart) / fadeDuration;
-        return startValue + progress * (endValue - startValue);
-    }
-
-    const checkVolume = (position: number) => {
-        let volume = 1.0;
-        if (isLoopActive()) {
-            if (position < loopStart! - leadInDuration + VOLUME_FADE_DURATION / 2) {
-                volume = calcFade({
-                    position: position,
-                    fadeDuration: VOLUME_FADE_DURATION,
-                    fadeEnd: loopStart! - leadInDuration + VOLUME_FADE_DURATION / 2,
-                    startValue: leadOutVolume,
-                    endValue: leadInVolume
-                });
-            } else if (position < loopStart!) {
-                volume = calcFade({
-                    position: position,
-                    fadeEnd: loopStart!,
-                    fadeDuration: VOLUME_FADE_DURATION,
-                    startValue: leadInVolume,
-                    endValue: 1.0
-                });
-            } else if (position < loopEnd! + VOLUME_FADE_DURATION) {
-                volume = calcFade({
-                    position: position,
-                    fadeStart: loopEnd!,
-                    fadeDuration: VOLUME_FADE_DURATION,
-                    startValue: 1.0,
-                    endValue: leadOutVolume
-                });
-            } else {
-                volume = calcFade({
-                    position: position,
-                    fadeStart: loopEnd! + leadOutDuration - VOLUME_FADE_DURATION / 2,
-                    fadeDuration: VOLUME_FADE_DURATION,
-                    startValue: leadOutVolume,
-                    endValue: leadInVolume
-                });
-            }
-        }
-        TrackPlayer.setVolume(volume);
-    }
-
-    TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, loopChecks);
+    TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play())
+    TrackPlayer.addEventListener(Event.RemotePause, () => TrackPlayer.pause())
+    TrackPlayer.addEventListener(Event.RemoteStop, stopPlayback)
+    TrackPlayer.addEventListener(Event.RemoteNext, skipToNextClip)
+    TrackPlayer.addEventListener(Event.RemotePrevious, skipToPreviousClip)
+    TrackPlayer.addEventListener(Event.RemoteSeek, ({ position }) => TrackPlayer.seekTo(position))
+    TrackPlayer.addEventListener(Event.RemoteJumpBackward, ({ interval }) => jumpBy(-(interval ?? 10)))
+    TrackPlayer.addEventListener(Event.RemoteJumpForward, ({ interval }) => jumpBy(interval ?? 10))
 }

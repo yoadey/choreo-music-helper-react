@@ -1,0 +1,226 @@
+import { describe, expect, it } from '@jest/globals'
+import {
+    buildClipRanges,
+    calcFade,
+    computeSpeedFactor,
+    computeVolume,
+    getLoopSeekTarget,
+    getNextClipTarget,
+    getPreviousClipTarget,
+    getStopTarget,
+    resolveLoop,
+    sortByPosition,
+    VOLUME_FADE_DURATION,
+} from '../playback'
+
+const clips = [
+    { id: 'c', position: 20, speed: 0.5 },
+    { id: 'a', position: 0, speed: 1 },
+    { id: 'b', position: 10, speed: null },
+]
+
+describe('sortByPosition', () => {
+    it('sorts without mutating the input', () => {
+        const input = [...clips]
+        const sorted = sortByPosition(input)
+        expect(sorted.map((c) => c.id)).toEqual(['a', 'b', 'c'])
+        expect(input.map((c) => c.id)).toEqual(['c', 'a', 'b'])
+    })
+})
+
+describe('buildClipRanges', () => {
+    it('uses the next clip as end and the duration for the last clip', () => {
+        expect(buildClipRanges(clips, 30)).toEqual([
+            { id: 'a', start: 0, end: 10, speed: 1 },
+            { id: 'b', start: 10, end: 20, speed: 1 },
+            { id: 'c', start: 20, end: 30, speed: 0.5 },
+        ])
+    })
+
+    it('uses Infinity as end of the last clip while the duration is unknown', () => {
+        expect(buildClipRanges(clips, 0)[2].end).toBe(Number.POSITIVE_INFINITY)
+    })
+})
+
+describe('resolveLoop', () => {
+    const ranges = buildClipRanges(clips, 30)
+
+    it('resolves the loop from clip ids', () => {
+        expect(resolveLoop('a', 'b', ranges)).toEqual({ start: 0, end: 20 })
+        expect(resolveLoop('b', 'b', ranges)).toEqual({ start: 10, end: 20 })
+    })
+
+    it('follows edited clip positions instead of stale snapshots', () => {
+        const moved = buildClipRanges([...clips, { id: 'd', position: 15, speed: 1 }], 30)
+        expect(resolveLoop('a', 'b', moved)).toEqual({ start: 0, end: 15 })
+    })
+
+    it('uses the track end for the last clip', () => {
+        expect(resolveLoop('c', 'c', ranges)).toEqual({ start: 20, end: 30 })
+    })
+
+    it('is inactive when only one marker is set', () => {
+        expect(resolveLoop(undefined, 'b', ranges)).toBeUndefined()
+        expect(resolveLoop('a', undefined, ranges)).toBeUndefined()
+    })
+
+    it('is inactive when a marker references a deleted clip', () => {
+        expect(resolveLoop('deleted', 'b', ranges)).toBeUndefined()
+    })
+
+    it('is inactive when A lies behind B', () => {
+        expect(resolveLoop('c', 'a', ranges)).toBeUndefined()
+    })
+
+    it('is inactive when the end of the last clip is not known yet', () => {
+        expect(resolveLoop('a', 'c', buildClipRanges(clips, 0))).toBeUndefined()
+    })
+})
+
+describe('getLoopSeekTarget', () => {
+    const loop = { start: 10, end: 20 }
+
+    it('never seeks without an active loop', () => {
+        expect(getLoopSeekTarget({ position: 50, loop: undefined, leadIn: 2, leadOut: 2 })).toBeNull()
+    })
+
+    it('does not seek inside the loop including lead in and lead out', () => {
+        expect(getLoopSeekTarget({ position: 8, loop, leadIn: 2, leadOut: 2 })).toBeNull()
+        expect(getLoopSeekTarget({ position: 15, loop, leadIn: 2, leadOut: 2 })).toBeNull()
+        expect(getLoopSeekTarget({ position: 22, loop, leadIn: 2, leadOut: 2 })).toBeNull()
+    })
+
+    it('jumps back to the lead in after the lead out', () => {
+        expect(getLoopSeekTarget({ position: 22.1, loop, leadIn: 2, leadOut: 2 })).toBe(8)
+    })
+
+    it('jumps forward to the lead in when before the loop', () => {
+        expect(getLoopSeekTarget({ position: 3, loop, leadIn: 2, leadOut: 2 })).toBe(8)
+    })
+
+    it('never returns a negative position', () => {
+        expect(getLoopSeekTarget({ position: 30, loop: { start: 1, end: 5 }, leadIn: 4, leadOut: 0 })).toBe(0)
+        expect(getLoopSeekTarget({ position: 0, loop: { start: 1, end: 5 }, leadIn: 4, leadOut: 0 })).toBeNull()
+    })
+})
+
+describe('getStopTarget', () => {
+    it('returns to the track start without loop', () => {
+        expect(getStopTarget(undefined, 4)).toBe(0)
+    })
+
+    it('returns to the loop lead in with an active loop', () => {
+        expect(getStopTarget({ start: 10, end: 20 }, 4)).toBe(6)
+        expect(getStopTarget({ start: 2, end: 20 }, 4)).toBe(0)
+    })
+})
+
+describe('calcFade', () => {
+    it('interpolates linearly', () => {
+        expect(calcFade({ position: 5, fadeStart: 4, fadeDuration: 2, startValue: 0, endValue: 1 })).toBeCloseTo(0.5)
+        expect(calcFade({ position: 5, fadeEnd: 6, fadeDuration: 2, startValue: 0, endValue: 1 })).toBeCloseTo(0.5)
+        expect(calcFade({ position: 3, fadeStart: 4, fadeDuration: 2, startValue: 0, endValue: 1 })).toBe(0)
+        expect(calcFade({ position: 7, fadeStart: 4, fadeDuration: 2, startValue: 0, endValue: 1 })).toBe(1)
+    })
+})
+
+describe('computeVolume', () => {
+    const base = { leadIn: 4, leadOut: 6, leadInVolume: 0.2, leadOutVolume: 0.6 }
+    const loop = { start: 10, end: 20 }
+
+    it('returns full volume without loop (resets faded volume)', () => {
+        expect(computeVolume({ ...base, position: 7, loop: undefined })).toBe(1)
+    })
+
+    it('fades between lead out and lead in at the loop start', () => {
+        expect(computeVolume({ ...base, loop, position: 6 + VOLUME_FADE_DURATION / 4 })).toBeCloseTo(0.3)
+    })
+
+    it('uses the lead in volume during the lead in', () => {
+        expect(computeVolume({ ...base, loop, position: 8 })).toBeCloseTo(0.2)
+    })
+
+    it('fades between lead in and loop start', () => {
+        expect(computeVolume({ ...base, loop, position: 9 })).toBeCloseTo(0.6)
+    })
+
+    it('plays the loop at full volume', () => {
+        expect(computeVolume({ ...base, loop, position: 15 })).toBe(1)
+    })
+
+    it('fades between loop end and lead out', () => {
+        expect(computeVolume({ ...base, loop, position: 21 })).toBeCloseTo(0.8)
+    })
+
+    it('uses the lead out volume during the lead out', () => {
+        expect(computeVolume({ ...base, loop, position: 23 })).toBeCloseTo(0.6)
+    })
+
+    it('fades between lead out and lead in at the loop end', () => {
+        expect(computeVolume({ ...base, loop, position: 26 - VOLUME_FADE_DURATION / 4 })).toBeCloseTo(0.5)
+    })
+})
+
+describe('computeSpeedFactor', () => {
+    const ranges = buildClipRanges(
+        [
+            { id: 'a', position: 5, speed: 0.5 },
+            { id: 'b', position: 10, speed: 1.5 },
+        ],
+        30,
+    )
+
+    it('uses normal speed before the first clip', () => {
+        expect(computeSpeedFactor(0, ranges, 2)).toBe(1)
+    })
+
+    it('fades into the first clip speed', () => {
+        expect(computeSpeedFactor(4, ranges, 2)).toBeCloseTo(0.75)
+    })
+
+    it('uses the clip speed inside a clip', () => {
+        expect(computeSpeedFactor(6, ranges, 2)).toBeCloseTo(0.5)
+        expect(computeSpeedFactor(20, ranges, 2)).toBeCloseTo(1.5)
+    })
+
+    it('fades between clip speeds before the next clip', () => {
+        expect(computeSpeedFactor(9, ranges, 2)).toBeCloseTo(1)
+    })
+
+    it('returns 1 without clips', () => {
+        expect(computeSpeedFactor(9, [], 2)).toBe(1)
+    })
+})
+
+describe('clip navigation', () => {
+    const starts = [0, 10, 20]
+
+    it('jumps to the next clip minus lead in', () => {
+        expect(getNextClipTarget(5, starts, 0)).toBe(10)
+        expect(getNextClipTarget(5, starts, 2)).toBe(8)
+    })
+
+    it('treats the lead in of a clip as part of that clip', () => {
+        expect(getNextClipTarget(8.5, starts, 2)).toBe(18)
+    })
+
+    it('does nothing in the last clip', () => {
+        expect(getNextClipTarget(25, starts, 0)).toBeNull()
+    })
+
+    it('jumps to the previous clip', () => {
+        expect(getPreviousClipTarget(15, starts, 0)).toBe(0)
+        expect(getPreviousClipTarget(25, starts, 2)).toBe(8)
+    })
+
+    it('restarts the first clip instead of crashing', () => {
+        expect(getPreviousClipTarget(5, starts, 2)).toBe(0)
+    })
+
+    it('handles positions before the first clip and empty clip lists', () => {
+        expect(getNextClipTarget(1, [5, 10], 0)).toBe(5)
+        expect(getPreviousClipTarget(1, [5, 10], 0)).toBe(0)
+        expect(getNextClipTarget(1, [], 0)).toBeNull()
+        expect(getPreviousClipTarget(1, [], 0)).toBe(0)
+    })
+})

@@ -1,28 +1,39 @@
-import { colors } from '@/constants/tokens';
-import { defaultStyles, inputStyles, modalStyles } from '@/styles';
-import Slider from '@react-native-community/slider';
-import React from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { colors } from '@/constants/tokens'
+import { parseDurationInput } from '@/helpers/miscellaneous'
+import { defaultStyles, inputStyles, modalStyles } from '@/styles'
+import Slider from '@react-native-community/slider'
+import React, { useState } from 'react'
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
 type Props = {
-    seconds: number;
-    onSecondsChange: (newSeconds: number) => void;
-    volume: number;
-    onVolumeChange: (newVolume: number) => void;
-    title?: string;
-};
+    seconds: number
+    onSecondsChange: (newSeconds: number) => void
+    volume: number
+    onVolumeChange: (newVolume: number) => void
+    title: string
+    testID?: string
+}
 
 export const DurationVolumeComponent: React.FC<Props> = ({
     seconds,
     onSecondsChange,
     volume,
     onVolumeChange,
-    title = 'Vorlauf',
+    title,
+    testID,
 }) => {
+    // The text is kept separately, so the field can be cleared while typing
+    const [text, setText] = useState(String(seconds))
+    const [previousSeconds, setPreviousSeconds] = useState(seconds)
+    if (seconds !== previousSeconds) {
+        // Changed from outside (e.g. the +1s button)
+        setPreviousSeconds(seconds)
+        if (parseDurationInput(text) !== seconds) setText(String(seconds))
+    }
+
     const changeSeconds = (delta: number) => {
-        const newValue = Math.max(0, seconds + delta);
-        onSecondsChange(newValue);
-    };
+        onSecondsChange(Math.max(0, seconds + delta))
+    }
 
     return (
         <View style={[modalStyles.container, { marginLeft: 0, marginRight: 0 }]}>
@@ -31,24 +42,24 @@ export const DurationVolumeComponent: React.FC<Props> = ({
                 <View style={styles.inputRow}>
                     <TextInput
                         style={styles.input}
-                        keyboardType="numeric"
-                        value={seconds.toString()}
-                        onChangeText={text => {
-                            const parsed = parseInt(text);
-                            if (!isNaN(parsed)) {
-                                onSecondsChange(parsed);
-                            }
+                        keyboardType="decimal-pad"
+                        inputMode="decimal"
+                        value={text}
+                        testID={testID ? `${testID}-seconds` : undefined}
+                        onChangeText={(value) => {
+                            setText(value)
+                            const parsed = parseDurationInput(value)
+                            if (parsed !== null) onSecondsChange(parsed)
                         }}
+                        onBlur={() => setText(String(seconds))}
                     />
-                    <View style={styles.inputRow}>
-                        <View style={styles.buttonsRow}>
-                            <TouchableOpacity style={styles.button} onPress={() => changeSeconds(-1)}>
-                                <Text style={styles.buttonText}>-1s</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.button} onPress={() => changeSeconds(1)}>
-                                <Text style={styles.buttonText}>+1s</Text>
-                            </TouchableOpacity>
-                        </View>
+                    <View style={styles.buttonsRow}>
+                        <TouchableOpacity style={styles.button} onPress={() => changeSeconds(-1)}>
+                            <Text style={styles.buttonText}>-1s</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.button} onPress={() => changeSeconds(1)}>
+                            <Text style={styles.buttonText}>+1s</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
                 <View style={styles.inputRow}>
@@ -67,8 +78,8 @@ export const DurationVolumeComponent: React.FC<Props> = ({
                 </View>
             </View>
         </View>
-    );
-};
+    )
+}
 
 const styles = StyleSheet.create({
     title: {
@@ -83,16 +94,13 @@ const styles = StyleSheet.create({
     box: {
         borderWidth: 1,
         borderColor: colors.minimumTrackTintColor,
-        paddingLeft: 15,
-        paddingRight: 15,
-        paddingTop: 10,
-        paddingBottom: 10,
+        paddingHorizontal: 15,
+        paddingVertical: 10,
         borderRadius: 10,
     },
     inputRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        verticalAlign: 'middle',
     },
     input: {
         ...inputStyles.input,
@@ -105,27 +113,23 @@ const styles = StyleSheet.create({
     },
     buttonsRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        width: '100%',
-        marginTop: 12,
+        flex: 1,
+        marginLeft: 8,
         gap: 8,
     },
     button: {
         flex: 1,
         backgroundColor: colors.primary,
-        paddingVertical: 10,
-        paddingHorizontal: 10,
-        marginHorizontal: 0,
+        padding: 10,
         borderRadius: 6,
         alignItems: 'center',
         justifyContent: 'center',
-        minWidth: 0,
     },
     buttonText: {
         color: colors.text,
         fontWeight: 'bold',
         fontSize: 16,
     },
-});
+})
 
-export default DurationVolumeComponent;
+export default DurationVolumeComponent

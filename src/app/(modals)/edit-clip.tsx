@@ -1,104 +1,85 @@
 import ColorPicker from '@/components/ColorPicker'
 import SpeedEditor from '@/components/SpeedEditor'
 import TimeEditor from '@/components/TimeEditor'
-import { colors } from '@/constants/tokens'
+import { colors, colorSwatches } from '@/constants/tokens'
+import { useObservedRecord } from '@/hooks/useObservedRecord'
+import { t } from '@/i18n'
 import Clip from '@/model/clip'
 import { database } from '@/model/index.web'
+import TrackWithClips from '@/model/track'
 import { containerStyles, inputStyles, modalStyles } from '@/styles'
-import { withObservables } from '@nozbe/watermelondb/react'
-import { useHeaderHeight } from '@react-navigation/elements'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import React, { useEffect, useState } from 'react'
+import { useHeaderHeight } from 'expo-router/react-navigation'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Button, Pressable, Text, TextInput, View } from 'react-native'
 
-const colorSwatchesSelected = [
-    '#00000000',
-    '#AFB42B',
-    '#E64A19',
-    '#C2185B',
-    '#D32F2F',
-    '#00796B',
-    '#689F38',
-    '#388E3C',
-    '#0097A7',
-    '#0288D1',
-    '#1976D2',
-    '#303F9F',
-    '#512DA8',
-    '#7B1FA2',
-    '#455A64',
-    '#5D4037',
-]
-
-const EditClipModal = ({ clip }: { clip: Clip }) => {
-    const router = useRouter()
-    const headerHeight = useHeaderHeight()
-
+const EditClipForm = ({ clip, onClose }: { clip: Clip; onClose: () => void }) => {
     const [title, setTitle] = useState(clip.title)
     const [position, setPosition] = useState(clip.position)
     const [color, setColor] = useState(clip.color)
     const [speed, setSpeed] = useState(clip.speed ?? 1)
+    const [trackLength, setTrackLength] = useState<number>()
 
     useEffect(() => {
-        setTitle(clip.title)
-        setPosition(clip.position)
-        setColor(clip.color)
-        setSpeed(clip.speed ?? 1)
+        clip.track
+            .fetch()
+            .then((track: TrackWithClips | null) => setTrackLength(track?.length ? track.length / 1000 : undefined))
+            .catch(() => undefined)
     }, [clip])
 
     const handleOk = async () => {
-        database.write(
-            async () =>
-                await clip.update((clipUpdate) => {
-                    clipUpdate.title = title
-                    clipUpdate.position = position
-                    clipUpdate.color = color
-                    clipUpdate.speed = speed
-                }),
-        )
-        router.dismiss()
-    }
-
-    const handleCancel = () => {
-        router.dismiss()
+        await database.write(async () => {
+            await clip.update((c) => {
+                c.title = title
+                c.position = position
+                c.color = color
+                c.speed = speed
+            })
+        })
+        onClose()
     }
 
     return (
-        <View style={[modalStyles.modalContainer, { paddingTop: headerHeight }]}>
-            <Pressable style={modalStyles.backdrop} onPress={handleCancel} />
+        <View style={modalStyles.modal}>
+            <Text style={modalStyles.title}>{t.editClip}</Text>
+            <View style={containerStyles.inputRow}>
+                <TextInput style={inputStyles.input} value={title} onChangeText={setTitle} testID="clip-title-input" />
+            </View>
 
-            <View style={modalStyles.modal}>
-                <Text style={modalStyles.title}>Clip bearbeiten</Text>
-                <View style={containerStyles.inputRow}>
-                    <TextInput style={inputStyles.input} value={title} onChangeText={setTitle} />
-                </View>
+            <View style={{ width: 250, padding: 10, paddingVertical: 20 }}>
+                <ColorPicker value={color} onChange={setColor} colors={colorSwatches} />
+            </View>
 
-                <View style={{ width: 250, padding: 10, paddingTop: 20, paddingBottom: 20 }}>
-                    <ColorPicker
-                        value={color}
-                        onChange={(e) => setColor(e)}
-                        colors={colorSwatchesSelected}
-                    />
-                </View>
+            <TimeEditor seconds={position} max={trackLength} onChange={setPosition} />
+            <View style={{ height: 10 }} />
+            <SpeedEditor speed={speed} onChange={setSpeed} />
 
-                <TimeEditor timeMs={position * 1000} onChange={(ms) => setPosition(ms / 1000)} />
-                <div style={{ height: 10 }} />
-                <SpeedEditor speed={speed} onChange={setSpeed} />
-
-                <View style={{ marginTop: 24 }}>
-                    <Button title="OK" onPress={handleOk} color={colors.primary} />
-                </View>
+            <View style={{ marginTop: 24, flexDirection: 'row', gap: 12, justifyContent: 'flex-end' }}>
+                <Button title={t.cancel} onPress={onClose} color={colors.secondary} />
+                <Button title={t.ok} onPress={handleOk} color={colors.primary} testID="clip-ok" />
             </View>
         </View>
     )
 }
 
-// @ts-expect-error - WatermelonDB typing does not expose observe
-const enhance = withObservables<Record<string, never>, { clip: Clip }>([], () => {
+const EditClipModal = () => {
+    const router = useRouter()
+    const headerHeight = useHeaderHeight()
     const { clipId } = useLocalSearchParams<{ clipId: string }>()
-    return {
-        clip: database.collections.get<Clip>('clips').findAndObserve(clipId),
-    }
-})
+    const clip = useObservedRecord<Clip>('clips', clipId)
+    const close = useCallback(() => (router.canGoBack() ? router.back() : router.replace('/')), [router])
 
-export default enhance(EditClipModal)
+    useEffect(() => {
+        // Unknown clip (e.g. deleted or stale link after reload)
+        if (clip === null) close()
+    }, [clip, close])
+
+    return (
+        <View style={[modalStyles.modalContainer, { paddingTop: headerHeight }]}>
+            <Pressable style={modalStyles.backdrop} onPress={close} />
+            {clip && <EditClipForm key={clip.id} clip={clip} onClose={close} />}
+        </View>
+    )
+}
+
+export default EditClipModal

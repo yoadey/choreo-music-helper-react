@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { ComponentProps, useEffect, useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { modalStyles, buttonStyles } from '@/styles';
@@ -91,7 +91,7 @@ export const Tutorial = () => {
         <View style={modalStyles.backdrop} />
         <View style={modalStyles.modal}>
           <FontAwesome6
-            name={slides[step].icon as any}
+            name={slides[step].icon as ComponentProps<typeof FontAwesome6>['name']}
             size={48}
             color={colors.text}
             style={{ alignSelf: 'center', marginBottom: 10 }}

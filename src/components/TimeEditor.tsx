@@ -1,59 +1,42 @@
-import { colors } from '@/constants/tokens';
-import { buttonStyles, defaultStyles } from '@/styles';
-import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { colors } from '@/constants/tokens'
+import { formatClipTime } from '@/helpers/miscellaneous'
+import { buttonStyles, defaultStyles } from '@/styles'
+import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons'
+import React from 'react'
+import { Text, TouchableOpacity, View } from 'react-native'
 
 type TimeEditorProps = {
-    timeMs: number;
-    onChange: (newTimeMs: number) => void;
-};
+    /** Position in seconds */
+    seconds: number
+    /** Maximum position in seconds (track length), undefined if unknown */
+    max?: number
+    onChange: (seconds: number) => void
+}
 
-export default function TimeEditor({ timeMs, onChange }: TimeEditorProps) {
-    const updateTime = (deltaMs: number) => {
-        const newTime = Math.max(0, timeMs + deltaMs);
-        onChange(newTime);
-    };
+const STEP = 0.1
 
-    const minutes = Math.floor(timeMs / 60000);
-    const seconds = Math.floor((timeMs % 60000) / 1000);
-    const milliseconds = Math.floor((timeMs % 1000) / 100);
+export default function TimeEditor({ seconds, max, onChange }: TimeEditorProps) {
+    const update = (delta: number) => {
+        const next = Math.round((seconds + delta) * 10) / 10
+        onChange(Math.min(Math.max(next, 0), max && max > 0 ? max : Number.POSITIVE_INFINITY))
+    }
 
     return (
         <View style={[buttonStyles.buttonsRow, { alignItems: 'center' }]}>
-            <div style={{ flex: 2, textAlign: 'right', verticalAlign: 'center' }}>
+            <View style={{ flex: 2, alignItems: 'flex-end' }}>
                 <MaterialCommunityIcons name="clock-outline" size={25} color={colors.text} />
-            </div>
-            <Text style={[defaultStyles.text, { flex: 1, minWidth: 60, textAlign: 'right' }]}>
-                {minutes.toString()}:{seconds.toString().padStart(2, '0')}.{milliseconds.toString()}
+            </View>
+            <Text style={[defaultStyles.text, { flex: 1, minWidth: 60, textAlign: 'right' }]} testID="clip-position">
+                {formatClipTime(seconds)}
             </Text>
             <View style={[buttonStyles.buttonsRow, { flex: 0, flexShrink: 1, flexBasis: 'auto', width: 'auto' }]}>
-                <TouchableOpacity style={buttonStyles.button} onPress={() => updateTime(100)}>
+                <TouchableOpacity style={buttonStyles.button} onPress={() => update(STEP)} accessibilityRole="button" accessibilityLabel="Later">
                     <FontAwesome6 name="plus" size={14} color={colors.text} />
                 </TouchableOpacity>
-                <TouchableOpacity style={buttonStyles.button} onPress={() => updateTime(-100)}>
+                <TouchableOpacity style={buttonStyles.button} onPress={() => update(-STEP)} accessibilityRole="button" accessibilityLabel="Earlier">
                     <FontAwesome6 name="minus" size={14} color={colors.text} />
                 </TouchableOpacity>
             </View>
         </View>
-    );
+    )
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flexDirection: 'row',
-        verticalAlign: 'middle',
-        padding: 10,
-    },
-    part: {
-        marginHorizontal: 10,
-        alignItems: 'center',
-    },
-    value: {
-        fontSize: 24,
-        marginVertical: 5,
-    },
-    buttons: {
-        flexDirection: 'row',
-    },
-});

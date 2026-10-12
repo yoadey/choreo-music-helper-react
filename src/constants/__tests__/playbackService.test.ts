@@ -276,23 +276,39 @@ describe('preferences', () => {
 })
 
 describe('player errors (state)', () => {
-    it('reloads the current song when the player reports an error, so Play works again', async () => {
+    it('remembers that the player dropped the song (reloaded on Play), without reloading by itself', async () => {
         const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
-        const reload = jest.spyOn(helpers, 'reloadCurrentTrackAfterError').mockImplementation(async () => undefined)
+        const markFailed = jest.spyOn(helpers, 'markPlayerFailed')
         await startService()
         await setPlayerState(m.player.State.Error)
-        expect(reload).toHaveBeenCalled()
+        expect(markFailed).toHaveBeenCalled()
+        expect(TrackPlayer().reset).not.toHaveBeenCalled()
     })
 
-    it('does not jump to the loop start of the old song at its end while another song is loading', async () => {
+    it('does not jump in a song the user selected at the end of the old one', async () => {
         const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
         jest.spyOn(helpers, 'isTrackLoading').mockReturnValue(true)
+        jest.spyOn(helpers, 'whenTrackIdle').mockImplementation(async () => setCurrentTrack('track2'))
         m.store.setLoopStart({ id: 'c' })
         m.store.setLoopEnd({ id: 'c' })
         await startService()
         m.player.playerState.position = 30
         await setPlayerState(m.player.State.Ended)
         expect(TrackPlayer().seekTo).not.toHaveBeenCalled()
+    })
+
+    it('restarts the loop when the newly selected song could not be loaded (the old one stays)', async () => {
+        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
+        const loading = jest.spyOn(helpers, 'isTrackLoading').mockReturnValue(true)
+        jest.spyOn(helpers, 'whenTrackIdle').mockImplementation(async () => {
+            loading.mockReturnValue(false)
+        })
+        m.store.setLoopStart({ id: 'c' })
+        m.store.setLoopEnd({ id: 'c' })
+        await startService()
+        m.player.playerState.position = 30
+        await setPlayerState(m.player.State.Ended)
+        expect(TrackPlayer().seekTo).toHaveBeenLastCalledWith(20)
     })
 })
 

@@ -32,34 +32,35 @@ describe('createSaveFailureReporter', () => {
     })
 })
 
-describe('createSaveFailureReporter while the app is hidden or reporting itself', () => {
+describe('createSaveFailureReporter while a caller reports its own save failures', () => {
     const messages = { storageFull: 'full', saveFailed: 'failed' }
 
-    it('shows the message when the app is visible again (alerts are dropped while hidden)', () => {
-        const show = jest.fn()
-        let visible = false
-        const reporter = createSaveFailureReporter(show, messages, () => visible)
-        reporter.failed(new Error('broken'))
-        expect(show).not.toHaveBeenCalled()
-        visible = true
-        reporter.visible()
-        expect(show).toHaveBeenCalledWith('failed')
-    })
-
-    it('does not report failures of saves that are reported by the caller (e.g. the import)', async () => {
+    it('does not show failures of the background save meanwhile (the import reports them)', async () => {
         const show = jest.fn()
         const reporter = createSaveFailureReporter(show, messages)
+        await reporter.whileReportedByCaller(async () => {
+            reporter.failed(new Error('background save'))
+        })
+        expect(show).not.toHaveBeenCalled()
+    })
+
+    it('only counts a failure as reported when the caller reported a save failure', async () => {
+        const show = jest.fn()
+        const reporter = createSaveFailureReporter(show, messages)
+        // E.g. the import failed for another reason: later save failures are still shown
         await expect(
             reporter.whileReportedByCaller(async () => {
-                reporter.failed(new Error('background save'))
-                throw new Error('import failed')
+                throw new Error('not a save failure')
             }),
-        ).rejects.toThrow('import failed')
-        expect(show).not.toHaveBeenCalled()
-        // The user was told by the caller: a later failure (e.g. saving the clean up) is not shown again ...
+        ).rejects.toThrow()
+        reporter.failed(new Error('edit'))
+        expect(show).toHaveBeenCalledTimes(1)
+        // The caller reported a save failure: not shown again until a save worked
+        reporter.succeeded()
+        show.mockClear()
+        reporter.markReported()
         reporter.failed(new Error('clean up'))
         expect(show).not.toHaveBeenCalled()
-        // ... until a save worked in between
         reporter.succeeded()
         reporter.failed(new Error('edit'))
         expect(show).toHaveBeenCalledTimes(1)

@@ -10,6 +10,7 @@ jest.mock('@/model/index.web', () => ({
     database: {},
     flushDatabase: jest.fn(async () => undefined),
     withOwnSaveFailureReport: (action: () => Promise<unknown>) => action(),
+    markSaveFailureReported: jest.fn(),
 }))
 jest.mock('@/model/trackRepository', () => ({
     createTrackWithClips: jest.fn(async () => ({ id: 'new-track' })),
@@ -85,6 +86,8 @@ describe('importAudioFile when the database cannot be saved', () => {
         const importing = importAudioFile()
         mockResolvePick({ canceled: false, assets: [{ name: 'song.mp3', uri: 'blob:picked', file: pickedFile() }] })
         await expect(importing).rejects.toMatchObject({ name: 'QuotaExceededError' })
+        // The import reports it, the background save does not report it again
+        expect((require('@/model/index.web') as { markSaveFailureReported: jest.Mock }).markSaveFailureReported).toHaveBeenCalled()
         expect(repository.deleteTrack).toHaveBeenCalledWith(expect.anything(), { id: 'new-track' }, expect.any(Function))
         expect(player.selectTrack).not.toHaveBeenCalled()
     })

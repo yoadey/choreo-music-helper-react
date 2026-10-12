@@ -2,7 +2,7 @@ import { decodeAudio, parseAudioMetadata, requestPersistentStorage } from '@/hel
 import { analyzeAudio, chaptersToClips } from '@/helpers/audioImport'
 import { selectTrack } from '@/helpers/player'
 import { t } from '@/i18n'
-import { database, flushDatabase, withOwnSaveFailureReport } from '@/model/index.web'
+import { database, flushDatabase, markSaveFailureReported, withOwnSaveFailureReport } from '@/model/index.web'
 import { isQuotaError } from '@/model/saveErrors'
 import { createTrackWithClips, deleteTrack } from '@/model/trackRepository'
 import * as DocumentPicker from 'expo-document-picker'
@@ -35,6 +35,8 @@ const createAndSave = async (audio: Awaited<ReturnType<typeof analyzeAudio>>) =>
 		// Only an import that was written to IndexedDB is kept (otherwise it is gone after a reload)
 		await flushDatabase()
 	} catch (error) {
+		// Reported as failed import; saving the clean up below may fail as well
+		markSaveFailureReported()
 		await deleteTrack(database, track, del).catch((cleanupError) => {
 			console.warn('Could not remove the import that was not saved', cleanupError)
 		})

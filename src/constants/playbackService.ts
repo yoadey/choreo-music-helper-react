@@ -14,7 +14,7 @@ import {
     resolveLoop,
     SPEED_FADE_DURATION,
 } from '@/helpers/playback'
-import { isTrackLoading, playCurrentTrack, reloadCurrentTrackAfterError } from '@/helpers/player'
+import { isTrackLoading, markPlayerFailed, playCurrentTrack, whenTrackIdle } from '@/helpers/player'
 import Clip from '@/model/clip'
 import { database } from '@/model/index.web'
 import {
@@ -226,8 +226,13 @@ const syncPlayWhenReady = (playWhenReady: boolean) => {
  * fitLoopToTrack); this covers progress updates that came too late, e.g. in a background tab.
  */
 const handleTrackEnded = async () => {
-    // The user selected another song meanwhile: neither jump in it nor start it
-    if (isTrackLoading()) return
+    if (isTrackLoading()) {
+        // The user selected another song: neither jump in it nor start it. If it could not be loaded, the
+        // ended song stays and its loop restarts.
+        const endedTrack = state.trackId
+        await whenTrackIdle()
+        if (state.trackId !== endedTrack) return
+    }
     // Updates the duration, which a loop up to the end of the track needs
     await getProgress()
     const loop = getActiveLoop()
@@ -290,8 +295,9 @@ export const playbackService = async () => {
         if (playbackState === State.Ended) {
             await handleTrackEnded()
         } else if (playbackState === State.Error) {
-            // The web player unloads the song on errors: without reloading it Play would do nothing
-            await reloadCurrentTrackAfterError()
+            // The web player unloaded the song. Also while another song loads: if that one is not loaded
+            // (e.g. its file is missing), this one stays current. A finished load resets it.
+            markPlayerFailed()
         }
     })
 

@@ -176,6 +176,25 @@ describe('createTrackLoader', () => {
         expect(env.deps.revokeObjectURL).toHaveBeenCalledWith('blob:1')
     })
 
+    it('never rejects when resetting the player fails for a cancelled load', async () => {
+        let releaseLoad: () => void = () => undefined
+        env.deps.load.mockImplementationOnce(
+            () =>
+                new Promise<undefined>((resolve) => {
+                    releaseLoad = () => resolve(undefined)
+                }),
+        )
+        const loader = createTrackLoader(env.deps)
+        const pending = loader.load(track('1'))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        loader.cancel('1')
+        env.deps.reset.mockImplementationOnce(async () => {
+            throw new Error('reset failed')
+        })
+        releaseLoad()
+        await expect(pending).resolves.toBe('superseded')
+    })
+
     it('cancels an older load that owns the player while a newer selection is still reading', async () => {
         let releaseFirstLoad: () => void = () => undefined
         env.deps.load.mockImplementationOnce(

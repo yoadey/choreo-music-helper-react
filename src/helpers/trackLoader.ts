@@ -95,7 +95,9 @@ export const createTrackLoader = (deps: TrackLoaderDeps) => {
         const superseded = async () => {
             releaseObjectUrl()
             // Cancelled without a newer load: do not leave this (e.g. deleted) track in the player
-            if (playerOwner === 0) await deps.reset()
+            if (playerOwner === 0) {
+                await deps.reset().catch((error) => console.warn('Could not reset the player', error))
+            }
             return done('superseded')
         }
 

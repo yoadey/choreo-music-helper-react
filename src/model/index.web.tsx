@@ -53,14 +53,13 @@ export const flushDatabase = () =>
         loki.saveDatabase((error) => (error ? reject(toSaveError(error)) : resolve()))
     })
 
-const saveFailures = createSaveFailureReporter(
-    showMessage,
-    t,
-    () => typeof document === 'undefined' || document.visibilityState === 'visible',
-)
+const saveFailures = createSaveFailureReporter(showMessage, t)
 
 /** Runs an action that reports its own save failures (e.g. the import), so they are not shown twice. */
 export const withOwnSaveFailureReport = <T,>(action: () => Promise<T>) => saveFailures.whileReportedByCaller(action)
+
+/** The caller told the user that saving failed (e.g. its clean up then fails to save as well). */
+export const markSaveFailureReported = () => saveFailures.markReported()
 
 const flushInBackground = () => {
     flushDatabase()
@@ -77,6 +76,5 @@ if (typeof window !== 'undefined') {
     window.addEventListener('pagehide', flushInBackground)
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') flushInBackground()
-        else saveFailures.visible()
     })
 }

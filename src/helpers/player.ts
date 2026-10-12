@@ -5,7 +5,7 @@ import { t } from '@/i18n'
 import TrackWithClips from '@/model/track'
 import { Q, type Database } from '@nozbe/watermelondb'
 import { clearLastTrack, clearLoop, getLastTrack, setLastTrack } from '@/store/playbackState'
-import { refreshProgress } from '@/store/progress'
+import { refreshProgress, usePlayerProgressStore } from '@/store/progress'
 import { useCurrentTrackStore } from '@/store/store'
 import { get } from 'idb-keyval'
 import { Platform } from 'react-native'
@@ -40,14 +40,17 @@ const clearCurrentTrack = () => {
 export const selectTrack = async (track: TrackWithClips, { silent = false } = {}) =>
     (await loadAndSelect(track, silent)) === 'loaded'
 
-const loadAndSelect = async (track: TrackWithClips, silent: boolean, reload = false): Promise<LoadResult> => {
+const loadAndSelect = async (track: TrackWithClips, silent: boolean): Promise<LoadResult> => {
     selections++
     // Selecting the loaded song again keeps it playing (unless another song is loading, which it replaces).
     // Decided right away, so the last selection always wins.
-    if (!reload && useCurrentTrackStore.getState().currentTrack?.id === track.id && !trackLoader.isLoading()) {
+    // (Not after the player dropped it because of an error.)
+    if (!playerFailed && useCurrentTrackStore.getState().currentTrack?.id === track.id && !trackLoader.isLoading()) {
         return 'loaded'
     }
     const result = await trackLoader.load(track)
+    // The player holds the new song or nothing
+    if (result === 'loaded' || result === 'failed') playerFailed = false
     switch (result) {
         case 'superseded':
             return result
@@ -93,14 +96,16 @@ export const addClipAtCurrentPosition = async (
 /** True while a song is being loaded into the player. */
 export const isTrackLoading = () => trackLoader.isLoading()
 
-/**
- * Loads the current song again after the player dropped it because of an error (e.g. a decode error during
- * playback), so Play works again. Not while a song is loading: its load failure is handled there.
- */
-export const reloadCurrentTrackAfterError = async () => {
-    const current = useCurrentTrackStore.getState().currentTrack
-    if (!current || trackLoader.isLoading()) return
-    await loadAndSelect(current, false, true)
+/** Resolves when no song is being loaded anymore. */
+export const whenTrackIdle = () => trackLoader.whenIdle()
+
+// The web player unloads the song on errors (e.g. a decode error during playback): it is loaded again when
+// it is played or selected next time
+let playerFailed = false
+
+/** Called when the player reported an error. */
+export const markPlayerFailed = () => {
+    playerFailed = true
 }
 
 /**
@@ -116,7 +121,14 @@ export const playCurrentTrack = async ({ unlessLoading = false } = {}) => {
             if (unlessLoading) return
             await trackLoader.whenIdle()
         }
-        if (!useCurrentTrackStore.getState().currentTrack) return
+        const current = useCurrentTrackStore.getState().currentTrack
+        if (!current) return
+        if (playerFailed) {
+            // Continue where the song was dropped
+            const { position } = usePlayerProgressStore.getState()
+            if ((await loadAndSelect(current, false)) !== 'loaded') return
+            if (position > 0) await TrackPlayer.seekTo(position)
+        }
         await TrackPlayer.play()
         // The web player only logs a refused start (it resolves anyway) but keeps "play when ready"
         const { state } = await TrackPlayer.getPlaybackState()

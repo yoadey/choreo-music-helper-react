@@ -65,6 +65,29 @@ export default function WaveformView({
   const start = centerIndex - halfBarCount
   const offset = (centerIndex - exactIndex) * barTotal
 
+  // The bars only change when the waveform scrolls by a whole bar, not on every progress update
+  const barViews = useMemo(
+    () =>
+      bars === null
+        ? []
+        : Array.from({ length: visibleBarCount }, (_, i) => {
+            const idx = start + i
+            const value = idx >= 0 && idx < bars.length ? bars[idx] : null
+            const barHeight = value !== null ? Math.min(Math.max(value * 4 * maxHeight, baseline), maxHeight * 2) : 0
+            const style = [
+              styles.bar,
+              {
+                width: barWidth,
+                height: barHeight,
+                marginRight: i === visibleBarCount - 1 ? 0 : barSpacing,
+                backgroundColor: i < halfBarCount ? elapsedBarColor : remainingBarColor,
+              },
+            ]
+            return <View key={i} style={style} />
+          }),
+    [bars, start, visibleBarCount, halfBarCount, maxHeight, baseline, barWidth, barSpacing, elapsedBarColor, remainingBarColor],
+  )
+
   return (
     <View
       onLayout={onLayout}
@@ -81,32 +104,15 @@ export default function WaveformView({
         <ActivityIndicator />
       ) : (
         <View style={[styles.waveContainer, { left: offset }]}>
-          {Array.from({ length: visibleBarCount }, (_, i) => {
-            const idx = start + i
-            const value = idx >= 0 && idx < length ? bars[idx] : null
-            const barHeight = value !== null ? Math.min(Math.max(value * 4 * maxHeight, baseline), maxHeight * 2) : 0
-            const barStyle = {
-              width: barWidth,
-              height: barHeight,
-              marginRight: i === visibleBarCount - 1 ? 0 : barSpacing,
-              ...styles.bar,
-            }
-
-            if (i === halfBarCount) {
-              const leftWidth = Math.round(Math.min(-offset, barWidth))
-              return (
-                <View key={i} style={[barStyle, styles.centerWrapper]}>
-                  <View style={{ width: leftWidth, height: '100%', backgroundColor: elapsedBarColor }} />
-                  <View style={{ width: barWidth - leftWidth, height: '100%', backgroundColor: remainingBarColor }} />
-                </View>
-              )
-            }
-
+          {barViews.map((bar, i) => {
+            if (i !== halfBarCount || !bar) return bar
+            // Only the center bar changes on every progress update: it is split into elapsed / remaining
+            const leftWidth = Math.round(Math.min(-offset, barWidth))
             return (
-              <View
-                key={i}
-                style={[barStyle, { backgroundColor: i < halfBarCount ? elapsedBarColor : remainingBarColor }]}
-              />
+              <View key={bar.key} style={[bar.props.style, styles.centerWrapper]}>
+                <View style={{ width: leftWidth, height: '100%', backgroundColor: elapsedBarColor }} />
+                <View style={{ width: barWidth - leftWidth, height: '100%', backgroundColor: remainingBarColor }} />
+              </View>
             )
           })}
         </View>

@@ -3,13 +3,12 @@ import { colors } from '@/constants/tokens'
 import { t } from '@/i18n'
 import { useLeadInDuration, useLeadInVolume, useLeadOutDuration, useLeadOutVolume } from '@/store/playbackState'
 import { modalStyles } from '@/styles'
-import { useRouter } from 'expo-router'
+import { useCloseModal } from '@/hooks/useCloseModal'
 import { useHeaderHeight } from 'expo-router/react-navigation'
 import React, { useState } from 'react'
 import { Button, Pressable, Text, View } from 'react-native'
 
 const LoopModal = () => {
-	const router = useRouter()
 	const headerHeight = useHeaderHeight()
 
 	const [leadInDuration, setLeadInDuration] = useLeadInDuration()
@@ -21,7 +20,7 @@ const LoopModal = () => {
 	const [leadOutDurationLocal, setLeadOutDurationLocal] = useState(leadOutDuration ?? 0)
 	const [leadOutVolumeLocal, setLeadOutVolumeLocal] = useState(leadOutVolume ?? 1)
 
-	const close = () => (router.canGoBack() ? router.back() : router.replace('/'))
+	const close = useCloseModal()
 
 	const handleOk = () => {
 		setLeadInDuration(leadInDurationLocal)

@@ -44,6 +44,7 @@ const TrackPlayer = {
     setRate: jest.fn(async (rate: number) => {
         playerState.rate = rate
     }),
+    getRate: jest.fn(async () => playerState.rate),
     getProgress: jest.fn(async () => ({ position: playerState.position, duration: playerState.duration, buffered: 0 })),
     getPlaybackState: jest.fn(async () => ({ state: playerState.state })),
     getActiveTrack: jest.fn(async () => undefined),

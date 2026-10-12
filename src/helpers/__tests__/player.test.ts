@@ -34,6 +34,14 @@ beforeEach(() => {
 })
 
 describe('selectTrack', () => {
+    it('waits for the player setup before touching the player', async () => {
+        await m.player.selectTrack(track('1'))
+        const setupOrder = (m.trackPlayer.default.setupPlayer as unknown as jest.Mock).mock.invocationCallOrder[0]
+        const resetOrder = (m.trackPlayer.default.reset as unknown as jest.Mock).mock.invocationCallOrder[0]
+        expect(setupOrder).toBeDefined()
+        expect(setupOrder).toBeLessThan(resetOrder)
+    })
+
     it('makes the track current after it was loaded', async () => {
         await expect(m.player.selectTrack(track('1'))).resolves.toBe(true)
         expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('1'))
@@ -128,5 +136,23 @@ describe('releaseTrack (before deleting a track)', () => {
         await expect(pending).resolves.toBe(false)
         // Track 1 is not in the player anymore
         expect(m.store.useCurrentTrackStore.getState().currentTrack).toBeNull()
+    })
+
+    it('keeps a newer selection that is loading when the current track is deleted', async () => {
+        await m.player.selectTrack(track('1'))
+        let releaseLoad: () => void = () => undefined
+        ;(m.trackPlayer.default.load as unknown as jest.Mock).mockImplementationOnce(
+            () =>
+                new Promise<undefined>((resolve) => {
+                    releaseLoad = () => resolve(undefined)
+                }),
+        )
+        const pending = m.player.selectTrack(track('2'))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        await m.player.releaseTrack('1')
+        releaseLoad()
+        await expect(pending).resolves.toBe(true)
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('2'))
+        expect(URL.revokeObjectURL).not.toHaveBeenCalledWith('blob:2')
     })
 })

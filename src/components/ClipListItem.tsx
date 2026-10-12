@@ -26,6 +26,8 @@ type ClipListItemProps = {
 	showSpeed: boolean
 	isLoopStart: boolean
 	isLoopEnd: boolean
+	/** Both markers are set but do not form a valid loop */
+	loopInvalid: boolean
 }
 
 export const ClipListItem = memo(function ClipListItem({
@@ -39,6 +41,7 @@ export const ClipListItem = memo(function ClipListItem({
 	showSpeed,
 	isLoopStart,
 	isLoopEnd,
+	loopInvalid,
 }: ClipListItemProps) {
 	const router = useRouter()
 	const { showActionSheetWithOptions } = useActionSheet()
@@ -64,6 +67,11 @@ export const ClipListItem = memo(function ClipListItem({
 			},
 		)
 	}
+
+	const markerStyle = (selected: boolean) =>
+		!selected ? styles.loopButton : loopInvalid ? styles.loopInvalidButton : styles.loopActiveButton
+	const markerLabel = (name: string, selected: boolean) =>
+		`${name} ${index + 1}${selected && loopInvalid ? ' (inactive)' : ''}`
 
 	const toggleLoopStart = () => setLoopStart(isLoopStart ? undefined : { id: clip.id })
 	const toggleLoopEnd = () => setLoopEnd(isLoopEnd ? undefined : { id: clip.id })
@@ -91,19 +99,19 @@ export const ClipListItem = memo(function ClipListItem({
 						</Text>
 					</View>
 					<TouchableHighlight
-						style={isLoopStart ? styles.loopActiveButton : styles.loopButton}
+						style={markerStyle(isLoopStart)}
 						onPress={toggleLoopStart}
 						accessibilityRole="button"
-						accessibilityLabel={`Loop start ${index + 1}`}
+						accessibilityLabel={markerLabel('Loop start', isLoopStart)}
 						accessibilityState={{ selected: isLoopStart }}
 					>
 						<Text style={styles.buttonText}>A</Text>
 					</TouchableHighlight>
 					<TouchableHighlight
-						style={isLoopEnd ? styles.loopActiveButton : styles.loopButton}
+						style={markerStyle(isLoopEnd)}
 						onPress={toggleLoopEnd}
 						accessibilityRole="button"
-						accessibilityLabel={`Loop end ${index + 1}`}
+						accessibilityLabel={markerLabel('Loop end', isLoopEnd)}
 						accessibilityState={{ selected: isLoopEnd }}
 					>
 						<Text style={styles.buttonText}>B</Text>
@@ -166,6 +174,13 @@ const styles = StyleSheet.create({
 	loopActiveButton: {
 		...loopButtonBase,
 		backgroundColor: colors.primary,
+	},
+	loopInvalidButton: {
+		...loopButtonBase,
+		backgroundColor: colors.secondary,
+		borderWidth: 2,
+		borderStyle: 'dashed',
+		borderColor: colors.primary,
 	},
 	buttonText: {
 		color: '#fff',

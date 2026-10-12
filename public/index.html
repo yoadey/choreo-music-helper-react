@@ -44,15 +44,20 @@
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           const hadController = !!navigator.serviceWorker.controller
+          let updateRequested = false
           navigator.serviceWorker.addEventListener('controllerchange', () => {
-            // A new version was activated at startup, reload once to use it
-            if (hadController) window.location.reload()
+            // Only the tab that activated the new version while starting reloads, other open tabs
+            // (e.g. one that is playing) keep running and use the new version on their next start
+            if (updateRequested) window.location.reload()
           })
           navigator.serviceWorker
             .register('sw.js', { scope: './' })
             .then((registration) => {
               // Updates are only activated while starting the app, never during playback
-              if (registration.waiting && hadController) registration.waiting.postMessage('SKIP_WAITING')
+              if (registration.waiting && hadController) {
+                updateRequested = true
+                registration.waiting.postMessage('SKIP_WAITING')
+              }
             })
             .catch((error) => console.error('Service worker registration failed:', error))
         })

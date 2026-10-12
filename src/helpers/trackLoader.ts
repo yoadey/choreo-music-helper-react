@@ -13,6 +13,8 @@ export type LoadResult = 'loaded' | 'missing' | 'superseded' | 'unreadable' | 'f
 
 export type TrackLoaderDeps = {
     platform: string
+    /** Waits until the player can be used (setup), called after the load is registered */
+    prepare?: () => Promise<void>
     getBlob: (key: string) => Promise<Blob | undefined>
     createObjectURL: (blob: Blob) => string
     revokeObjectURL: (url: string) => void
@@ -59,6 +61,16 @@ export const createTrackLoader = (deps: TrackLoaderDeps) => {
             let objectUrl: string | undefined
             const releaseObjectUrl = () => {
                 if (objectUrl) deps.revokeObjectURL(objectUrl)
+            }
+
+            if (deps.prepare) {
+                try {
+                    await deps.prepare()
+                } catch (error) {
+                    console.warn('The player is not available', error)
+                    return done(isOutdated() ? 'superseded' : 'unreadable')
+                }
+                if (isOutdated()) return done('superseded')
             }
 
             if (deps.platform === 'web') {
@@ -124,6 +136,11 @@ export const createTrackLoader = (deps: TrackLoaderDeps) => {
                 }
             }
             return result
+        },
+
+        /** True while a load (of a track that is not cancelled) owns the player. */
+        isPlayerOwnedByLoad(): boolean {
+            return playerOwner !== 0 && inFlight.has(playerOwner)
         },
 
         async unload() {

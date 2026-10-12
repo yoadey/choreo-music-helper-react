@@ -203,6 +203,33 @@ describe('loop', () => {
     })
 })
 
+describe('loop state for the UI', () => {
+    it('publishes whether the loop is active', async () => {
+        const { useLoopStatusStore } = require('@/store/store') as typeof import('@/store/store')
+        await startService()
+        expect(useLoopStatusStore.getState().active).toBe(false)
+        m.store.setLoopStart({ id: 'a' })
+        m.store.setLoopEnd({ id: 'b' })
+        expect(useLoopStatusStore.getState().active).toBe(true)
+        // Inverted loop: both markers set, but the loop is not active
+        m.store.setLoopStart({ id: 'c' })
+        m.store.setLoopEnd({ id: 'a' })
+        expect(useLoopStatusStore.getState().active).toBe(false)
+    })
+})
+
+describe('player errors', () => {
+    it('retries the rate after a failed setRate instead of skipping it forever', async () => {
+        await startService()
+        ;(TrackPlayer().setRate as unknown as jest.Mock).mockImplementationOnce(async () => {
+            throw new Error('player reset')
+        })
+        await progress(5)
+        await progress(5.05)
+        expect(TrackPlayer().setRate).toHaveBeenCalledTimes(2)
+    })
+})
+
 describe('efficiency', () => {
     it('tracks the player state from events instead of querying it on every progress tick', async () => {
         await startService()

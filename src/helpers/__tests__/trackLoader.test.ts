@@ -204,6 +204,24 @@ describe('createTrackLoader', () => {
         expect(env.deps.revokeObjectURL).not.toHaveBeenCalledWith('blob:2')
     })
 
+    it('waits for the player to be prepared and can be cancelled meanwhile', async () => {
+        let ready: () => void = () => undefined
+        const prepare = jest.fn(() => new Promise<void>((resolve) => (ready = resolve)))
+        const loader = createTrackLoader({ ...env.deps, prepare })
+        const pending = loader.load(track('1'))
+        expect(env.deps.getBlob).not.toHaveBeenCalled()
+        expect(loader.cancel('1')).toBe('reading')
+        ready()
+        await expect(pending).resolves.toBe('superseded')
+        expect(env.deps.reset).not.toHaveBeenCalled()
+    })
+
+    it('reports an unusable player without touching it', async () => {
+        const loader = createTrackLoader({ ...env.deps, prepare: async () => Promise.reject(new Error('not supported')) })
+        await expect(loader.load(track('1'))).resolves.toBe('unreadable')
+        expect(env.deps.reset).not.toHaveBeenCalled()
+    })
+
     it('uses the uri directly on native platforms', async () => {
         const loader = createTrackLoader({ ...env.deps, platform: 'android' })
         await loader.load({ id: '9', uri: 'file:///song.mp3', title: 'Song' })

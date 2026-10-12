@@ -145,6 +145,9 @@ test.describe('playback', () => {
         await openTab(page, 'Clips')
         await page.getByRole('button', { name: 'Loop start 3' }).click()
         await page.getByRole('button', { name: 'Loop end 1' }).click()
+        // The markers show that this loop is not active
+        await expect(page.getByRole('button', { name: 'Loop start 3 (inactive)' })).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Loop end 1 (inactive)' })).toBeVisible()
         await play(page)
         await waitForAudio(page, 'a.currentTime > 2')
     })
@@ -178,6 +181,14 @@ test.describe('playback', () => {
         await page.mouse.move(box.x + box.width / 2 - 40, box.y + box.height / 2, { steps: 5 })
         await page.mouse.up()
         await waitForAudio(page, 'a.currentTime > 0.1')
+    })
+
+    test('clears the lock screen metadata when the current song is deleted', async ({ page }) => {
+        expect(await page.evaluate(() => navigator.mediaSession.metadata?.title)).toBe('Testsong')
+        await page.getByTestId('track-0').click({ delay: 900 })
+        await page.getByText('Löschen', { exact: true }).click()
+        await expect(page.getByTestId('track-0')).toHaveCount(0)
+        await expect.poll(() => page.evaluate(() => navigator.mediaSession.metadata)).toBeNull()
     })
 
     test('edits and deletes tracks', async ({ page }) => {
@@ -233,6 +244,57 @@ test.describe('playback', () => {
 })
 
 test.describe('hosting', () => {
+    test('shows the open source licenses', async ({ page }) => {
+        await page.getByRole('button', { name: /Show navigation menu|Navigationsmenü/ }).click()
+        await page.getByText('Info', { exact: true }).click()
+        await page.getByText('Lizenzen', { exact: true }).click()
+        await expect(page.getByText('Open-Source-Lizenzen')).toBeVisible()
+        await expect(page.getByText(/^@babel\/core \(/)).toBeVisible()
+        // Virtualized list: not all of the more than thousand entries are rendered at once
+        await expect(page.getByText(/^react-native-track-player \(/)).toHaveCount(0)
+    })
+
+    test('a service worker update started in another tab does not reload a running tab', async ({ page, context }) => {
+        const fs = await import('node:fs')
+        const swPath = path.join(__dirname, '..', 'dist', 'sw.js')
+        const original = fs.readFileSync(swPath, 'utf8')
+        try {
+            await page.evaluate(async () => {
+                await navigator.serviceWorker.ready
+            })
+            // Make sure the first tab is controlled by the service worker
+            await page.reload()
+            await expect(page.getByTestId('open-file')).toBeVisible()
+            await page.evaluate(() => ((window as unknown as { marker: boolean }).marker = true))
+
+            // Deploy a new version and let the first tab find it
+            fs.writeFileSync(swPath, `${original}\n// update ${Date.now()}\n`)
+            await page.evaluate(async () => {
+                const registration = await navigator.serviceWorker.getRegistration()
+                await registration?.update()
+                await new Promise<void>((resolve) => {
+                    const check = () => (registration?.waiting ? resolve() : setTimeout(check, 50))
+                    check()
+                })
+            })
+
+            // Starting the app in a second tab activates the new version there
+            const second = await context.newPage()
+            await second.goto(page.url())
+            await expect(second.getByTestId('open-file')).toBeVisible()
+            await expect
+                .poll(() => second.evaluate(() => navigator.serviceWorker.controller?.scriptURL))
+                .toContain('sw.js')
+            await page.waitForTimeout(1500)
+
+            // The first tab was not reloaded
+            expect(await page.evaluate(() => (window as unknown as { marker?: boolean }).marker)).toBe(true)
+            await second.close()
+        } finally {
+            fs.writeFileSync(swPath, original)
+        }
+    })
+
     test('deep links work after a reload', async ({ page }) => {
         await page.getByRole('button', { name: /Show navigation menu|Navigationsmenü/ }).click()
         await page.getByText('Info', { exact: true }).click()

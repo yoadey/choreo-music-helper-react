@@ -1,6 +1,7 @@
 import { colors } from '@/constants/tokens'
 import { skipToNextClip, skipToPreviousClip, stopPlayback } from '@/constants/playbackService'
-import { useGlobalSpeedOnly, useLeadInDuration, useLeadOutDuration, useLoopEnd, useLoopStart, useSpeed } from '@/store/playbackState'
+import { useGlobalSpeedOnly, useLeadInDuration, useLeadOutDuration, useSpeed } from '@/store/playbackState'
+import { useLoopStatusStore } from '@/store/store'
 import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native'
@@ -85,10 +86,9 @@ export const LoopButton = ({ iconSize = 30 }: PlayerButtonProps) => {
 	const router = useRouter()
 	const [leadInDuration] = useLeadInDuration()
 	const [leadOutDuration] = useLeadOutDuration()
-	const [loopStart] = useLoopStart()
-	const [loopEnd] = useLoopEnd()
+	const loopActive = useLoopStatusStore((state) => state.active)
 	const hasLeadTimes = !!leadInDuration || !!leadOutDuration
-	const highlightColor = hasLeadTimes || (loopStart && loopEnd) ? colors.primary : colors.icon
+	const highlightColor = hasLeadTimes || loopActive ? colors.primary : colors.icon
 	return (
 		<TouchableOpacity
 			activeOpacity={0.7}

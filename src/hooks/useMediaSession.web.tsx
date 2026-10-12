@@ -40,7 +40,12 @@ export const useMediaSession = () => {
     }, [supported])
 
     useEffect(() => {
-        if (!supported || !title || typeof MediaMetadata === 'undefined') return
+        if (!supported) return
+        if (!title || typeof MediaMetadata === 'undefined') {
+            // No (more) song, e.g. after deleting the current one
+            navigator.mediaSession.metadata = null
+            return
+        }
         navigator.mediaSession.metadata = new MediaMetadata({
             title,
             artwork: [{ src: logo as unknown as string, sizes: '192x192', type: 'image/png' }],
@@ -53,13 +58,29 @@ export const useMediaSession = () => {
     }, [supported, playing])
 
     useEffect(() => {
-        if (!supported || !navigator.mediaSession.setPositionState || !(duration > 0)) return
-        try {
-            navigator.mediaSession.setPositionState({ duration, position: Math.min(position, duration) })
-        } catch {
-            // Invalid state while a track is loading
+        if (!supported || !navigator.mediaSession.setPositionState) return
+        if (!title || !(duration > 0)) {
+            navigator.mediaSession.setPositionState()
+            return
         }
-    }, [supported, position, duration])
+        let active = true
+        // The rate lets the OS extrapolate the position correctly at other speeds than 1x
+        TrackPlayer.getRate()
+            .then((playbackRate) => {
+                if (!active) return
+                navigator.mediaSession.setPositionState({
+                    duration,
+                    position: Math.min(position, duration),
+                    playbackRate: playbackRate > 0 ? playbackRate : 1,
+                })
+            })
+            .catch(() => {
+                // Invalid state while a track is loading
+            })
+        return () => {
+            active = false
+        }
+    }, [supported, title, position, duration])
 }
 
 export default useMediaSession

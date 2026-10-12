@@ -1,4 +1,5 @@
 import { showMessage } from '@/helpers/dialogs'
+import { ensurePlayerSetup } from '@/helpers/playerSetup'
 import { createTrackLoader } from '@/helpers/trackLoader'
 import { t } from '@/i18n'
 import TrackWithClips from '@/model/track'
@@ -10,6 +11,7 @@ import TrackPlayer from 'react-native-track-player'
 
 const trackLoader = createTrackLoader({
     platform: Platform.OS,
+    prepare: ensurePlayerSetup,
     getBlob: (key) => get<Blob>(key),
     createObjectURL: (blob) => URL.createObjectURL(blob),
     revokeObjectURL: (url) => URL.revokeObjectURL(url),
@@ -67,7 +69,11 @@ export const unloadCurrentTrack = async () => {
  */
 export const releaseTrack = async (trackId: string) => {
     const stage = trackLoader.cancel(trackId)
-    if (stage === 'player' || useCurrentTrackStore.getState().currentTrack?.id === trackId) {
+    if (stage !== 'player' && useCurrentTrackStore.getState().currentTrack?.id !== trackId) return
+    if (trackLoader.isPlayerOwnedByLoad()) {
+        // A newer selection is already replacing the track in the player, only the UI state has to go
+        clearCurrentTrack()
+    } else {
         await unloadCurrentTrack()
     }
 }

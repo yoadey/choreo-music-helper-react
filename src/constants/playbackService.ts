@@ -27,6 +27,7 @@ import {
     KEY_LAST_TRACK,
     preferences,
 } from '@/store/playbackState'
+import { useLoopStatusStore } from '@/store/store'
 import { Q } from '@nozbe/watermelondb'
 import TrackPlayer, { Event, State } from 'react-native-track-player'
 import type { Subscription } from 'rxjs'
@@ -61,6 +62,8 @@ const state = {
 const recompute = () => {
     state.ranges = buildClipRanges(state.clips, state.duration)
     state.loop = resolveLoop(state.prefs.loopStartId, state.prefs.loopEndId, state.ranges)
+    const loopStatus = useLoopStatusStore.getState()
+    if (loopStatus.active !== !!state.loop) loopStatus.setActive(!!state.loop)
 }
 
 const subscribeToClips = (trackId: string | undefined) => {
@@ -97,24 +100,35 @@ const getProgress = async () => {
 /** The active loop resolved from the current clips, or undefined. */
 export const getActiveLoop = (): LoopRange | undefined => state.loop
 
-const setRate = (rate: number) => {
+const setRate = async (rate: number) => {
     if (state.lastRate !== undefined && Math.abs(state.lastRate - rate) < 0.001) return
     state.lastRate = rate
-    TrackPlayer.setRate(rate)
+    try {
+        await TrackPlayer.setRate(rate)
+    } catch {
+        // Try again with the next progress update
+        state.lastRate = undefined
+    }
 }
 
-const setVolume = (volume: number) => {
+const setVolume = async (volume: number) => {
     if (state.lastVolume !== undefined && Math.abs(state.lastVolume - volume) < 0.001) return
     state.lastVolume = volume
-    TrackPlayer.setVolume(volume)
+    try {
+        await TrackPlayer.setVolume(volume)
+    } catch {
+        state.lastVolume = undefined
+    }
 }
 
 /** Applies speed, volume and loop for the current position. */
 export const applyPlaybackRules = async (position: number) => {
     const { prefs, ranges, loop } = state
 
-    setRate(prefs.globalSpeedOnly ? prefs.speed : prefs.speed * computeSpeedFactor(position, ranges, SPEED_FADE_DURATION))
-    setVolume(computeVolume({ position, loop, ...prefs }))
+    await Promise.all([
+        setRate(prefs.globalSpeedOnly ? prefs.speed : prefs.speed * computeSpeedFactor(position, ranges, SPEED_FADE_DURATION)),
+        setVolume(computeVolume({ position, loop, ...prefs })),
+    ])
 
     const target = getLoopSeekTarget({ position, loop, leadIn: prefs.leadIn, leadOut: prefs.leadOut })
     if (target !== null) {

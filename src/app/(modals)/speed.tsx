@@ -4,13 +4,12 @@ import { t } from '@/i18n'
 import { useGlobalSpeedOnly, useSpeed } from '@/store/playbackState'
 import { modalStyles } from '@/styles'
 import Slider from '@react-native-community/slider'
-import { useRouter } from 'expo-router'
+import { useCloseModal } from '@/hooks/useCloseModal'
 import { useHeaderHeight } from 'expo-router/react-navigation'
 import React, { useState } from 'react'
 import { Button, Pressable, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native'
 
 const SpeedModal = () => {
-	const router = useRouter()
 	const headerHeight = useHeaderHeight()
 
 	const [speed, setSpeed] = useSpeed()
@@ -18,7 +17,7 @@ const SpeedModal = () => {
 	const [speedLocal, setSpeedLocal] = useState(speed ?? 1.0)
 	const [globalOnlyLocal, setGlobalOnlyLocal] = useState(globalOnly ?? false)
 
-	const close = () => (router.canGoBack() ? router.back() : router.replace('/'))
+	const close = useCloseModal()
 
 	const handleOk = () => {
 		setSpeed(clampSpeed(speedLocal))

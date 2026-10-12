@@ -12,7 +12,7 @@
     "test": "jest",
     "build:web": "expo export -p web && workbox injectManifest workbox-config.js && metro build temp/sw.js -O dist/sw.js && node scripts/postbuild-web.mjs",
     "test:e2e": "playwright test",
-    "generate:licenses": "license-kit report --format json --output ./assets/licenses.json"
+    "generate:licenses": "license-kit report --format json --output ./assets/licenses.json && node scripts/strip-licenses.mjs"
   },
   "dependencies": {
     "@expo/react-native-action-sheet": "^4.1.1",

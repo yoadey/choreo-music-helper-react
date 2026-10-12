@@ -5,9 +5,10 @@ import { t } from '@/i18n'
 import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { containerStyles, inputStyles, modalStyles } from '@/styles'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams } from 'expo-router'
+import { useCloseModal } from '@/hooks/useCloseModal'
 import { useHeaderHeight } from 'expo-router/react-navigation'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Button, Pressable, Text, TextInput, View } from 'react-native'
 
 const EditTrackForm = ({ track, onClose }: { track: TrackWithClips; onClose: () => void }) => {
@@ -44,11 +45,10 @@ const EditTrackForm = ({ track, onClose }: { track: TrackWithClips; onClose: () 
 }
 
 const EditTrackModal = () => {
-    const router = useRouter()
     const headerHeight = useHeaderHeight()
     const { trackId } = useLocalSearchParams<{ trackId: string }>()
     const track = useObservedRecord<TrackWithClips>('tracks', trackId)
-    const close = useCallback(() => (router.canGoBack() ? router.back() : router.replace('/')), [router])
+    const close = useCloseModal()
 
     useEffect(() => {
         // Unknown track (e.g. deleted or stale link after reload)

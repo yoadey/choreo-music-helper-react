@@ -8,9 +8,10 @@ import Clip from '@/model/clip'
 import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { containerStyles, inputStyles, modalStyles } from '@/styles'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams } from 'expo-router'
+import { useCloseModal } from '@/hooks/useCloseModal'
 import { useHeaderHeight } from 'expo-router/react-navigation'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Button, Pressable, Text, TextInput, View } from 'react-native'
 
 const EditClipForm = ({ clip, onClose }: { clip: Clip; onClose: () => void }) => {
@@ -63,11 +64,10 @@ const EditClipForm = ({ clip, onClose }: { clip: Clip; onClose: () => void }) =>
 }
 
 const EditClipModal = () => {
-    const router = useRouter()
     const headerHeight = useHeaderHeight()
     const { clipId } = useLocalSearchParams<{ clipId: string }>()
     const clip = useObservedRecord<Clip>('clips', clipId)
-    const close = useCallback(() => (router.canGoBack() ? router.back() : router.replace('/')), [router])
+    const close = useCloseModal()
 
     useEffect(() => {
         // Unknown clip (e.g. deleted or stale link after reload)

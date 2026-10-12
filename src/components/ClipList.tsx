@@ -1,9 +1,12 @@
 import { ClipListItem } from '@/components/ClipListItem'
 import { clipProgressFraction } from '@/helpers/miscellaneous'
+import { buildClipRanges } from '@/helpers/playback'
 import { t } from '@/i18n'
 import Clip from '@/model/clip'
 import { useGlobalSpeedOnly, useLoopEnd, useLoopStart } from '@/store/playbackState'
+import { useLoopStatusStore } from '@/store/store'
 import { utilsStyles } from '@/styles'
+import { useMemo } from 'react'
 import { FlatList, FlatListProps, Text, View } from 'react-native'
 import { useProgress } from 'react-native-track-player'
 
@@ -20,7 +23,12 @@ export const ClipsList = ({ clips, trackLength, ...flatListProps }: ClipsListPro
 	const [globalOnly] = useGlobalSpeedOnly()
 	const [loopStart] = useLoopStart()
 	const [loopEnd] = useLoopEnd()
+	const loopActive = useLoopStatusStore((state) => state.active)
+	// Both markers set, but they do not form a loop (e.g. A behind B)
+	const loopInvalid = !!loopStart && !!loopEnd && !loopActive
 	const trackEnd = duration > 0 ? duration : trackLength
+	// Same clip ranges as used for playback (clips are sorted by position)
+	const ranges = useMemo(() => buildClipRanges(clips, trackEnd), [clips, trackEnd])
 
 	return (
 		<FlatList
@@ -32,9 +40,9 @@ export const ClipsList = ({ clips, trackLength, ...flatListProps }: ClipsListPro
 			}
 			data={clips}
 			keyExtractor={(clip) => clip.id}
-			extraData={[position, globalOnly, loopStart, loopEnd, trackEnd]}
+			extraData={[position, globalOnly, loopStart, loopEnd, loopInvalid, trackEnd]}
 			renderItem={({ item: clip, index }) => {
-				const endPosition = clips[index + 1]?.position ?? trackEnd
+				const endPosition = ranges[index]?.end ?? trackEnd
 				return (
 					<ClipListItem
 						index={index}
@@ -47,6 +55,7 @@ export const ClipsList = ({ clips, trackLength, ...flatListProps }: ClipsListPro
 						showSpeed={!globalOnly}
 						isLoopStart={loopStart?.id === clip.id}
 						isLoopEnd={loopEnd?.id === clip.id}
+						loopInvalid={loopInvalid}
 					/>
 				)
 			}}

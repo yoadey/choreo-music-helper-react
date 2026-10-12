@@ -1,16 +1,15 @@
 import { sortByPosition } from '@/helpers/playback'
 import { shareTrackWithClips } from '@/helpers/share'
 import { useCurrentTrackStore } from '@/store/store'
-import { useRouter } from 'expo-router'
+import { useCloseModal } from '@/hooks/useCloseModal'
 import { useEffect } from 'react'
 
 /** Shares the current track with its clips as chapters once and returns. */
 const ShareScreen = () => {
-  const router = useRouter()
+  const close = useCloseModal()
 
   useEffect(() => {
     const currentTrack = useCurrentTrackStore.getState().currentTrack
-    const close = () => (router.canGoBack() ? router.back() : router.replace('/'))
     if (!currentTrack) {
       close()
       return
@@ -26,7 +25,7 @@ const ShareScreen = () => {
     return () => {
       cancelled = true
     }
-  }, [router])
+  }, [close])
 
   return null
 }

@@ -71,6 +71,31 @@ export const computeWaveform = (channelData: Float32Array, resolution: number): 
     return waveform
 }
 
+type NativeTag = { id: string; value: unknown }
+type ChapterFrame = { info?: { startTime?: number }; frames?: Map<string, unknown> | Record<string, unknown> }
+
+/**
+ * Chapters from the raw ID3 CHAP frames. music-metadata's format.chapters skips chapters without title,
+ * so they are read from the native tags. Returns undefined if the file has no CHAP frames.
+ */
+export const id3Chapters = (tags: readonly NativeTag[] | undefined): AudioChapter[] | undefined => {
+    const chapters = (tags ?? [])
+        .filter((tag) => tag.id === 'CHAP')
+        .map((tag) => {
+            const { info, frames } = tag.value as ChapterFrame
+            const title = frames instanceof Map ? frames.get('TIT2') : frames?.TIT2
+            return { title: typeof title === 'string' ? title : undefined, start: (info?.startTime ?? 0) / 1000 }
+        })
+        .sort((a, b) => a.start - b.start)
+    return chapters.length ? chapters : undefined
+}
+
+/** Waveform and length (ms) of the audio data. The buffer may be detached afterwards. */
+export const analyzeWaveform = async (buffer: ArrayBuffer, decode: AnalyzeDeps['decode']) => {
+    const { channelData, duration } = await decode(buffer)
+    return { waveform: computeWaveform(channelData, WAVEFORM_RESOLUTION), lengthMs: Math.round(duration * 1000) }
+}
+
 export const analyzeAudio = async (blob: Blob, name: string, deps: AnalyzeDeps): Promise<AnalyzedAudio> => {
     // Read the metadata first: decoding detaches the ArrayBuffer, it must not be used afterwards.
     let metadata: AudioMetadata = {}
@@ -79,14 +104,14 @@ export const analyzeAudio = async (blob: Blob, name: string, deps: AnalyzeDeps):
     } catch (error) {
         console.warn('Could not read audio metadata', error)
     }
-    const { channelData, duration } = await deps.decode(await blob.arrayBuffer())
+    const { waveform, lengthMs } = await analyzeWaveform(await blob.arrayBuffer(), deps.decode)
     const title = metadata.title || name
     return {
         key: makeUniqueAudioKey(name, deps.now()),
         name,
         title,
-        lengthMs: Math.round(duration * 1000),
-        waveform: computeWaveform(channelData, WAVEFORM_RESOLUTION),
+        lengthMs,
+        waveform,
         clips: chaptersToClips(metadata.chapters, title),
     }
 }

@@ -164,24 +164,23 @@ export const computeVolume = ({
 
 /**
  * Speed factor of the clips for the given position. The speed fades into the speed of the next clip
- * during the fade duration before that clip starts. Before the first clip the speed is 1.
+ * during the fade duration before that clip starts. The fade takes at most half of the current clip, so
+ * every clip (also one shorter than the fade) is played at its own speed. Before the first clip the
+ * speed is 1.
  */
 export const computeSpeedFactor = (position: number, ranges: readonly ClipRange[], fadeDuration: number): number => {
-    const lookAhead = position + fadeDuration
-    const index = ranges.findIndex((r) => lookAhead >= r.start && lookAhead < r.end)
-    if (index === -1) {
-        // Either before the first clip or (with unknown duration) nothing matches
-        const last = ranges[ranges.length - 1]
-        return last && lookAhead >= last.end ? last.speed : 1
-    }
-    const previousSpeed = index > 0 ? ranges[index - 1].speed : 1
-    return calcFade({
-        position,
-        fadeDuration,
-        fadeEnd: ranges[index].start,
-        startValue: previousSpeed,
-        endValue: ranges[index].speed,
+    let index = -1
+    ranges.forEach((range, i) => {
+        if (range.start <= position) index = i
     })
+    const currentSpeed = index >= 0 ? ranges[index].speed : 1
+    const next = ranges[index + 1]
+    if (!next) return currentSpeed
+    const sectionStart = index >= 0 ? ranges[index].start : 0
+    const sectionLength = next.start - sectionStart
+    const fade = Math.min(fadeDuration, index >= 0 ? sectionLength / 2 : sectionLength)
+    if (!(fade > 0)) return currentSpeed
+    return calcFade({ position, fadeDuration: fade, fadeEnd: next.start, startValue: currentSpeed, endValue: next.speed })
 }
 
 /** Index of the clip containing the position, -1 if before the first clip. */

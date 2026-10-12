@@ -1,4 +1,4 @@
-import type { AudioMetadata, DecodedAudio } from './audioImport'
+import { id3Chapters, type AudioMetadata, type DecodedAudio } from './audioImport'
 
 /** Low sample rate for the waveform: keeps the decoded PCM data small, which matters on mobile devices. */
 const ANALYSIS_SAMPLE_RATES = [8000, 22050, 44100]
@@ -34,9 +34,11 @@ export const decodeAudio = (buffer: ArrayBuffer): Promise<DecodedAudio> => {
 export const parseAudioMetadata = async (blob: Blob): Promise<AudioMetadata> => {
     const { parseBlob } = await import('music-metadata')
     const metadata = await parseBlob(blob, { includeChapters: true, skipCovers: true })
+    // ID3 chapters from the raw frames (keeps untitled chapters), other formats (e.g. MP4) from format.chapters
+    const nativeChapters = id3Chapters(Object.values(metadata.native).flat())
     return {
         title: metadata.common.title,
-        chapters: metadata.format.chapters?.map((chapter) => ({
+        chapters: nativeChapters ?? metadata.format.chapters?.map((chapter) => ({
             title: chapter.title,
             start: chapter.start,
             timeScale: chapter.timeScale,

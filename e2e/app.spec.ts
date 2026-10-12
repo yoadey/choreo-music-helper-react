@@ -57,6 +57,16 @@ test.describe('import', () => {
         await expect(page.getByTestId('waveform').locator('div').first()).toBeVisible()
     })
 
+    test('imports chapters without title', async ({ page }) => {
+        await importFile(page, 'untitled-chapters.mp3')
+        await expect(page.getByTestId('track-0')).toContainText('Ohne Kapiteltitel')
+        await openTab(page, 'Clips')
+        await expect(page.getByTestId('clip-0')).toContainText('Clip 1')
+        await expect(page.getByTestId('clip-1')).toContainText('Clip 2')
+        await expect(page.getByTestId('clip-1')).toContainText('0:04.0')
+        await expect(page.getByTestId('clip-2')).toContainText('Refrain')
+    })
+
     test('imports a file without chapters as one clip', async ({ page }) => {
         await importFile(page, 'plain.mp3')
         await expect(page.getByTestId('track-0')).toContainText('Ohne Kapitel')

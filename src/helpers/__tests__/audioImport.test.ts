@@ -2,7 +2,15 @@
  * @jest-environment node
  */
 import { describe, expect, it, jest } from '@jest/globals'
-import { analyzeAudio, chaptersToClips, computeWaveform, makeUniqueAudioKey, parseStoredWaveform } from '../audioImport'
+import {
+    analyzeAudio,
+    analyzeWaveform,
+    chaptersToClips,
+    computeWaveform,
+    id3Chapters,
+    makeUniqueAudioKey,
+    parseStoredWaveform,
+} from '../audioImport'
 
 /** Simulates AudioContext.decodeAudioData, which detaches the passed ArrayBuffer in all browsers. */
 const detach = (buffer: ArrayBuffer) => {
@@ -129,5 +137,42 @@ describe('parseStoredWaveform', () => {
         expect(parseStoredWaveform('{"a":1}')).toBeNull()
         expect(parseStoredWaveform('[1,')).toBeNull()
         expect(parseStoredWaveform('["x"]')).toBeNull()
+    })
+})
+
+describe('id3Chapters', () => {
+    it('keeps chapters without title (music-metadata drops them from format.chapters)', () => {
+        const tags = [
+            { id: 'TIT2', value: 'Song' },
+            { id: 'CHAP', value: { label: 'ch1', info: { startTime: 4000, endTime: 8000 }, frames: new Map() } },
+            { id: 'CHAP', value: { label: 'ch0', info: { startTime: 0, endTime: 4000 }, frames: new Map() } },
+            {
+                id: 'CHAP',
+                value: { label: 'ch2', info: { startTime: 8000, endTime: 12000 }, frames: new Map([['TIT2', 'Refrain']]) },
+            },
+        ]
+        const chapters = id3Chapters(tags)
+        expect(chapters).toEqual([
+            { title: undefined, start: 0 },
+            { title: undefined, start: 4 },
+            { title: 'Refrain', start: 8 },
+        ])
+        expect(chaptersToClips(chapters, 'Song').map((c) => c.title)).toEqual(['Clip 1', 'Clip 2', 'Refrain'])
+    })
+
+    it('returns undefined without CHAP frames', () => {
+        expect(id3Chapters([{ id: 'TIT2', value: 'Song' }])).toBeUndefined()
+        expect(id3Chapters(undefined)).toBeUndefined()
+    })
+})
+
+describe('analyzeWaveform', () => {
+    it('computes the waveform and the length in milliseconds', async () => {
+        const result = await analyzeWaveform(new ArrayBuffer(4), async () => ({
+            channelData: new Float32Array([1, 1, 1, 1]),
+            duration: 2.5004,
+        }))
+        expect(result.lengthMs).toBe(2500)
+        expect(result.waveform).toHaveLength(1000)
     })
 })

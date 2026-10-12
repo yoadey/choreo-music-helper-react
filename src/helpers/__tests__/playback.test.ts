@@ -250,6 +250,28 @@ describe('computeSpeedFactor', () => {
         expect(computeSpeedFactor(9, ranges, 2)).toBeCloseTo(1)
     })
 
+    it('plays a clip shorter than the fade at its own speed', () => {
+        const short = buildClipRanges(
+            [
+                { id: 'a', position: 0, speed: 1 },
+                { id: 'b', position: 10, speed: 0.5 },
+                { id: 'c', position: 11, speed: 1.5 },
+            ],
+            30,
+        )
+        // The first half of the short clip runs at its own speed
+        expect(computeSpeedFactor(10.25, short, 2)).toBeCloseTo(0.5)
+        expect(computeSpeedFactor(10.5, short, 2)).toBeCloseTo(0.5)
+        expect(computeSpeedFactor(11, short, 2)).toBeCloseTo(1.5)
+        // No jumps
+        let previous = computeSpeedFactor(0, short, 2)
+        for (let position = 0.001; position < 30; position += 0.001) {
+            const factor = computeSpeedFactor(position, short, 2)
+            expect(Math.abs(factor - previous)).toBeLessThanOrEqual(0.01)
+            previous = factor
+        }
+    })
+
     it('returns 1 without clips', () => {
         expect(computeSpeedFactor(9, [], 2)).toBe(1)
     })

@@ -1,5 +1,5 @@
 import { decodeAudio } from '@/helpers/audio'
-import { computeWaveform, parseStoredWaveform, WAVEFORM_RESOLUTION } from '@/helpers/audioImport'
+import { analyzeWaveform, parseStoredWaveform } from '@/helpers/audioImport'
 import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { get } from 'idb-keyval'
@@ -20,14 +20,13 @@ export const useWaveform = (track: TrackWithClips | null) => {
         const compute = async () => {
             const blob = await get<Blob>(track.uri)
             if (!blob) throw new Error(`Audio file not found: ${track.uri}`)
-            const { channelData, duration } = await decodeAudio(await blob.arrayBuffer())
-            const waveform = computeWaveform(channelData, WAVEFORM_RESOLUTION)
+            const { waveform, lengthMs } = await analyzeWaveform(await blob.arrayBuffer(), decodeAudio)
             if (!active) return
             setComputed({ trackId: track.id, waveform })
             await database.write(async () => {
                 await track.update((t) => {
                     t.waveform = JSON.stringify(waveform)
-                    t.length = Math.round(duration * 1000)
+                    t.length = lengthMs
                 })
             })
         }

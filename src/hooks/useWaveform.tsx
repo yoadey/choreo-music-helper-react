@@ -19,7 +19,7 @@ export const useWaveform = (track: TrackWithClips | null) => {
         let active = true
         const compute = async () => {
             const blob = await get<Blob>(track.uri)
-            if (!blob) return
+            if (!blob) throw new Error(`Audio file not found: ${track.uri}`)
             const { channelData, duration } = await decodeAudio(await blob.arrayBuffer())
             const waveform = computeWaveform(channelData, WAVEFORM_RESOLUTION)
             if (!active) return
@@ -31,7 +31,11 @@ export const useWaveform = (track: TrackWithClips | null) => {
                 })
             })
         }
-        compute().catch((error) => console.warn('Could not compute the waveform', error))
+        compute().catch((error) => {
+            console.warn('Could not compute the waveform', error)
+            // Show an empty waveform instead of loading forever
+            if (active) setComputed({ trackId: track.id, waveform: [] })
+        })
         return () => {
             active = false
         }

@@ -176,6 +176,34 @@ describe('createTrackLoader', () => {
         expect(env.deps.revokeObjectURL).toHaveBeenCalledWith('blob:1')
     })
 
+    it('cancels an older load that owns the player while a newer selection is still reading', async () => {
+        let releaseFirstLoad: () => void = () => undefined
+        env.deps.load.mockImplementationOnce(
+            () =>
+                new Promise<undefined>((resolve) => {
+                    releaseFirstLoad = () => resolve(undefined)
+                }),
+        )
+        let releaseSecondBlob: () => void = () => undefined
+        const loader = createTrackLoader(env.deps)
+        const first = loader.load(track('1'))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        env.deps.getBlob.mockImplementationOnce(
+            (key: string) =>
+                new Promise((resolve) => {
+                    releaseSecondBlob = () => resolve(new Blob([key]))
+                }),
+        )
+        const second = loader.load(track('2'))
+        expect(loader.cancel('1')).toBe('player')
+        releaseFirstLoad()
+        await expect(first).resolves.toBe('superseded')
+        // The newer selection is not affected
+        releaseSecondBlob()
+        await expect(second).resolves.toBe('loaded')
+        expect(env.deps.revokeObjectURL).not.toHaveBeenCalledWith('blob:2')
+    })
+
     it('uses the uri directly on native platforms', async () => {
         const loader = createTrackLoader({ ...env.deps, platform: 'android' })
         await loader.load({ id: '9', uri: 'file:///song.mp3', title: 'Song' })

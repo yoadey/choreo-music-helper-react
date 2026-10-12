@@ -1,4 +1,4 @@
-import { colors } from '@/constants/tokens'
+import { colors, TRANSPARENT } from '@/constants/tokens'
 import { confirmAction } from '@/helpers/dialogs'
 import { releaseTrack } from '@/helpers/player'
 import { t } from '@/i18n'
@@ -10,8 +10,8 @@ import { useActionSheet } from '@expo/react-native-action-sheet'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { del } from 'idb-keyval'
+import { memo } from 'react'
 import { ActivityIndicator, Platform, StyleSheet, Text, TouchableHighlight, View } from 'react-native'
-import { useIsPlaying } from 'react-native-track-player'
 
 export type TracksListItemProps = {
     track: TrackWithClips
@@ -20,6 +20,8 @@ export type TracksListItemProps = {
     color: string
     index: number
     isActive: boolean
+    /** Only relevant for the active track */
+    isPlaying: boolean
     onTrackSelect: (track: TrackWithClips) => void
 }
 
@@ -27,12 +29,19 @@ const removeStoredFile = async (key: string) => {
     if (Platform.OS === 'web') await del(key)
 }
 
-export const TracksListItem = ({ track, title, color, index, isActive, onTrackSelect }: TracksListItemProps) => {
-    const { playing } = useIsPlaying()
+export const TracksListItem = memo(function TracksListItem({
+    track,
+    title,
+    color,
+    index,
+    isActive,
+    isPlaying,
+    onTrackSelect,
+}: TracksListItemProps) {
     const { showActionSheetWithOptions } = useActionSheet()
     const router = useRouter()
     const displayTitle = title || t.untitledTrack
-    const backgroundColor = color || '#00000000'
+    const backgroundColor = color || TRANSPARENT
 
     const handleDelete = async () => {
         if (!(await confirmAction(t.confirmDeleteTrack(displayTitle)))) return
@@ -78,7 +87,7 @@ export const TracksListItem = ({ track, title, color, index, isActive, onTrackSe
                         </Text>
                     </View>
                     {isActive &&
-                        (playing ? (
+                        (isPlaying ? (
                             <ActivityIndicator size="small" color={colors.icon} testID="active-track-playing" />
                         ) : (
                             <Ionicons name="play" size={24} color={colors.icon} testID="active-track" />
@@ -87,7 +96,7 @@ export const TracksListItem = ({ track, title, color, index, isActive, onTrackSe
             </View>
         </TouchableHighlight>
     )
-}
+})
 
 const styles = StyleSheet.create({
     trackItemContainer: {

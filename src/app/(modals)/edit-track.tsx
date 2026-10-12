@@ -1,5 +1,5 @@
 import { ColorPicker } from '@/components/ColorPicker'
-import { colors, colorSwatches } from '@/constants/tokens'
+import { colors, colorSwatches, TRANSPARENT } from '@/constants/tokens'
 import { useObservedRecord } from '@/hooks/useObservedRecord'
 import { t } from '@/i18n'
 import { database } from '@/model/index.web'
@@ -12,7 +12,7 @@ import { Button, Pressable, Text, TextInput, View } from 'react-native'
 
 const EditTrackForm = ({ track, onClose }: { track: TrackWithClips; onClose: () => void }) => {
     const [title, setTitle] = useState(track.title)
-    const [color, setColor] = useState(track.color || '#00000000')
+    const [color, setColor] = useState(track.color || TRANSPARENT)
 
     const handleOk = async () => {
         await database.write(async () => {

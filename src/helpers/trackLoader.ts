@@ -34,32 +34,27 @@ export const createTrackLoader = (deps: TrackLoaderDeps) => {
     let currentUrl: string | undefined
     // Latest selection
     let requested = 0
-    // Selection that last reset the player, ownerIsLoad is false after cancel/unload
+    // Load that currently owns the player, 0 after cancel/unload
     let playerOwner = 0
-    let ownerIsLoad = false
-    let pending: { generation: number; trackId: string; stage: Exclude<PendingStage, 'none'> } | undefined
+    // Loads in progress and loads cancelled while reading their file
+    const inFlight = new Map<number, { trackId: string; stage: Exclude<PendingStage, 'none'> }>()
+    const cancelled = new Set<number>()
 
     const releaseCurrentUrl = () => {
         if (currentUrl) deps.revokeObjectURL(currentUrl)
         currentUrl = undefined
     }
 
-    /** Takes the player away from any running load, nobody owns it afterwards. */
-    const disown = () => {
-        requested++
-        playerOwner = requested
-        ownerIsLoad = false
-        pending = undefined
-    }
-
     return {
         async load(track: LoadableTrack): Promise<LoadResult> {
             const generation = ++requested
-            pending = { generation, trackId: track.id, stage: 'reading' }
+            inFlight.set(generation, { trackId: track.id, stage: 'reading' })
             const done = (result: LoadResult) => {
-                if (pending?.generation === generation) pending = undefined
+                inFlight.delete(generation)
+                cancelled.delete(generation)
                 return result
             }
+            const isOutdated = () => generation !== requested || cancelled.has(generation)
             let url = track.uri
             let objectUrl: string | undefined
             const releaseObjectUrl = () => {
@@ -72,9 +67,9 @@ export const createTrackLoader = (deps: TrackLoaderDeps) => {
                     blob = await deps.getBlob(track.uri)
                 } catch (error) {
                     console.warn(`Could not read ${track.uri}`, error)
-                    return done(generation !== requested ? 'superseded' : 'unreadable')
+                    return done(isOutdated() ? 'superseded' : 'unreadable')
                 }
-                if (generation !== requested) return done('superseded')
+                if (isOutdated()) return done('superseded')
                 if (!blob) return done('missing')
                 objectUrl = deps.createObjectURL(blob)
                 url = objectUrl
@@ -82,14 +77,13 @@ export const createTrackLoader = (deps: TrackLoaderDeps) => {
 
             // From here on this load owns the player
             playerOwner = generation
-            ownerIsLoad = true
-            if (pending?.generation === generation) pending.stage = 'player'
+            inFlight.set(generation, { trackId: track.id, stage: 'player' })
             const ownsPlayer = () => playerOwner === generation
 
             const superseded = async () => {
                 releaseObjectUrl()
                 // Cancelled without a newer load: do not leave this (e.g. deleted) track in the player
-                if (!ownerIsLoad) await deps.reset()
+                if (playerOwner === 0) await deps.reset()
                 return done('superseded')
             }
 
@@ -113,23 +107,27 @@ export const createTrackLoader = (deps: TrackLoaderDeps) => {
         },
 
         /**
-         * Cancels a pending load of the track (e.g. because it is deleted). Returns the stage it was in:
-         * "player" means the player was already reset for it, so the previous track is not loaded anymore.
+         * Cancels all loads of the track that are in progress (e.g. because it is deleted). Returns "player"
+         * if one of them already owns the player (so the previous track is not loaded anymore), "reading"
+         * if a load was still reading the file, otherwise "none". Loads of other tracks are not affected.
          */
         cancel(trackId: string): PendingStage {
-            if (!pending || pending.trackId !== trackId) return 'none'
-            const { stage } = pending
-            if (stage === 'player') {
-                disown()
-            } else {
-                requested++
-                pending = undefined
+            let result: PendingStage = 'none'
+            for (const [generation, load] of inFlight) {
+                if (load.trackId !== trackId) continue
+                if (load.stage === 'reading') {
+                    cancelled.add(generation)
+                    if (result === 'none') result = 'reading'
+                } else if (playerOwner === generation) {
+                    playerOwner = 0
+                    result = 'player'
+                }
             }
-            return stage
+            return result
         },
 
         async unload() {
-            disown()
+            playerOwner = 0
             await deps.reset()
             releaseCurrentUrl()
         },

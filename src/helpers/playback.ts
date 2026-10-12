@@ -134,6 +134,8 @@ export const computeVolume = ({
     leadOutVolume: number
 }): number => {
     if (!loop) return 1
+    // The lead in cannot start before the track (the player jumps to max(start - leadIn, 0))
+    leadIn = Math.min(leadIn, Math.max(loop.start, 0))
     const loopLength = loop.end - loop.start
     const first = loop.start - leadIn
     const last = loop.end + leadOut

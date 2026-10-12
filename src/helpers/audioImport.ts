@@ -4,7 +4,7 @@
  */
 
 export const WAVEFORM_RESOLUTION = 1000
-export const TRANSPARENT = '#00000000'
+import { TRANSPARENT } from '@/constants/tokens'
 
 export type ImportedClip = { title: string; position: number; color: string }
 

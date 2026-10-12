@@ -1,4 +1,4 @@
-import { colors } from '@/constants/tokens'
+import { colors, TRANSPARENT } from '@/constants/tokens'
 import { useCurrentTrack } from '@/hooks/useCurrentTrack'
 import { t } from '@/i18n'
 import Clip from '@/model/clip'
@@ -20,7 +20,7 @@ export const PlayerAddClipButton = ({ ...iconProps }: IconProps) => {
             await database.get<Clip>('clips').create((clip) => {
                 clip.track.set(currentTrack)
                 clip.title = t.newClip
-                clip.color = '#00000000'
+                clip.color = TRANSPARENT
                 clip.position = position
                 clip.speed = 1
             })

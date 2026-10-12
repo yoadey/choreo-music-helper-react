@@ -195,6 +195,19 @@ describe('computeVolume continuity', () => {
         })
     }
 
+    it('has no jump when the lead-in reaches past the track start (jump target is 0)', () => {
+        const base = { loop: { start: 2, end: 20 }, leadIn: 5, leadOut: 0, leadInVolume: 0.2, leadOutVolume: 0.6 }
+        // The player jumps from the loop end to max(start - leadIn, 0) = 0
+        expect(computeVolume({ ...base, position: 0 })).toBeCloseTo(computeVolume({ ...base, position: 20 }), 5)
+        let previous = computeVolume({ ...base, position: 0 })
+        for (let position = 0.001; position <= 20; position += 0.001) {
+            const volume = computeVolume({ ...base, position })
+            expect(Math.abs(volume - previous)).toBeLessThanOrEqual(0.01)
+            previous = volume
+        }
+        expect(computeVolume({ ...base, position: 1 })).toBeCloseTo(0.2, 1)
+    })
+
     it('never applies the lead-in volume inside the loop', () => {
         const base = { loop, leadIn: 0, leadOut: 0, leadInVolume: 0.2, leadOutVolume: 1 }
         for (let position = 10; position <= 20; position += 0.25) {

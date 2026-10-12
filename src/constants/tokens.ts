@@ -25,9 +25,12 @@ export const screenPadding = {
 	horizontal: 24,
 }
 
+/** Color value for tracks and clips without color */
+export const TRANSPARENT = '#00000000'
+
 /** Colors selectable for tracks and clips. The first one is transparent (no color). */
 export const colorSwatches = [
-	'#00000000',
+	TRANSPARENT,
 	'#AFB42B',
 	'#E64A19',
 	'#C2185B',

@@ -38,9 +38,7 @@ export const database = new Database({
 type Loki = { saveDatabase: (callback?: (error?: unknown) => void) => void }
 
 /** The LokiJS instance (only reachable without web worker, which is the configuration used here). */
-const getLoki = (): Loki | undefined =>
-    (adapter as unknown as { _dispatcher?: { _worker?: { _bridge?: { driver?: { loki?: Loki } } } } })._dispatcher
-        ?._worker?._bridge?.driver?.loki
+const getLoki = (): Loki | undefined => (adapter as unknown as { _driver?: { loki?: Loki } })._driver?.loki
 
 /**
  * Writes pending changes to IndexedDB. LokiJS only autosaves every 500 ms, so changes made right before

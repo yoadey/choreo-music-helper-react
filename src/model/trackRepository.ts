@@ -1,5 +1,5 @@
 import type { AnalyzedAudio } from '@/helpers/audioImport'
-import { TRANSPARENT } from '@/helpers/audioImport'
+import { TRANSPARENT } from '@/constants/tokens'
 import type { Database } from '@nozbe/watermelondb'
 import Clip from './clip'
 import TrackWithClips from './track'

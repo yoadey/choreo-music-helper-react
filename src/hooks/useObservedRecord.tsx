@@ -17,6 +17,8 @@ export const useObservedRecord = <T extends Model>(table: string, id: string | u
             .subscribe({
                 next: (record) => setState({ id, record }),
                 error: () => setState({ id, record: null }),
+                // WatermelonDB completes the observable when the record is deleted
+                complete: () => setState({ id, record: null }),
             })
         return () => subscription.unsubscribe()
     }, [table, id])

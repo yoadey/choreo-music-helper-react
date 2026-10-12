@@ -332,6 +332,11 @@ test.describe('hosting', () => {
                 ),
             )
             .toEqual(expect.arrayContaining([expect.stringMatching(/material/), expect.stringMatching(/fontawesome6/)]))
+        // The licenses are available offline as well
+        await page.getByRole('button', { name: /Show navigation menu|Navigationsmenü/ }).click()
+        await page.getByText('Info', { exact: true }).click()
+        await page.getByText('Lizenzen', { exact: true }).click()
+        await expect(page.getByText(/^@babel\/core \(/)).toBeVisible()
         await context.setOffline(false)
     })
 

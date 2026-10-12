@@ -2,6 +2,7 @@ import ColorPicker from '@/components/ColorPicker'
 import SpeedEditor from '@/components/SpeedEditor'
 import TimeEditor from '@/components/TimeEditor'
 import { colors, colorSwatches } from '@/constants/tokens'
+import { showMessage } from '@/helpers/dialogs'
 import { useObservedRecord } from '@/hooks/useObservedRecord'
 import { t } from '@/i18n'
 import Clip from '@/model/clip'
@@ -29,15 +30,20 @@ const EditClipForm = ({ clip, onClose }: { clip: Clip; onClose: () => void }) =>
     }, [clip])
 
     const handleOk = async () => {
-        await database.write(async () => {
-            await clip.update((c) => {
-                c.title = title
-                c.position = position
-                c.color = color
-                c.speed = speed
+        try {
+            await database.write(async () => {
+                await clip.update((c) => {
+                    c.title = title
+                    c.position = position
+                    c.color = color
+                    c.speed = speed
+                })
             })
-        })
-        onClose()
+            onClose()
+        } catch (error) {
+            console.warn('Could not save the clip', error)
+            showMessage(t.saveFailed)
+        }
     }
 
     return (

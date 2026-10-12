@@ -1,7 +1,7 @@
 import { colors } from '@/constants/tokens'
 import { t } from '@/i18n'
 import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, FlatList, Linking, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Button, FlatList, Linking, StyleSheet, Text, View } from 'react-native'
 
 type LicenseEntry = {
   name: string
@@ -36,6 +36,8 @@ const LicenseItem = React.memo(function LicenseItem({ info }: { info: LicenseEnt
 
 export default function LicensesScreen() {
   const [licenses, setLicenses] = useState<[string, LicenseEntry][] | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     import('../../assets/licenses.json')
@@ -43,8 +45,26 @@ export default function LicensesScreen() {
         const data = (module.default ?? module) as unknown as Record<string, LicenseEntry>
         setLicenses(Object.entries(data).sort(([a], [b]) => a.localeCompare(b)))
       })
-      .catch((err) => console.error('Could not load the licenses', err))
-  }, [])
+      .catch((err) => {
+        console.error('Could not load the licenses', err)
+        setFailed(true)
+      })
+  }, [attempt])
+
+  if (failed) {
+    return (
+      <View style={styles.screen}>
+        <Text style={[styles.text, styles.item]}>{t.licensesUnavailable}</Text>
+        <Button
+          title={t.retry}
+          onPress={() => {
+            setFailed(false)
+            setAttempt((value) => value + 1)
+          }}
+        />
+      </View>
+    )
+  }
 
   if (!licenses) {
     return (

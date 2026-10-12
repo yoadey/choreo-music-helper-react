@@ -1,5 +1,5 @@
 import { colors } from '@/constants/tokens'
-import { parseDurationInput } from '@/helpers/miscellaneous'
+import { parseDurationInput, stepSeconds } from '@/helpers/miscellaneous'
 import { defaultStyles, inputStyles, modalStyles } from '@/styles'
 import Slider from '@react-native-community/slider'
 import React, { useState } from 'react'
@@ -32,7 +32,7 @@ export const DurationVolumeComponent: React.FC<Props> = ({
     }
 
     const changeSeconds = (delta: number) => {
-        onSecondsChange(Math.max(0, seconds + delta))
+        onSecondsChange(stepSeconds(seconds, delta))
     }
 
     return (

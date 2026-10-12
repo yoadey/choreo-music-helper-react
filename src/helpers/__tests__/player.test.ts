@@ -156,3 +156,30 @@ describe('releaseTrack (before deleting a track)', () => {
         expect(URL.revokeObjectURL).not.toHaveBeenCalledWith('blob:2')
     })
 })
+
+describe('restoreLastTrack', () => {
+    const databaseWith = (fetch: () => Promise<unknown[]>) =>
+        ({ get: () => ({ query: () => ({ fetch }) }) }) as never
+
+    it('restores the last track', async () => {
+        m.prefs.setLastTrack('1')
+        await m.player.restoreLastTrack(databaseWith(async () => [track('1')]))
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('1'))
+    })
+
+    it('forgets the last track when it was deleted', async () => {
+        m.prefs.setLastTrack('1')
+        await m.player.restoreLastTrack(databaseWith(async () => []))
+        expect(m.prefs.getLastTrack()).toBeUndefined()
+    })
+
+    it('keeps the last track when the database cannot be read this time', async () => {
+        m.prefs.setLastTrack('1')
+        await m.player.restoreLastTrack(
+            databaseWith(async () => {
+                throw new Error('IndexedDB blocked')
+            }),
+        )
+        expect(m.prefs.getLastTrack()).toBe('1')
+    })
+})

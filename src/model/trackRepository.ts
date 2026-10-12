@@ -29,6 +29,22 @@ export const createTrackWithClips = async (database: Database, audio: Omit<Analy
         return track
     })
 
+/** Creates a clip with the default values (no color, normal speed). */
+export const createClip = async (
+    database: Database,
+    track: TrackWithClips,
+    { title, position }: { title: string; position: number },
+) =>
+    database.write(async () =>
+        database.get<Clip>('clips').create((clip) => {
+            clip.track.set(track)
+            clip.title = title
+            clip.position = position
+            clip.color = TRANSPARENT
+            clip.speed = 1
+        }),
+    )
+
 /** Deletes the track with all its clips and the stored audio file. */
 export const deleteTrack = async (
     database: Database,

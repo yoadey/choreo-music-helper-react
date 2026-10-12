@@ -4,7 +4,7 @@ import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs'
 import Clip from '../clip'
 import schema from '../schema'
 import TrackWithClips from '../track'
-import { createTrackWithClips, deleteClip, deleteTrack } from '../trackRepository'
+import { createClip, createTrackWithClips, deleteClip, deleteTrack } from '../trackRepository'
 
 const createTestDatabase = () =>
     new Database({
@@ -64,5 +64,13 @@ describe('trackRepository', () => {
         const [clip] = await track.clips.fetch()
         await deleteClip(database, clip)
         expect(await track.clips.fetchCount()).toBe(1)
+    })
+
+    it('creates a clip with the default values', async () => {
+        const track = await createTrackWithClips(database, imported)
+        await createClip(database, track, { title: 'Neu', position: 20.5 })
+        const clips = await track.clips.fetch()
+        const clip = clips.find((c) => c.title === 'Neu')!
+        expect([clip.position, clip.speed, clip.color]).toEqual([20.5, 1, '#00000000'])
     })
 })

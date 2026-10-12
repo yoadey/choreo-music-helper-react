@@ -3,6 +3,7 @@ import { ensurePlayerSetup } from '@/helpers/playerSetup'
 import { createTrackLoader } from '@/helpers/trackLoader'
 import { t } from '@/i18n'
 import TrackWithClips from '@/model/track'
+import { Q, type Database } from '@nozbe/watermelondb'
 import { clearLastTrack, clearLoop, getLastTrack, setLastTrack } from '@/store/playbackState'
 import { useCurrentTrackStore } from '@/store/store'
 import { get } from 'idb-keyval'
@@ -54,6 +55,27 @@ export const selectTrack = async (track: TrackWithClips, { silent = false } = {}
     setLastTrack(track.id)
     useCurrentTrackStore.getState().setCurrentTrack(track)
     return true
+}
+
+/**
+ * Restores the track selected before the app was closed. The preference is only cleared when the track
+ * no longer exists, not when the database could not be read this time.
+ */
+export const restoreLastTrack = async (database: Database) => {
+    const trackId = getLastTrack()
+    if (!trackId) return
+    let tracks: TrackWithClips[]
+    try {
+        tracks = await database.get<TrackWithClips>('tracks').query(Q.where('id', trackId)).fetch()
+    } catch (error) {
+        console.warn('Could not restore the last track', error)
+        return
+    }
+    if (tracks.length === 0) {
+        clearLastTrack()
+        return
+    }
+    await selectTrack(tracks[0], { silent: true })
 }
 
 /** Unloads the current track, e.g. after it was deleted. */

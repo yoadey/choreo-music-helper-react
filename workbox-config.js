@@ -5,8 +5,7 @@ module.exports = {
 		// Only the icon fonts used by the app, the other ones are loaded on demand
 		'assets/**/{FontAwesome6_Solid,FontAwesome6_Regular,MaterialCommunityIcons,Ionicons}.*.ttf',
 	],
-	// The licenses chunk is large and rarely used, it is cached on demand
-	globIgnores: ['sw.js', '404.html', 'metadata.json', '_expo/static/js/web/licenses-*.js'],
+	globIgnores: ['sw.js', '404.html', 'metadata.json'],
 	swSrc: 'src/sw.js',
 	swDest: 'temp/sw.js',
 	injectionPoint: 'self.__WB_MANIFEST',

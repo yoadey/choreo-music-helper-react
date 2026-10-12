@@ -1,8 +1,8 @@
-import { colors, TRANSPARENT } from '@/constants/tokens'
+import { colors } from '@/constants/tokens'
 import { useCurrentTrack } from '@/hooks/useCurrentTrack'
 import { t } from '@/i18n'
-import Clip from '@/model/clip'
 import { database } from '@/model/index.web'
+import { createClip } from '@/model/trackRepository'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { ComponentProps } from 'react'
 import { TouchableOpacity } from 'react-native'
@@ -16,15 +16,7 @@ export const PlayerAddClipButton = ({ ...iconProps }: IconProps) => {
     const addClipToTrack = async () => {
         if (!currentTrack) return
         const { position } = await TrackPlayer.getProgress()
-        await database.write(async () => {
-            await database.get<Clip>('clips').create((clip) => {
-                clip.track.set(currentTrack)
-                clip.title = t.newClip
-                clip.color = TRANSPARENT
-                clip.position = position
-                clip.speed = 1
-            })
-        })
+        await createClip(database, currentTrack, { title: t.newClip, position })
     }
 
     return (

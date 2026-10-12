@@ -1,7 +1,8 @@
 import logo from '@/assets/logo192.png'
 import { jumpBy, skipToNextClip, skipToPreviousClip, stopPlayback } from '@/constants/playbackService'
 import { useEffect } from 'react'
-import TrackPlayer, { useIsPlaying, useProgress } from 'react-native-track-player'
+import { usePlayerProgressStore } from '@/store/progress'
+import TrackPlayer, { useIsPlaying } from 'react-native-track-player'
 import { useCurrentTrack } from './useCurrentTrack'
 
 type Handler = MediaSessionActionHandler | null
@@ -29,7 +30,9 @@ const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
 export const useMediaSession = () => {
     const { currentTrack } = useCurrentTrack()
     const { playing } = useIsPlaying()
-    const { position, duration } = useProgress(1000)
+    // Whole seconds suffice, the OS extrapolates the position in between
+    const position = usePlayerProgressStore((progress) => Math.floor(progress.position))
+    const duration = usePlayerProgressStore((progress) => progress.duration)
     const title = currentTrack?.title
     const supported = typeof navigator !== 'undefined' && 'mediaSession' in navigator
 

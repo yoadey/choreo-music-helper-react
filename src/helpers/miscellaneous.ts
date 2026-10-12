@@ -31,3 +31,6 @@ export const parseDurationInput = (text: string): number | null => {
     const value = Number(trimmed)
     return Number.isFinite(value) ? value : null
 }
+
+/** Adds delta to a number of seconds (tenths precision, never negative) */
+export const stepSeconds = (seconds: number, delta: number) => Math.max(0, Math.round((seconds + delta) * 10) / 10)

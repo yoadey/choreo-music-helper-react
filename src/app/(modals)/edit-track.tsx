@@ -1,5 +1,6 @@
 import { ColorPicker } from '@/components/ColorPicker'
 import { colors, colorSwatches, TRANSPARENT } from '@/constants/tokens'
+import { showMessage } from '@/helpers/dialogs'
 import { useObservedRecord } from '@/hooks/useObservedRecord'
 import { t } from '@/i18n'
 import { database } from '@/model/index.web'
@@ -16,13 +17,18 @@ const EditTrackForm = ({ track, onClose }: { track: TrackWithClips; onClose: () 
     const [color, setColor] = useState(track.color || TRANSPARENT)
 
     const handleOk = async () => {
-        await database.write(async () => {
-            await track.update((tr) => {
-                tr.title = title
-                tr.color = color
+        try {
+            await database.write(async () => {
+                await track.update((tr) => {
+                    tr.title = title
+                    tr.color = color
+                })
             })
-        })
-        onClose()
+            onClose()
+        } catch (error) {
+            console.warn('Could not save the track', error)
+            showMessage(t.saveFailed)
+        }
     }
 
     return (

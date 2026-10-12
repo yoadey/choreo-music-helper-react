@@ -4,11 +4,13 @@ import { useCurrentTrack } from '@/hooks/useCurrentTrack'
 import { useWaveform } from '@/hooks/useWaveform'
 import { defaultStyles } from '@/styles'
 import { StyleSheet, Text, View, ViewProps } from 'react-native'
-import TrackPlayer, { useProgress } from 'react-native-track-player'
+import { usePlayerProgressStore } from '@/store/progress'
+import TrackPlayer from 'react-native-track-player'
 import WaveformView from './waveform/WaveformView'
 
 export const PlayerProgressBar = ({ style }: ViewProps) => {
-	const { duration, position } = useProgress(50)
+	const position = usePlayerProgressStore((progress) => progress.position)
+	const duration = usePlayerProgressStore((progress) => progress.duration)
 	const { currentTrack } = useCurrentTrack()
 	const waveform = useWaveform(currentTrack)
 

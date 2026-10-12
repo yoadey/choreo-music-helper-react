@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals'
-import { clipProgressFraction, formatClipTime, formatSecondsToMinutes, parseDurationInput } from '../miscellaneous'
+import { clipProgressFraction, formatClipTime, formatSecondsToMinutes, parseDurationInput, stepSeconds } from '../miscellaneous'
 import { MAX_SPEED, MIN_SPEED, sliderToSpeed, speedToSlider, stepSpeed } from '../speed'
 
 describe('speed slider mapping', () => {
@@ -68,5 +68,18 @@ describe('time formatting', () => {
     it('never shows negative or NaN remaining times', () => {
         expect(formatSecondsToMinutes(-0.2)).toBe('00:00')
         expect(formatSecondsToMinutes(Number.NaN)).toBe('00:00')
+    })
+})
+
+describe('stepSeconds', () => {
+    it('avoids floating point noise', () => {
+        expect(stepSeconds(2.3, -1)).toBe(1.3)
+        let value = 5.3
+        for (let i = 0; i < 5; i++) value = stepSeconds(value, -1)
+        expect(value).toBe(0.3)
+    })
+
+    it('never goes below zero', () => {
+        expect(stepSeconds(0.5, -1)).toBe(0)
     })
 })

@@ -1,16 +1,15 @@
 import { playbackService } from '@/constants/playbackService'
 import { colors } from '@/constants/tokens'
-import { selectTrack } from '@/helpers/player'
+import { restoreLastTrack } from '@/helpers/player'
 import { useMediaSession } from '@/hooks/useMediaSession'
 import { useSetupTrackPlayer } from '@/hooks/useSetupTrackPlayer'
 import { t } from '@/i18n'
 import { database } from '@/model/index.web'
-import TrackWithClips from '@/model/track'
-import { clearLastTrack, getLastTrack } from '@/store/playbackState'
 import { ActionSheetProvider } from '@expo/react-native-action-sheet'
 import { SplashScreen, Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import { useCallback } from 'react'
+import { startProgressPolling } from '@/store/progress'
+import { useCallback, useEffect } from 'react'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import TrackPlayer from 'react-native-track-player'
@@ -18,18 +17,6 @@ import TrackPlayer from 'react-native-track-player'
 SplashScreen.preventAutoHideAsync()
 
 TrackPlayer.registerPlaybackService(() => playbackService)
-
-const restoreLastTrack = async () => {
-    const trackId = getLastTrack()
-    if (!trackId) return
-    try {
-        const track = await database.get<TrackWithClips>('tracks').find(trackId)
-        await selectTrack(track, { silent: true })
-    } catch {
-        // The track was deleted
-        clearLastTrack()
-    }
-}
 
 /** Separate component, so the frequent progress updates of the media session do not re-render the app. */
 const MediaSession = () => {
@@ -41,11 +28,13 @@ const App = () => {
     const handleTrackPlayerLoaded = useCallback((success: boolean) => {
         SplashScreen.hideAsync()
         if (success) {
-            restoreLastTrack()
+            restoreLastTrack(database)
         }
     }, [])
 
     useSetupTrackPlayer({ onLoad: handleTrackPlayerLoaded })
+    // One progress poll for the whole app, components subscribe to the store
+    useEffect(() => startProgressPolling(50), [])
 
     return (
         <SafeAreaProvider>

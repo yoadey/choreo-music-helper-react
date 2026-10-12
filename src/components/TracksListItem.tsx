@@ -1,5 +1,5 @@
 import { colors, TRANSPARENT } from '@/constants/tokens'
-import { confirmAction } from '@/helpers/dialogs'
+import { confirmAction, showMessage } from '@/helpers/dialogs'
 import { releaseTrack } from '@/helpers/player'
 import { t } from '@/i18n'
 import { database } from '@/model/index.web'
@@ -45,8 +45,13 @@ export const TracksListItem = memo(function TracksListItem({
 
     const handleDelete = async () => {
         if (!(await confirmAction(t.confirmDeleteTrack(displayTitle)))) return
-        await releaseTrack(track.id)
-        await deleteTrack(database, track, removeStoredFile)
+        try {
+            await releaseTrack(track.id)
+            await deleteTrack(database, track, removeStoredFile)
+        } catch (error) {
+            console.warn('Could not delete the track', error)
+            showMessage(t.deleteFailed)
+        }
     }
 
     const handleLongPress = () => {

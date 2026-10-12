@@ -3,14 +3,12 @@ import { colors } from '@/constants/tokens'
 import { t } from '@/i18n'
 import { useLeadInDuration, useLeadInVolume, useLeadOutDuration, useLeadOutVolume } from '@/store/playbackState'
 import { modalStyles } from '@/styles'
+import { ModalScreen } from '@/components/ModalScreen'
 import { useCloseModal } from '@/hooks/useCloseModal'
-import { useHeaderHeight } from 'expo-router/react-navigation'
 import React, { useState } from 'react'
-import { Button, Pressable, Text, View } from 'react-native'
+import { Button, Text, View } from 'react-native'
 
 const LoopModal = () => {
-	const headerHeight = useHeaderHeight()
-
 	const [leadInDuration, setLeadInDuration] = useLeadInDuration()
 	const [leadInVolume, setLeadInVolume] = useLeadInVolume()
 	const [leadOutDuration, setLeadOutDuration] = useLeadOutDuration()
@@ -31,9 +29,7 @@ const LoopModal = () => {
 	}
 
 	return (
-		<View style={[modalStyles.modalContainer, { paddingTop: headerHeight }]}>
-			<Pressable style={modalStyles.backdrop} onPress={close} />
-
+		<ModalScreen onClose={close}>
 			<View style={modalStyles.modal}>
 				<Text style={modalStyles.title}>{t.preparationTime}</Text>
 				<DurationVolumeComponent
@@ -56,7 +52,7 @@ const LoopModal = () => {
 					<Button title={t.ok} onPress={handleOk} color={colors.primary} testID="loop-ok" />
 				</View>
 			</View>
-		</View>
+		</ModalScreen>
 	)
 }
 

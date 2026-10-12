@@ -5,6 +5,11 @@ import TrackWithClips from '@/model/track'
 import { get } from 'idb-keyval'
 import { useEffect, useMemo, useState } from 'react'
 
+// Tracks whose waveform could not be computed: not retried during this session (a failing decode
+// of a large file costs a lot of memory and time)
+const failedTracks = new Set<string>()
+const NO_WAVEFORM: number[] = []
+
 /**
  * The waveform of the track. Uses the stored waveform, otherwise it is computed from the stored audio file
  * once and saved with the track. Returns null while loading.
@@ -15,7 +20,7 @@ export const useWaveform = (track: TrackWithClips | null) => {
     const [computed, setComputed] = useState<{ trackId: string; waveform: number[] }>()
 
     useEffect(() => {
-        if (!track || stored) return
+        if (!track || stored || failedTracks.has(track.id)) return
         let active = true
         const compute = async () => {
             const blob = await get<Blob>(track.uri)
@@ -23,17 +28,23 @@ export const useWaveform = (track: TrackWithClips | null) => {
             const { waveform, lengthMs } = await analyzeWaveform(await blob.arrayBuffer(), decodeAudio)
             if (!active) return
             setComputed({ trackId: track.id, waveform })
-            await database.write(async () => {
-                await track.update((t) => {
-                    t.waveform = JSON.stringify(waveform)
-                    t.length = lengthMs
+            try {
+                await database.write(async () => {
+                    await track.update((t) => {
+                        t.waveform = JSON.stringify(waveform)
+                        t.length = lengthMs
+                    })
                 })
-            })
+            } catch (error) {
+                // E.g. the track was deleted meanwhile, the computed waveform is still shown
+                console.warn('Could not store the waveform', error)
+            }
         }
         compute().catch((error) => {
             console.warn('Could not compute the waveform', error)
+            failedTracks.add(track.id)
             // Show an empty waveform instead of loading forever
-            if (active) setComputed({ trackId: track.id, waveform: [] })
+            if (active) setComputed({ trackId: track.id, waveform: NO_WAVEFORM })
         })
         return () => {
             active = false
@@ -41,5 +52,6 @@ export const useWaveform = (track: TrackWithClips | null) => {
     }, [track, stored])
 
     if (stored) return stored
-    return computed && computed.trackId === track?.id ? computed.waveform : null
+    if (computed && computed.trackId === track?.id) return computed.waveform
+    return track && failedTracks.has(track.id) ? NO_WAVEFORM : null
 }

@@ -4,14 +4,12 @@ import { t } from '@/i18n'
 import { useGlobalSpeedOnly, useSpeed } from '@/store/playbackState'
 import { modalStyles } from '@/styles'
 import Slider from '@react-native-community/slider'
+import { ModalScreen } from '@/components/ModalScreen'
 import { useCloseModal } from '@/hooks/useCloseModal'
-import { useHeaderHeight } from 'expo-router/react-navigation'
 import React, { useState } from 'react'
-import { Button, Pressable, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native'
+import { Button, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native'
 
 const SpeedModal = () => {
-	const headerHeight = useHeaderHeight()
-
 	const [speed, setSpeed] = useSpeed()
 	const [globalOnly, setGlobalOnly] = useGlobalSpeedOnly()
 	const [speedLocal, setSpeedLocal] = useState(speed ?? 1.0)
@@ -26,9 +24,7 @@ const SpeedModal = () => {
 	}
 
 	return (
-		<View style={[modalStyles.modalContainer, { paddingTop: headerHeight }]}>
-			<Pressable style={modalStyles.backdrop} onPress={close} />
-
+		<ModalScreen onClose={close}>
 			<View style={modalStyles.modal}>
 				<Text style={modalStyles.title}>{t.speed}</Text>
 				<Text style={styles.currentSpeedText} testID="speed-value">
@@ -82,7 +78,7 @@ const SpeedModal = () => {
 					<Button title={t.ok} onPress={handleOk} color={colors.primary} testID="speed-ok" />
 				</View>
 			</View>
-		</View>
+		</ModalScreen>
 	)
 }
 

@@ -1,6 +1,7 @@
 import { decodeAudio, parseAudioMetadata, requestPersistentStorage } from '@/helpers/audio'
 import { analyzeAudio, chaptersToClips } from '@/helpers/audioImport'
 import { selectTrack } from '@/helpers/player'
+import { t } from '@/i18n'
 import { database } from '@/model/index.web'
 import { createTrackWithClips } from '@/model/trackRepository'
 import * as DocumentPicker from 'expo-document-picker'
@@ -13,12 +14,15 @@ const importWebFile = async (asset: DocumentPicker.DocumentPickerAsset) => {
 		now: Date.now,
 		parseMetadata: parseAudioMetadata,
 		decode: decodeAudio,
+		untitledChapter: t.numberedClip,
 	})
-	await requestPersistentStorage()
 	await set(audio.key, blob)
 	try {
 		// Persisted right away by the change subscription in model/index.web
-		return await createTrackWithClips(database, audio)
+		const track = await createTrackWithClips(database, audio)
+		// Not awaited: some browsers ask the user and may never answer
+		requestPersistentStorage().catch(() => undefined)
+		return track
 	} catch (error) {
 		// Do not leave an orphaned file behind
 		await del(audio.key)
@@ -34,6 +38,10 @@ const importNativeFile = (asset: DocumentPicker.DocumentPickerAsset) =>
 		waveform: [],
 		clips: chaptersToClips(undefined, asset.name),
 	})
+
+/** Message for a failed import */
+export const importErrorMessage = (error: unknown) =>
+	error instanceof Error && error.name === 'QuotaExceededError' ? t.storageFull : t.importFailed
 
 /**
  * Lets the user pick an audio file, imports it and selects it. onStart is called once a file was picked:

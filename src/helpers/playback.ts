@@ -169,10 +169,7 @@ export const computeVolume = ({
  * speed is 1.
  */
 export const computeSpeedFactor = (position: number, ranges: readonly ClipRange[], fadeDuration: number): number => {
-    let index = -1
-    ranges.forEach((range, i) => {
-        if (range.start <= position) index = i
-    })
+    const index = findClipIndex(position, ranges.map((range) => range.start), 0)
     const currentSpeed = index >= 0 ? ranges[index].speed : 1
     const next = ranges[index + 1]
     if (!next) return currentSpeed
@@ -183,29 +180,28 @@ export const computeSpeedFactor = (position: number, ranges: readonly ClipRange[
     return calcFade({ position, fadeDuration: fade, fadeEnd: next.start, startValue: currentSpeed, endValue: next.speed })
 }
 
-/** Index of the clip containing the position, -1 if before the first clip. */
-const findClipIndex = (position: number, starts: readonly number[]): number => {
+/** Index of the clip containing the position (starts sorted ascending), -1 if before the first clip. */
+const findClipIndex = (position: number, starts: readonly number[], tolerance = POSITION_TOLERANCE): number => {
     let found = -1
     starts.forEach((start, index) => {
-        if (start <= position + POSITION_TOLERANCE) found = index
+        if (start <= position + tolerance) found = index
     })
     return found
 }
 
 /**
- * Target position for "next clip". The lead in before a clip counts as part of that clip.
+ * Target position for "next clip" (clip starts sorted ascending). The lead in before a clip counts as part
+ * of that clip.
  * Returns null in the last clip.
  */
 export const getNextClipTarget = (position: number, starts: readonly number[], leadIn: number): number | null => {
-    const sorted = [...starts].sort((a, b) => a - b)
-    const next = sorted[findClipIndex(position + leadIn, sorted) + 1]
+    const next = starts[findClipIndex(position + leadIn, starts) + 1]
     return next === undefined ? null : Math.max(next - leadIn, 0)
 }
 
-/** Target position for "previous clip". In the first clip (or before it) it returns to the first clip / start. */
+/** Target position for "previous clip" (clip starts sorted ascending). In the first clip (or before it) it returns to the first clip / start. */
 export const getPreviousClipTarget = (position: number, starts: readonly number[], leadIn: number): number => {
-    const sorted = [...starts].sort((a, b) => a - b)
-    const index = findClipIndex(position + leadIn, sorted)
-    if (index <= 0) return Math.max((index === 0 ? sorted[0] : 0) - leadIn, 0)
-    return Math.max(sorted[index - 1] - leadIn, 0)
+    const index = findClipIndex(position + leadIn, starts)
+    if (index <= 0) return Math.max((index === 0 ? starts[0] : 0) - leadIn, 0)
+    return Math.max(starts[index - 1] - leadIn, 0)
 }

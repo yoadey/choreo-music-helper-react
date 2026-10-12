@@ -31,6 +31,8 @@ export type AnalyzeDeps = {
     parseMetadata: (blob: Blob) => Promise<AudioMetadata>
     /** May detach the passed buffer (like AudioContext.decodeAudioData). */
     decode: (buffer: ArrayBuffer) => Promise<DecodedAudio>
+    /** Title for untitled chapters (1-based number) */
+    untitledChapter?: (n: number) => string
 }
 
 /** IndexedDB key for an imported file. The timestamp makes the key unique, also for names without extension. */
@@ -44,12 +46,16 @@ export const makeUniqueAudioKey = (name: string, timestamp: number) => {
 const chapterStartSeconds = ({ start, timeScale }: AudioChapter) => (timeScale && timeScale > 0 ? start / timeScale : start)
 
 /** Converts chapters into clips (positions in seconds). Without chapters a single clip at the start is created. */
-export const chaptersToClips = (chapters: AudioMetadata['chapters'], fallbackTitle: string): ImportedClip[] => {
+export const chaptersToClips = (
+    chapters: AudioMetadata['chapters'],
+    fallbackTitle: string,
+    untitled: (n: number) => string = (n) => `Clip ${n}`,
+): ImportedClip[] => {
     if (!chapters?.length) {
         return [{ title: fallbackTitle, position: 0, color: TRANSPARENT }]
     }
     return chapters.map((chapter, index) => ({
-        title: chapter.title || `Clip ${index + 1}`,
+        title: chapter.title || untitled(index + 1),
         position: Math.max(chapterStartSeconds(chapter), 0),
         color: TRANSPARENT,
     }))
@@ -112,7 +118,7 @@ export const analyzeAudio = async (blob: Blob, name: string, deps: AnalyzeDeps):
         title,
         lengthMs,
         waveform,
-        clips: chaptersToClips(metadata.chapters, title),
+        clips: chaptersToClips(metadata.chapters, title, deps.untitledChapter),
     }
 }
 

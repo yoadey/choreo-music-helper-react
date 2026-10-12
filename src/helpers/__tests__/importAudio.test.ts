@@ -15,7 +15,7 @@ jest.mock('@/helpers/audio', () => ({
     requestPersistentStorage: jest.fn(async () => undefined),
 }))
 
-import { importAudioFile } from '../importAudio'
+import { importAudioFile, importErrorMessage } from '../importAudio'
 
 const pickedFile = () => {
     const file = new File([new Uint8Array([1, 2, 3])], 'song.mp3', { type: 'audio/mpeg' })
@@ -53,5 +53,23 @@ describe('importAudioFile', () => {
         mockResolvePick({ canceled: false, assets: [{ name: 'song.mp3', uri: 'blob:picked', file: pickedFile() }] })
         await importing
         expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:picked')
+    })
+
+    it('does not wait for the persistent storage permission (Firefox may never answer)', async () => {
+        const audio = require('@/helpers/audio') as { requestPersistentStorage: jest.Mock }
+        audio.requestPersistentStorage.mockImplementationOnce(() => new Promise(() => undefined))
+        const { createTrackWithClips } = require('@/model/trackRepository') as { createTrackWithClips: jest.Mock }
+        const importing = importAudioFile()
+        mockResolvePick({ canceled: false, assets: [{ name: 'song.mp3', uri: 'blob:picked', file: pickedFile() }] })
+        await importing
+        expect(createTrackWithClips).toHaveBeenCalled()
+    })
+})
+
+describe('importErrorMessage', () => {
+    it('reports a full storage', () => {
+        const { t } = require('@/i18n') as typeof import('@/i18n')
+        expect(importErrorMessage(new DOMException('full', 'QuotaExceededError'))).toBe(t.storageFull)
+        expect(importErrorMessage(new Error('decode'))).toBe(t.importFailed)
     })
 })

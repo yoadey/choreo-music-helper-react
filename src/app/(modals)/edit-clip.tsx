@@ -9,10 +9,10 @@ import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { containerStyles, inputStyles, modalStyles } from '@/styles'
 import { useLocalSearchParams } from 'expo-router'
+import { ModalScreen } from '@/components/ModalScreen'
 import { useCloseModal } from '@/hooks/useCloseModal'
-import { useHeaderHeight } from 'expo-router/react-navigation'
 import React, { useEffect, useState } from 'react'
-import { Button, Pressable, Text, TextInput, View } from 'react-native'
+import { Button, Text, TextInput, View } from 'react-native'
 
 const EditClipForm = ({ clip, onClose }: { clip: Clip; onClose: () => void }) => {
     const [title, setTitle] = useState(clip.title)
@@ -64,7 +64,6 @@ const EditClipForm = ({ clip, onClose }: { clip: Clip; onClose: () => void }) =>
 }
 
 const EditClipModal = () => {
-    const headerHeight = useHeaderHeight()
     const { clipId } = useLocalSearchParams<{ clipId: string }>()
     const clip = useObservedRecord<Clip>('clips', clipId)
     const close = useCloseModal()
@@ -75,10 +74,9 @@ const EditClipModal = () => {
     }, [clip, close])
 
     return (
-        <View style={[modalStyles.modalContainer, { paddingTop: headerHeight }]}>
-            <Pressable style={modalStyles.backdrop} onPress={close} />
+        <ModalScreen onClose={close}>
             {clip && <EditClipForm key={clip.id} clip={clip} onClose={close} />}
-        </View>
+        </ModalScreen>
     )
 }
 

@@ -1,6 +1,5 @@
 import { showMessage } from '@/helpers/dialogs'
-import { importAudioFile } from '@/helpers/importAudio'
-import { t } from '@/i18n'
+import { importAudioFile, importErrorMessage } from '@/helpers/importAudio'
 import { FontAwesome6 } from '@expo/vector-icons'
 import { useNavigation } from 'expo-router'
 import { useCallback, useLayoutEffect, useState } from 'react'
@@ -15,7 +14,7 @@ export const useNavigationOpenFile = () => {
 		importAudioFile(() => setImporting(true))
 			.catch((error) => {
 				console.warn('Import failed', error)
-				showMessage(t.importFailed)
+				showMessage(importErrorMessage(error))
 			})
 			.finally(() => setImporting(false))
 	}, [])

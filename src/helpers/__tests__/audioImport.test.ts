@@ -52,6 +52,10 @@ describe('chaptersToClips', () => {
         ).toEqual([0, 60])
     })
 
+    it('names untitled chapters with the given (localized) name', () => {
+        expect(chaptersToClips([{ start: 0 }], 'Song', (n) => `Abschnitt ${n}`)[0].title).toBe('Abschnitt 1')
+    })
+
     it('numbers untitled chapters', () => {
         expect(chaptersToClips([{ start: 0 }, { title: '', start: 3 }], 'Song').map((c) => c.title)).toEqual([
             'Clip 1',

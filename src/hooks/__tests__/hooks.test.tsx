@@ -48,6 +48,18 @@ describe('useWaveform', () => {
         warn.mockRestore()
     })
 
+    it('does not read and decode the file again after a failure', async () => {
+        const { get } = require('idb-keyval') as { get: jest.Mock }
+        const { useWaveform } = require('../useWaveform') as typeof import('../useWaveform')
+        const first = renderHook(() => useWaveform(track({ id: 't3' })))
+        await waitFor(() => expect(first.result.current).toEqual([]))
+        const calls = get.mock.calls.length
+        first.unmount()
+        const second = renderHook(() => useWaveform(track({ id: 't3' })))
+        expect(second.result.current).toEqual([])
+        expect(get.mock.calls.length).toBe(calls)
+    })
+
     it('uses the stored waveform', () => {
         const { useWaveform } = require('../useWaveform') as typeof import('../useWaveform')
         const { result } = renderHook(() => useWaveform(track({ waveform: '[0.5,0.25]' })))

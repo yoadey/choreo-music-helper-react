@@ -149,9 +149,12 @@ export const stopPlayback = async () => {
     await TrackPlayer.seekTo(getStopTarget(getActiveLoop(), state.prefs.leadIn))
 }
 
+/** Clip start positions, sorted (the ranges are sorted when they are computed) */
+const clipStarts = () => state.ranges.map((range) => range.start)
+
 export const skipToNextClip = async () => {
     const { position } = await getProgress()
-    const target = getNextClipTarget(position, state.clips.map((c) => c.position), state.prefs.leadIn)
+    const target = getNextClipTarget(position, clipStarts(), state.prefs.leadIn)
     if (target !== null) {
         await TrackPlayer.seekTo(target)
     }
@@ -159,7 +162,7 @@ export const skipToNextClip = async () => {
 
 export const skipToPreviousClip = async () => {
     const { position } = await getProgress()
-    await TrackPlayer.seekTo(getPreviousClipTarget(position, state.clips.map((c) => c.position), state.prefs.leadIn))
+    await TrackPlayer.seekTo(getPreviousClipTarget(position, clipStarts(), state.prefs.leadIn))
 }
 
 /** Seeks to the start of a clip, including the lead in. */

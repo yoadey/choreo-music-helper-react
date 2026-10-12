@@ -1,6 +1,6 @@
 import { showMessage } from '@/helpers/dialogs'
 import { ensurePlayerSetup } from '@/helpers/playerSetup'
-import { createTrackLoader } from '@/helpers/trackLoader'
+import { createTrackLoader, type LoadResult } from '@/helpers/trackLoader'
 import { t } from '@/i18n'
 import TrackWithClips from '@/model/track'
 import { Q, type Database } from '@nozbe/watermelondb'
@@ -40,8 +40,12 @@ const clearCurrentTrack = () => {
 export const selectTrack = async (track: TrackWithClips, { silent = false } = {}) =>
     (await loadAndSelect(track, silent)) === 'loaded'
 
-const loadAndSelect = async (track: TrackWithClips, silent: boolean) => {
+const loadAndSelect = async (track: TrackWithClips, silent: boolean): Promise<LoadResult> => {
     selections++
+    // Selecting the loaded song again keeps it playing (unless another song is loading, which it replaces)
+    if (useCurrentTrackStore.getState().currentTrack?.id === track.id && !trackLoader.isLoading()) {
+        return 'loaded'
+    }
     const result = await trackLoader.load(track)
     switch (result) {
         case 'superseded':

@@ -42,6 +42,14 @@ describe('selectTrack', () => {
         expect(setupOrder).toBeLessThan(resetOrder)
     })
 
+    it('does not reload the current song when it is selected again (playback continues)', async () => {
+        await m.player.selectTrack(track('1'))
+        const reset = m.trackPlayer.default.reset as unknown as jest.Mock
+        reset.mockClear()
+        await expect(m.player.selectTrack(track('1'))).resolves.toBe(true)
+        expect(reset).not.toHaveBeenCalled()
+    })
+
     it('makes the track current after it was loaded', async () => {
         await expect(m.player.selectTrack(track('1'))).resolves.toBe(true)
         expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('1'))

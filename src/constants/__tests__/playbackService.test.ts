@@ -65,7 +65,13 @@ beforeEach(() => {
     }
     m.player.resetTrackPlayerMock()
     m.store.setLastTrack('track1')
+    setCurrentTrack('track1')
 })
+
+const setCurrentTrack = (id: string | null) => {
+    const { useCurrentTrackStore } = require('@/store/store') as typeof import('@/store/store')
+    useCurrentTrackStore.getState().setCurrentTrack(id ? ({ id } as never) : null)
+}
 
 const TrackPlayer = () => m.player.default
 
@@ -85,9 +91,19 @@ describe('preferences', () => {
         m.store.preferences.set(m.store.KEY_LEAD_IN_DURATION, 2)
         await new Promise((resolve) => setTimeout(resolve, 0))
         expect(mockSubscribeCalls).toHaveBeenCalledTimes(1)
-        m.store.setLastTrack('track2')
+        setCurrentTrack('track2')
         await new Promise((resolve) => setTimeout(resolve, 0))
         expect(mockSubscribeCalls).toHaveBeenCalledTimes(2)
+    })
+
+    it('uses the clips and the loop of the loaded song only, not of a last song that could not be loaded', async () => {
+        const { useLoopStatusStore } = require('@/store/store') as typeof import('@/store/store')
+        setCurrentTrack(null)
+        m.store.setLoopStart({ id: 'a' })
+        m.store.setLoopEnd({ id: 'b' })
+        await startService()
+        expect(mockSubscribeCalls).not.toHaveBeenCalled()
+        expect(useLoopStatusStore.getState().active).toBe(false)
     })
 })
 
@@ -180,6 +196,18 @@ describe('loop', () => {
         expect(TrackPlayer().play).toHaveBeenCalled()
     })
 
+    it('does not show "playing" when the browser refuses the restart at the track end', async () => {
+        m.store.setLoopStart({ id: 'c' })
+        m.store.setLoopEnd({ id: 'c' })
+        await startService()
+        ;(TrackPlayer().play as unknown as jest.Mock).mockImplementationOnce(async () => {
+            m.player.playerState.playWhenReady = true
+        })
+        m.player.playerState.position = 30
+        await setPlayerState(m.player.State.Ended)
+        expect(m.player.playerState.playWhenReady).toBe(false)
+    })
+
     it('does not restart at the track end without loop', async () => {
         await startService()
         await setPlayerState(m.player.State.Ended)
@@ -244,6 +272,21 @@ describe('preferences', () => {
         m.store.preferences.set(m.store.KEY_LEAD_OUT_DURATION, 2)
         await new Promise((resolve) => setTimeout(resolve, 0))
         expect(getProgress).toHaveBeenCalledTimes(1)
+    })
+})
+
+describe('without a loaded song', () => {
+    it('ignores the controls (e.g. before the player is set up) instead of failing', async () => {
+        await startService()
+        setCurrentTrack(null)
+        ;(TrackPlayer().pause as unknown as jest.Mock).mockImplementationOnce(async () => {
+            throw new Error('The player is not set up')
+        })
+        await expect(m.service.stopPlayback()).resolves.toBeUndefined()
+        await expect(m.service.skipToNextClip()).resolves.toBeUndefined()
+        await expect(m.service.jumpBy(10)).resolves.toBeUndefined()
+        expect(TrackPlayer().pause).not.toHaveBeenCalled()
+        expect(TrackPlayer().seekTo).not.toHaveBeenCalled()
     })
 })
 

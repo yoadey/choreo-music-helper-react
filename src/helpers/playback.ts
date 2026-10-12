@@ -51,6 +51,9 @@ export const resolveLoop = (
     return loop
 }
 
+/** Where playing a section starting at the position begins: the lead in before it, not before the track. */
+export const leadInStart = (position: number, leadIn: number): number => Math.max(position - leadIn, 0)
+
 /** Returns the position to seek to, if the position left the loop (including lead in/out), otherwise null. */
 export const getLoopSeekTarget = ({
     position,
@@ -64,7 +67,7 @@ export const getLoopSeekTarget = ({
     leadOut: number
 }): number | null => {
     if (!loop) return null
-    const target = Math.max(loop.start - leadIn, 0)
+    const target = getStopTarget(loop, leadIn)
     if (position > loop.end + leadOut || position < target - POSITION_TOLERANCE) {
         return target
     }
@@ -103,9 +106,9 @@ export const fitLoopToTrack = ({
     return { loop: { start: loop.start, end }, leadOut: Math.max(Math.min(leadOut, trackEnd - end), 0) }
 }
 
-/** Position the player should return to when stopped. */
+/** Position the player should return to when stopped (also where a loop restarts). */
 export const getStopTarget = (loop: LoopRange | undefined, leadIn: number): number =>
-    loop ? Math.max(loop.start - leadIn, 0) : 0
+    loop ? leadInStart(loop.start, leadIn) : 0
 
 export const calcFade = ({
     position,
@@ -235,12 +238,12 @@ const findClipIndex = (position: number, starts: readonly number[], tolerance = 
  */
 export const getNextClipTarget = (position: number, starts: readonly number[], leadIn: number): number | null => {
     const next = starts[findClipIndex(position + leadIn, starts) + 1]
-    return next === undefined ? null : Math.max(next - leadIn, 0)
+    return next === undefined ? null : leadInStart(next, leadIn)
 }
 
 /** Target position for "previous clip" (clip starts sorted ascending). In the first clip (or before it) it returns to the first clip / start. */
 export const getPreviousClipTarget = (position: number, starts: readonly number[], leadIn: number): number => {
     const index = findClipIndex(position + leadIn, starts)
-    if (index <= 0) return Math.max((index === 0 ? starts[0] : 0) - leadIn, 0)
-    return Math.max(starts[index - 1] - leadIn, 0)
+    if (index <= 0) return leadInStart(index === 0 ? starts[0] : 0, leadIn)
+    return leadInStart(starts[index - 1], leadIn)
 }

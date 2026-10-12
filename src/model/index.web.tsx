@@ -43,22 +43,26 @@ const getLoki = (): Loki | undefined => (adapter as unknown as { _driver?: { lok
 /**
  * Writes pending changes to IndexedDB. LokiJS only autosaves every 500 ms, so changes made right before
  * the tab is closed or reloaded (e.g. directly after an import) would otherwise be lost.
+ * Rejects if the changes could not be written (e.g. the storage is full).
  */
-const flushDatabase = () =>
-    new Promise<void>((resolve) => {
+export const flushDatabase = () =>
+    new Promise<void>((resolve, reject) => {
         const loki = getLoki()
         if (!loki) return resolve()
-        loki.saveDatabase(() => resolve())
+        loki.saveDatabase((error) => (error ? reject(error) : resolve()))
     })
 
+const flushInBackground = () => {
+    flushDatabase().catch((error) => {
+        // Reported to the user by onQuotaExceededError, LokiJS tries again with the next change
+        console.warn('Could not save the database', error)
+    })
+}
+
 if (typeof window !== 'undefined') {
-    database.withChangesForTables(['tracks', 'clips']).subscribe(() => {
-        flushDatabase()
-    })
-    window.addEventListener('pagehide', () => {
-        flushDatabase()
-    })
+    database.withChangesForTables(['tracks', 'clips']).subscribe(flushInBackground)
+    window.addEventListener('pagehide', flushInBackground)
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') flushDatabase()
+        if (document.visibilityState === 'hidden') flushInBackground()
     })
 }

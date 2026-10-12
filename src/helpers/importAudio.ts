@@ -2,8 +2,8 @@ import { decodeAudio, parseAudioMetadata, requestPersistentStorage } from '@/hel
 import { analyzeAudio, chaptersToClips } from '@/helpers/audioImport'
 import { selectTrack } from '@/helpers/player'
 import { t } from '@/i18n'
-import { database } from '@/model/index.web'
-import { createTrackWithClips } from '@/model/trackRepository'
+import { database, flushDatabase } from '@/model/index.web'
+import { createTrackWithClips, deleteTrack } from '@/model/trackRepository'
 import * as DocumentPicker from 'expo-document-picker'
 import { del, set } from 'idb-keyval'
 import { Platform } from 'react-native'
@@ -17,17 +17,26 @@ const importWebFile = async (asset: DocumentPicker.DocumentPickerAsset) => {
 		untitledChapter: t.numberedClip,
 	})
 	await set(audio.key, blob)
+	let track: Awaited<ReturnType<typeof createTrackWithClips>>
 	try {
-		// Persisted right away by the change subscription in model/index.web
-		const track = await createTrackWithClips(database, audio)
-		// Not awaited: some browsers ask the user and may never answer
-		requestPersistentStorage().catch(() => undefined)
-		return track
+		track = await createTrackWithClips(database, audio)
 	} catch (error) {
 		// Do not leave an orphaned file behind
 		await del(audio.key)
 		throw error
 	}
+	try {
+		// Only an import that was written to IndexedDB is kept (otherwise it is gone after a reload)
+		await flushDatabase()
+	} catch (error) {
+		await deleteTrack(database, track, del).catch((cleanupError) => {
+			console.warn('Could not remove the import that was not saved', cleanupError)
+		})
+		throw error
+	}
+	// Not awaited: some browsers ask the user and may never answer
+	requestPersistentStorage().catch(() => undefined)
+	return track
 }
 
 const importNativeFile = (asset: DocumentPicker.DocumentPickerAsset) =>

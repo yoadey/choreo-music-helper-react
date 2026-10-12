@@ -2,7 +2,7 @@
 // sub directory (BASE_PATH) and unknown paths are answered with 404.html.
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { extname, join, normalize } from 'node:path'
+import { extname, join, normalize, sep } from 'node:path'
 
 const root = join(process.cwd(), 'dist')
 const basePath = (process.env.BASE_PATH ?? '').replace(/\/$/, '')
@@ -24,13 +24,19 @@ const send = (res, status, file) => {
 }
 
 createServer((req, res) => {
-    const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname)
+    let pathname
+    try {
+        pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname)
+    } catch {
+        res.writeHead(400).end('Bad request')
+        return
+    }
     if (!pathname.startsWith(`${basePath}/`) && pathname !== basePath) {
         res.writeHead(404).end('Not found')
         return
     }
     let file = normalize(join(root, pathname.slice(basePath.length)))
-    if (!file.startsWith(root)) {
+    if (file !== root && !file.startsWith(`${root}${sep}`)) {
         res.writeHead(403).end()
         return
     }

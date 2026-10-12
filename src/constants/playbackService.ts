@@ -9,6 +9,7 @@ import {
     getNextClipTarget,
     getPreviousClipTarget,
     getStopTarget,
+    leadInStart,
     LoopRange,
     resolveLoop,
     SPEED_FADE_DURATION,
@@ -18,7 +19,6 @@ import Clip from '@/model/clip'
 import { database } from '@/model/index.web'
 import {
     getGlobalSpeedOnly,
-    getLastTrack,
     getLeadInDuration,
     getLeadInVolume,
     getLeadOutDuration,
@@ -26,11 +26,10 @@ import {
     getLoopEndId,
     getLoopStartId,
     getSpeed,
-    KEY_LAST_TRACK,
     preferences,
 } from '@/store/playbackState'
 import { publishProgress, refreshProgress } from '@/store/progress'
-import { useLoopStatusStore } from '@/store/store'
+import { useCurrentTrackStore, useLoopStatusStore } from '@/store/store'
 import { Q } from '@nozbe/watermelondb'
 import TrackPlayer, { Event, State } from 'react-native-track-player'
 import type { Subscription } from 'rxjs'
@@ -100,10 +99,27 @@ const getProgress = async () => {
 }
 
 /** Seeks and publishes the new position right away (no progress polling while paused). */
-export const seekTo = async (position: number) => {
+const seekAndPublish = async (position: number) => {
     await TrackPlayer.seekTo(position)
     await refreshProgress()
 }
+
+/**
+ * Controls of the user (buttons, media keys): without a loaded song (e.g. before the player is set up,
+ * which happens lazily on the web) they do nothing, and they never reject.
+ */
+const control =
+    <A extends unknown[]>(action: (...args: A) => Promise<void>) =>
+    async (...args: A) => {
+        if (!useCurrentTrackStore.getState().currentTrack) return
+        try {
+            await action(...args)
+        } catch (error) {
+            console.warn('The player control failed', error)
+        }
+    }
+
+export const seekTo = control(seekAndPublish)
 
 /** The active loop resolved from the current clips, or undefined. */
 export const getActiveLoop = (): LoopRange | undefined => state.loop
@@ -145,7 +161,7 @@ export const applyPlaybackRules = async (position: number) => {
 
     const target = getLoopSeekTarget({ position, loop, leadIn: prefs.leadIn, leadOut })
     if (target !== null) {
-        await seekTo(target)
+        await seekAndPublish(target)
     }
 }
 
@@ -156,38 +172,38 @@ const applyIfPlaying = async (position: number) => {
 }
 
 /** Stops the playback without unloading the track, so it can be played again directly. */
-export const stopPlayback = async () => {
+export const stopPlayback = control(async () => {
     await TrackPlayer.pause()
     await getProgress()
-    await seekTo(getStopTarget(getActiveLoop(), state.prefs.leadIn))
-}
+    await seekAndPublish(getStopTarget(getActiveLoop(), state.prefs.leadIn))
+})
 
 /** Clip start positions, sorted (the ranges are sorted when they are computed) */
 const clipStarts = () => state.ranges.map((range) => range.start)
 
-export const skipToNextClip = async () => {
+export const skipToNextClip = control(async () => {
     const { position } = await getProgress()
     const target = getNextClipTarget(position, clipStarts(), state.prefs.leadIn)
     if (target !== null) {
-        await seekTo(target)
+        await seekAndPublish(target)
     }
-}
+})
 
-export const skipToPreviousClip = async () => {
+export const skipToPreviousClip = control(async () => {
     const { position } = await getProgress()
-    await seekTo(getPreviousClipTarget(position, clipStarts(), state.prefs.leadIn))
-}
+    await seekAndPublish(getPreviousClipTarget(position, clipStarts(), state.prefs.leadIn))
+})
 
 /** Seeks to the start of a clip, including the lead in. */
-export const seekToClip = async (clipPosition: number) => {
-    await seekTo(Math.max(clipPosition - state.prefs.leadIn, 0))
-}
+export const seekToClip = control(async (clipPosition: number) => {
+    await seekAndPublish(leadInStart(clipPosition, state.prefs.leadIn))
+})
 
-export const jumpBy = async (seconds: number) => {
+export const jumpBy = control(async (seconds: number) => {
     const { position, duration } = await getProgress()
     const target = Math.max(position + seconds, 0)
-    await seekTo(duration > 0 ? Math.min(target, duration) : target)
-}
+    await seekAndPublish(duration > 0 ? Math.min(target, duration) : target)
+})
 
 const syncPlayWhenReady = (playWhenReady: boolean) => {
     TrackPlayer.setPlayWhenReady(playWhenReady).catch(() => {
@@ -204,15 +220,17 @@ const handleTrackEnded = async () => {
     await getProgress()
     const loop = getActiveLoop()
     if (!loop) return
-    await seekTo(getStopTarget(loop, state.prefs.leadIn))
-    await TrackPlayer.play()
+    await seekAndPublish(getStopTarget(loop, state.prefs.leadIn))
+    await playCurrentTrack()
 }
 
 export const playbackService = async () => {
     state.prefs = readPreferences()
     state.lastRate = undefined
     state.lastVolume = undefined
-    subscribeToClips(getLastTrack())
+    // The clips (and the loop) of the loaded song: the last song may not be loaded (e.g. its file is missing)
+    subscribeToClips(useCurrentTrackStore.getState().currentTrack?.id)
+    useCurrentTrackStore.subscribe(({ currentTrack }) => subscribeToClips(currentTrack?.id))
     TrackPlayer.getPlaybackState()
         .then(({ state: playbackState }) => {
             state.playerState ??= playbackState
@@ -224,18 +242,12 @@ export const playbackService = async () => {
     // Several preferences are often changed at once (e.g. the OK of a dialog, selecting a song): they are
     // applied once afterwards, so no intermediate states (e.g. of the loop) are published or played
     let changeScheduled = false
-    let lastTrackChanged = false
-    preferences.addOnValueChangedListener((key) => {
-        if (key === KEY_LAST_TRACK) lastTrackChanged = true
+    preferences.addOnValueChangedListener(() => {
         if (changeScheduled) return
         changeScheduled = true
         queueMicrotask(() => {
             changeScheduled = false
             state.prefs = readPreferences()
-            if (lastTrackChanged) {
-                lastTrackChanged = false
-                subscribeToClips(getLastTrack())
-            }
             recompute()
             getProgress()
                 .then(({ position }) => applyIfPlaying(position))

@@ -6,8 +6,11 @@ jest.mock('expo-document-picker', () => ({
     getDocumentAsync: jest.fn(() => new Promise((resolve) => (mockResolvePick = resolve))),
 }))
 jest.mock('idb-keyval', () => ({ set: jest.fn(async () => undefined), del: jest.fn(async () => undefined) }))
-jest.mock('@/model/index.web', () => ({ database: {} }))
-jest.mock('@/model/trackRepository', () => ({ createTrackWithClips: jest.fn(async () => ({ id: 'new-track' })) }))
+jest.mock('@/model/index.web', () => ({ database: {}, flushDatabase: jest.fn(async () => undefined) }))
+jest.mock('@/model/trackRepository', () => ({
+    createTrackWithClips: jest.fn(async () => ({ id: 'new-track' })),
+    deleteTrack: jest.fn(async () => undefined),
+}))
 jest.mock('@/helpers/player', () => ({ selectTrack: jest.fn(async () => true) }))
 jest.mock('@/helpers/audio', () => ({
     parseAudioMetadata: jest.fn(async () => ({ title: 'Song' })),
@@ -63,6 +66,23 @@ describe('importAudioFile', () => {
         mockResolvePick({ canceled: false, assets: [{ name: 'song.mp3', uri: 'blob:picked', file: pickedFile() }] })
         await importing
         expect(createTrackWithClips).toHaveBeenCalled()
+    })
+})
+
+describe('importAudioFile when the database cannot be saved', () => {
+    it('removes the song and its file again and reports the error (the song would be gone after a reload)', async () => {
+        const model = require('@/model/index.web') as { flushDatabase: jest.Mock }
+        model.flushDatabase.mockImplementationOnce(async () => {
+            throw new DOMException('full', 'QuotaExceededError')
+        })
+        const repository = require('@/model/trackRepository') as { deleteTrack: jest.Mock }
+        const player = require('@/helpers/player') as { selectTrack: jest.Mock }
+        player.selectTrack.mockClear()
+        const importing = importAudioFile()
+        mockResolvePick({ canceled: false, assets: [{ name: 'song.mp3', uri: 'blob:picked', file: pickedFile() }] })
+        await expect(importing).rejects.toMatchObject({ name: 'QuotaExceededError' })
+        expect(repository.deleteTrack).toHaveBeenCalledWith(expect.anything(), { id: 'new-track' }, expect.any(Function))
+        expect(player.selectTrack).not.toHaveBeenCalled()
     })
 })
 

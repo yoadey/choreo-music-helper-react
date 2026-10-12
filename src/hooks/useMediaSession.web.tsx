@@ -1,5 +1,6 @@
 import logo from '@/assets/logo192.png'
 import { jumpBy, seekTo, skipToNextClip, skipToPreviousClip, stopPlayback } from '@/constants/playbackService'
+import { playCurrentTrack } from '@/helpers/player'
 import { useEffect } from 'react'
 import { usePlayerProgressStore } from '@/store/progress'
 import TrackPlayer, { useIsPlaying } from 'react-native-track-player'
@@ -16,7 +17,7 @@ const setHandler = (action: MediaSessionAction, handler: Handler) => {
 }
 
 const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
-    ['play', () => TrackPlayer.play()],
+    ['play', () => playCurrentTrack()],
     ['pause', () => TrackPlayer.pause()],
     ['stop', () => stopPlayback()],
     ['previoustrack', () => skipToPreviousClip()],

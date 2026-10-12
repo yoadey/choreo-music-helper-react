@@ -59,6 +59,15 @@ describe('trackRepository', () => {
         expect(removeFile).toHaveBeenCalledWith('/audio/song_1.mp3')
     })
 
+    it('deletes the track even if the audio file cannot be removed', async () => {
+        const track = await createTrackWithClips(database, imported)
+        const removeFile = jest.fn(async () => {
+            throw new Error('IndexedDB transaction failed')
+        })
+        await expect(deleteTrack(database, track, removeFile)).resolves.toBeUndefined()
+        expect(await database.get<TrackWithClips>('tracks').query().fetchCount()).toBe(0)
+    })
+
     it('deletes a single clip', async () => {
         const track = await createTrackWithClips(database, imported)
         const [clip] = await track.clips.fetch()

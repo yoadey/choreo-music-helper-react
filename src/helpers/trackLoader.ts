@@ -41,81 +41,94 @@ export const createTrackLoader = (deps: TrackLoaderDeps) => {
     // Loads in progress and loads cancelled while reading their file
     const inFlight = new Map<number, { trackId: string; stage: Exclude<PendingStage, 'none'> }>()
     const cancelled = new Set<number>()
+    const running = new Set<Promise<LoadResult>>()
 
     const releaseCurrentUrl = () => {
         if (currentUrl) deps.revokeObjectURL(currentUrl)
         currentUrl = undefined
     }
 
-    return {
-        async load(track: LoadableTrack): Promise<LoadResult> {
-            const generation = ++requested
-            inFlight.set(generation, { trackId: track.id, stage: 'reading' })
-            const done = (result: LoadResult) => {
-                inFlight.delete(generation)
-                cancelled.delete(generation)
-                return result
-            }
-            const isOutdated = () => generation !== requested || cancelled.has(generation)
-            let url = track.uri
-            let objectUrl: string | undefined
-            const releaseObjectUrl = () => {
-                if (objectUrl) deps.revokeObjectURL(objectUrl)
-            }
+    const load = async (track: LoadableTrack): Promise<LoadResult> => {
+        const generation = ++requested
+        inFlight.set(generation, { trackId: track.id, stage: 'reading' })
+        const done = (result: LoadResult) => {
+            inFlight.delete(generation)
+            cancelled.delete(generation)
+            return result
+        }
+        const isOutdated = () => generation !== requested || cancelled.has(generation)
+        let url = track.uri
+        let objectUrl: string | undefined
+        const releaseObjectUrl = () => {
+            if (objectUrl) deps.revokeObjectURL(objectUrl)
+        }
 
-            if (deps.prepare) {
-                try {
-                    await deps.prepare()
-                } catch (error) {
-                    console.warn('The player is not available', error)
-                    return done(isOutdated() ? 'superseded' : 'unreadable')
-                }
-                if (isOutdated()) return done('superseded')
-            }
-
-            if (deps.platform === 'web') {
-                let blob: Blob | undefined
-                try {
-                    blob = await deps.getBlob(track.uri)
-                } catch (error) {
-                    console.warn(`Could not read ${track.uri}`, error)
-                    return done(isOutdated() ? 'superseded' : 'unreadable')
-                }
-                if (isOutdated()) return done('superseded')
-                if (!blob) return done('missing')
-                objectUrl = deps.createObjectURL(blob)
-                url = objectUrl
-            }
-
-            // From here on this load owns the player
-            playerOwner = generation
-            inFlight.set(generation, { trackId: track.id, stage: 'player' })
-            const ownsPlayer = () => playerOwner === generation
-
-            const superseded = async () => {
-                releaseObjectUrl()
-                // Cancelled without a newer load: do not leave this (e.g. deleted) track in the player
-                if (playerOwner === 0) await deps.reset()
-                return done('superseded')
-            }
-
+        if (deps.prepare) {
             try {
-                await deps.reset()
-                if (!ownsPlayer()) return await superseded()
-                await deps.load({ id: track.id, url, title: track.title })
+                await deps.prepare()
             } catch (error) {
-                if (!ownsPlayer()) return await superseded()
-                releaseObjectUrl()
-                console.warn(`Could not load ${track.uri}`, error)
-                // The player was reset, the previous track is not loaded anymore
-                releaseCurrentUrl()
-                return done('failed')
+                console.warn('The player is not available', error)
+                return done(isOutdated() ? 'superseded' : 'unreadable')
             }
+            if (isOutdated()) return done('superseded')
+        }
 
+        if (deps.platform === 'web') {
+            let blob: Blob | undefined
+            try {
+                blob = await deps.getBlob(track.uri)
+            } catch (error) {
+                console.warn(`Could not read ${track.uri}`, error)
+                return done(isOutdated() ? 'superseded' : 'unreadable')
+            }
+            if (isOutdated()) return done('superseded')
+            if (!blob) return done('missing')
+            objectUrl = deps.createObjectURL(blob)
+            url = objectUrl
+        }
+
+        // From here on this load owns the player
+        playerOwner = generation
+        inFlight.set(generation, { trackId: track.id, stage: 'player' })
+        const ownsPlayer = () => playerOwner === generation
+
+        const superseded = async () => {
+            releaseObjectUrl()
+            // Cancelled without a newer load: do not leave this (e.g. deleted) track in the player
+            if (playerOwner === 0) await deps.reset()
+            return done('superseded')
+        }
+
+        try {
+            await deps.reset()
             if (!ownsPlayer()) return await superseded()
+            await deps.load({ id: track.id, url, title: track.title })
+        } catch (error) {
+            if (!ownsPlayer()) return await superseded()
+            releaseObjectUrl()
+            console.warn(`Could not load ${track.uri}`, error)
+            // The player was reset, the previous track is not loaded anymore
             releaseCurrentUrl()
-            currentUrl = objectUrl
-            return done('loaded')
+            return done('failed')
+        }
+
+        if (!ownsPlayer()) return await superseded()
+        releaseCurrentUrl()
+        currentUrl = objectUrl
+        return done('loaded')
+    }
+
+    return {
+        load(track: LoadableTrack): Promise<LoadResult> {
+            const promise = load(track)
+            running.add(promise)
+            promise.finally(() => running.delete(promise)).catch(() => undefined)
+            return promise
+        },
+
+        /** Resolves when no load is in progress anymore (also loads started meanwhile). */
+        async whenIdle(): Promise<void> {
+            while (running.size > 0) await Promise.allSettled([...running])
         },
 
         /**

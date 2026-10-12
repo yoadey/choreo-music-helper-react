@@ -1,6 +1,6 @@
 import { colors } from '@/constants/tokens'
 import { t } from '@/i18n'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Button, FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 
 type LicenseEntry = {
@@ -13,8 +13,14 @@ type LicenseEntry = {
   content?: string
 }
 
-const LicenseItem = React.memo(function LicenseItem({ info }: { info: LicenseEntry }) {
-  const [expanded, setExpanded] = useState(false)
+type LicenseItemProps = {
+  id: string
+  info: LicenseEntry
+  expanded: boolean
+  onToggle: (id: string) => void
+}
+
+const LicenseItem = React.memo(function LicenseItem({ id, info, expanded, onToggle }: LicenseItemProps) {
   return (
     <View style={styles.item} testID={`license-${info.name}`}>
       <Text style={[styles.text, styles.name]}>
@@ -35,7 +41,7 @@ const LicenseItem = React.memo(function LicenseItem({ info }: { info: LicenseEnt
       )}
       {info.content && (
         <>
-          <Pressable accessibilityRole="button" onPress={() => setExpanded((value) => !value)}>
+          <Pressable accessibilityRole="button" onPress={() => onToggle(id)}>
             <Text style={styles.link}>{expanded ? t.hideLicenseText : t.showLicenseText}</Text>
           </Pressable>
           {expanded && <Text style={[styles.text, styles.content]}>{info.content}</Text>}
@@ -49,6 +55,15 @@ export default function LicensesScreen() {
   const [licenses, setLicenses] = useState<[string, LicenseEntry][] | null>(null)
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  // Kept here, the virtualized list unmounts entries that are scrolled far out of view
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
+  const toggle = useCallback((id: string) => {
+    setExpanded((current) => {
+      const next = new Set(current)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     import('../../assets/licenses.json')
@@ -94,7 +109,10 @@ export default function LicensesScreen() {
       keyExtractor={([key]) => key}
       initialNumToRender={20}
       ListHeaderComponent={<Text style={[styles.text, styles.title]}>{t.openSourceLicenses}</Text>}
-      renderItem={({ item: [, info] }) => <LicenseItem info={info} />}
+      extraData={expanded}
+      renderItem={({ item: [id, info] }) => (
+        <LicenseItem id={id} info={info} expanded={expanded.has(id)} onToggle={toggle} />
+      )}
     />
   )
 }

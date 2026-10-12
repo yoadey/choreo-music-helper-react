@@ -292,6 +292,21 @@ test.describe('hosting', () => {
         await expect(babel.getByText(/Copyright .*Sebastian McKenzie/)).toBeVisible()
         await babel.getByRole('button', { name: 'Lizenztext ausblenden' }).click()
         await expect(babel.getByText(/Copyright/)).toHaveCount(0)
+        // The expanded text stays expanded after the entry was scrolled out of the rendered window (the
+        // first entries are always rendered, so one further down is used)
+        const later = page.getByTestId('license-@babel/plugin-syntax-export-default-from')
+        const scrollUntil = async (delta: number, check: () => Promise<void>) => {
+            await page.mouse.move(400, 400)
+            await expect(async () => {
+                await page.mouse.wheel(0, delta)
+                await check()
+            }).toPass({ timeout: 30_000 })
+        }
+        await scrollUntil(500, () => expect(later).toBeInViewport({ timeout: 200 }))
+        await later.getByRole('button', { name: 'Lizenztext anzeigen' }).click()
+        await scrollUntil(5000, () => expect(later).toHaveCount(0, { timeout: 200 }))
+        await scrollUntil(-500, () => expect(later).toBeInViewport({ timeout: 200 }))
+        await expect(later.getByText(/Copyright .*Sebastian McKenzie/)).toBeVisible()
     })
 
     test('a new version is not activated while another tab still runs the old one', async ({ page, context }) => {
@@ -308,6 +323,11 @@ test.describe('hosting', () => {
             await page.reload()
             await expect(page.getByTestId('open-file')).toBeVisible()
             await page.evaluate(() => ((window as unknown as { marker: boolean }).marker = true))
+            // Runtime caches of the old version (and of the first version of the app with the default name)
+            await page.evaluate(async () => {
+                await (await caches.open('runtime')).put('old-chunk.js', new Response('old'))
+                await (await caches.open('workbox-runtime-old')).put('old.js', new Response('old'))
+            })
 
             // Deploy a new version and let the first tab find it
             fs.writeFileSync(swPath, `${original}\n// update ${Date.now()}\n`)
@@ -325,7 +345,10 @@ test.describe('hosting', () => {
             expect(await waitingWorker(second)).toBe(true)
             expect(await page.evaluate(() => (window as unknown as { marker?: boolean }).marker)).toBe(true)
 
-            // Once only one tab is left, starting the app activates the new version
+            // Once only one tab of the app is left, starting the app activates the new version. Pages of the
+            // origin outside the app (e.g. other GitHub Pages sites of the user) do not count.
+            const outside = process.env.BASE_PATH ? await context.newPage() : undefined
+            await outside?.goto(new URL('/other-site/', page.url()).toString())
             await page.close()
             // The closed tab may still be listed for a moment, then the next start applies the update
             await expect(async () => {
@@ -333,6 +356,11 @@ test.describe('hosting', () => {
                 await expect(second.getByTestId('open-file')).toBeVisible()
                 await expect.poll(() => waitingWorker(second), { timeout: 3_000 }).toBe(false)
             }).toPass({ timeout: 20_000 })
+            // The new version starts with an empty runtime cache
+            await expect
+                .poll(() => second.evaluate(() => caches.keys()))
+                .not.toEqual(expect.arrayContaining([expect.stringMatching(/^(runtime|workbox-runtime-old)$/)]))
+            await outside?.close()
             await second.close()
         } finally {
             fs.writeFileSync(swPath, original)

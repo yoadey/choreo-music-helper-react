@@ -240,6 +240,35 @@ describe('play state', () => {
         expect(TrackPlayer().setPlayWhenReady).toHaveBeenLastCalledWith(true)
     })
 
+    it('keeps "play when ready" while a loop restarts at the track end, so the UI does not flicker', async () => {
+        m.store.setLoopStart({ id: 'c' })
+        m.store.setLoopEnd({ id: 'c' })
+        await startService()
+        m.player.playerState.position = 30
+        await setPlayerState(m.player.State.Ended)
+        expect(TrackPlayer().setPlayWhenReady).not.toHaveBeenCalledWith(false)
+        expect(TrackPlayer().play).toHaveBeenCalled()
+    })
+
+    it('resets "play when ready" at the track end without loop', async () => {
+        await startService()
+        m.player.playerState.position = 30
+        await setPlayerState(m.player.State.Ended)
+        expect(TrackPlayer().setPlayWhenReady).toHaveBeenLastCalledWith(false)
+    })
+
+    it('publishes whole seconds while the app is hidden (e.g. for the lock screen), not every event', async () => {
+        const { usePlayerProgressStore } = require('@/store/progress') as typeof import('@/store/progress')
+        await startService()
+        Object.defineProperty(document, 'hidden', { value: true, configurable: true })
+        try {
+            await progress(12.5, 30)
+            expect(usePlayerProgressStore.getState()).toMatchObject({ position: 12, duration: 30 })
+        } finally {
+            Object.defineProperty(document, 'hidden', { value: false, configurable: true })
+        }
+    })
+
     it('publishes the progress events for the UI (no separate polling)', async () => {
         const { usePlayerProgressStore } = require('@/store/progress') as typeof import('@/store/progress')
         await startService()

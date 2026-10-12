@@ -1,5 +1,6 @@
 import { colors } from '@/constants/tokens'
 import { skipToNextClip, skipToPreviousClip, stopPlayback } from '@/constants/playbackService'
+import { playCurrentTrack } from '@/helpers/player'
 import { useGlobalSpeedOnly, useLeadInDuration, useLeadOutDuration, useSpeed } from '@/store/playbackState'
 import { useLoopStatusStore } from '@/store/store'
 import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons'
@@ -72,7 +73,7 @@ export const PlayPauseButton = ({ style, iconSize = 48 }: PlayerButtonProps) => 
 			<TouchableOpacity
 				activeOpacity={0.85}
 				style={styles.button}
-				onPress={() => (playing ? TrackPlayer.pause() : TrackPlayer.play())}
+				onPress={() => (playing ? TrackPlayer.pause() : playCurrentTrack())}
 				accessibilityRole="button"
 				accessibilityLabel={playing ? 'Pause' : 'Play'}
 			>

@@ -12,6 +12,7 @@ import {
     resolveLoop,
     SPEED_FADE_DURATION,
 } from '@/helpers/playback'
+import { playCurrentTrack } from '@/helpers/player'
 import Clip from '@/model/clip'
 import { database } from '@/model/index.web'
 import {
@@ -183,6 +184,12 @@ export const jumpBy = async (seconds: number) => {
     await seekTo(duration > 0 ? Math.min(target, duration) : target)
 }
 
+const syncPlayWhenReady = (playWhenReady: boolean) => {
+    TrackPlayer.setPlayWhenReady(playWhenReady).catch(() => {
+        // The player is not set up, there is nothing to sync
+    })
+}
+
 /** Seconds before the end of the track that still count as "at the end" */
 const TRACK_END_TOLERANCE = 0.5
 
@@ -196,7 +203,10 @@ const handleTrackEnded = async () => {
         // A second end event after the restart: the position is not at the end anymore
         if (duration > 0 && position < duration - TRACK_END_TOLERANCE) return
         const loop = getActiveLoop()
-        if (!loop) return
+        if (!loop) {
+            syncPlayWhenReady(false)
+            return
+        }
         await seekTo(getStopTarget(loop, state.prefs.leadIn))
         await TrackPlayer.play()
     } finally {
@@ -234,19 +244,20 @@ export const playbackService = async () => {
 
     TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, async ({ position, duration }) => {
         updateDuration(duration)
-        // The UI is updated from these events, not while hidden (refreshed when visible again)
-        if (!(typeof document !== 'undefined' && document.hidden)) publishProgress(position, duration)
+        // The UI is updated from these events. While hidden only whole seconds (enough for the lock screen,
+        // which also gets the current rate with them), the exact position is refreshed when visible again.
+        const hidden = typeof document !== 'undefined' && document.hidden
+        publishProgress(hidden ? Math.floor(position) : position, duration)
         await applyIfPlaying(position)
     })
 
     TrackPlayer.addEventListener(Event.PlaybackState, async ({ state: playbackState }) => {
         state.playerState = playbackState
         // The UI shows Play/Pause from "play when ready". On the web the player does not update it when the
-        // browser pauses (e.g. headphones unplugged), a new track is loaded or Play was pressed while loading
-        if (playbackState !== State.Buffering && playbackState !== State.Loading) {
-            TrackPlayer.setPlayWhenReady(playbackState === State.Playing).catch(() => {
-                // The player is not set up, there is nothing to sync
-            })
+        // browser pauses (e.g. headphones unplugged) or a new track is loaded. At the end of the track it
+        // is only reset if no loop restarts, so the UI does not flicker.
+        if (playbackState !== State.Buffering && playbackState !== State.Loading && playbackState !== State.Ended) {
+            syncPlayWhenReady(playbackState === State.Playing)
         }
         refreshProgress()
         if (playbackState === State.Ended) {
@@ -265,7 +276,7 @@ export const playbackService = async () => {
         refreshProgress()
     })
 
-    TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play())
+    TrackPlayer.addEventListener(Event.RemotePlay, playCurrentTrack)
     TrackPlayer.addEventListener(Event.RemotePause, () => TrackPlayer.pause())
     TrackPlayer.addEventListener(Event.RemoteStop, stopPlayback)
     TrackPlayer.addEventListener(Event.RemoteNext, skipToNextClip)

@@ -183,6 +183,27 @@ describe('restoreLastTrack', () => {
         expect(m.prefs.getLastTrack()).toBeUndefined()
     })
 
+    it('does not replace a song the user selected while the app was starting', async () => {
+        m.prefs.setLastTrack('1')
+        let resolveFetch: (tracks: unknown[]) => void = () => undefined
+        const restore = m.player.restoreLastTrack(
+            databaseWith(() => new Promise((resolve) => (resolveFetch = resolve))),
+        )
+        const selected = m.player.selectTrack(track('2'))
+        resolveFetch([track('1')])
+        await restore
+        await expect(selected).resolves.toBe(true)
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('2'))
+    })
+
+    it('does not replace a song the user selected before the player was ready', async () => {
+        m.prefs.setLastTrack('1')
+        const selected = m.player.selectTrack(track('2'))
+        await m.player.restoreLastTrack(databaseWith(async () => [track('1')]))
+        await expect(selected).resolves.toBe(true)
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('2'))
+    })
+
     it('keeps the last track when the database cannot be read this time', async () => {
         m.prefs.setLastTrack('1')
         await m.player.restoreLastTrack(
@@ -194,8 +215,46 @@ describe('restoreLastTrack', () => {
     })
 })
 
+describe('playCurrentTrack', () => {
+    it('starts playing only after a pending load finished, so the player state ends as "playing"', async () => {
+        await m.player.selectTrack(track('1'))
+        let releaseLoad: () => void = () => undefined
+        ;(m.trackPlayer.default.load as unknown as jest.Mock).mockImplementationOnce(
+            () =>
+                new Promise<undefined>((resolve) => {
+                    releaseLoad = () => resolve(undefined)
+                }),
+        )
+        const pending = m.player.selectTrack(track('2'))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        const playing = m.player.playCurrentTrack()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(m.trackPlayer.default.play).not.toHaveBeenCalled()
+        releaseLoad()
+        await pending
+        await playing
+        expect(m.trackPlayer.default.play).toHaveBeenCalled()
+    })
+
+    it('plays right away when nothing is loading', async () => {
+        await m.player.selectTrack(track('1'))
+        await m.player.playCurrentTrack()
+        expect(m.trackPlayer.default.play).toHaveBeenCalled()
+    })
+})
+
 describe('addClipAtCurrentPosition', () => {
     const createClip = jest.fn(async () => undefined)
+
+    it('shows a message instead of failing silently when the clip cannot be saved', async () => {
+        await m.player.selectTrack(track('1'))
+        await expect(
+            m.player.addClipAtCurrentPosition(track('1'), async () => {
+                throw new Error('quota exceeded')
+            }),
+        ).resolves.toBeUndefined()
+        expect(m.dialogs.showMessage).toHaveBeenCalledWith(m.i18n.t.saveFailed)
+    })
 
     it('adds a clip at the player position of the loaded track', async () => {
         await m.player.selectTrack(track('1'))

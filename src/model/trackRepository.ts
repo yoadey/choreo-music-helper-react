@@ -45,7 +45,10 @@ export const createClip = async (
         }),
     )
 
-/** Deletes the track with all its clips and the stored audio file. */
+/**
+ * Deletes the track with all its clips and the stored audio file. The song is deleted even if the file
+ * cannot be removed (it is not referenced anymore), so that is not reported as a failure.
+ */
 export const deleteTrack = async (
     database: Database,
     track: TrackWithClips,
@@ -55,7 +58,11 @@ export const deleteTrack = async (
         const clips = await track.clips.fetch()
         await database.batch(...clips.map((clip) => clip.prepareDestroyPermanently()), track.prepareDestroyPermanently())
     })
-    await removeFile(track.uri)
+    try {
+        await removeFile(track.uri)
+    } catch (error) {
+        console.warn(`Could not remove the audio file ${track.uri}`, error)
+    }
 }
 
 export const deleteClip = async (database: Database, clip: Clip) => {

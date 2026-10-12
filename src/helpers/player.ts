@@ -24,6 +24,9 @@ const trackLoader = createTrackLoader({
     },
 })
 
+// Number of track selections, restoring the last track must not replace a selection of the user
+let selections = 0
+
 const clearCurrentTrack = () => {
     clearLastTrack()
     useCurrentTrackStore.getState().setCurrentTrack(null)
@@ -35,6 +38,7 @@ const clearCurrentTrack = () => {
  * Never rejects: problems are reported to the user (unless silent) and result in false.
  */
 export const selectTrack = async (track: TrackWithClips, { silent = false } = {}) => {
+    selections++
     const result = await trackLoader.load(track)
     switch (result) {
         case 'superseded':
@@ -67,10 +71,24 @@ export const addClipAtCurrentPosition = async (
     track: TrackWithClips,
     create: (track: TrackWithClips, position: number) => Promise<unknown>,
 ) => {
-    const activeTrack = await TrackPlayer.getActiveTrack()
-    if (activeTrack?.id !== track.id) return
-    const { position } = await TrackPlayer.getProgress()
-    await create(track, position)
+    try {
+        const activeTrack = await TrackPlayer.getActiveTrack()
+        if (activeTrack?.id !== track.id) return
+        const { position } = await TrackPlayer.getProgress()
+        await create(track, position)
+    } catch (error) {
+        console.warn('Could not add the clip', error)
+        showMessage(t.saveFailed)
+    }
+}
+
+/**
+ * Starts playing. A track that is still loading is played once it is loaded: playing while the player
+ * loads makes the web player report "ready" after "playing", so it would not track the playback anymore.
+ */
+export const playCurrentTrack = async () => {
+    await trackLoader.whenIdle()
+    await TrackPlayer.play()
 }
 
 /**
@@ -79,7 +97,8 @@ export const addClipAtCurrentPosition = async (
  */
 export const restoreLastTrack = async (database: Database) => {
     const trackId = getLastTrack()
-    if (!trackId) return
+    // The user already selected a song while the app was starting (the UI works before the player)
+    if (!trackId || selections > 0) return
     let tracks: TrackWithClips[]
     try {
         tracks = await database.get<TrackWithClips>('tracks').query(Q.where('id', trackId)).fetch()
@@ -87,6 +106,7 @@ export const restoreLastTrack = async (database: Database) => {
         console.warn('Could not restore the last track', error)
         return
     }
+    if (selections > 0) return
     if (tracks.length === 0) {
         clearLastTrack()
         return

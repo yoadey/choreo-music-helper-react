@@ -3,7 +3,7 @@ import { database, flushDatabase, markSaveFailureReported, withOwnSaveFailureRep
 import TrackWithClips from '@/model/track'
 import { deleteTrack } from '@/model/trackRepository'
 import { clearLastTrack, clearLoop, getLastTrack } from '@/store/playbackState'
-import { del, keys } from 'idb-keyval'
+import { del, delMany, keys } from 'idb-keyval'
 import { Platform } from 'react-native'
 
 const removeStoredFile = async (key: string) => {
@@ -49,12 +49,12 @@ const IMPORT_MARGIN = 10 * 60 * 1000
 export const removeOrphanedAudioFiles = async ({
     keys,
     trackUris,
-    removeFile,
+    removeFiles,
     startedAt,
 }: {
     keys: () => Promise<IDBValidKey[]>
     trackUris: () => Promise<string[]>
-    removeFile: (key: string) => Promise<void>
+    removeFiles: (keys: string[]) => Promise<void>
     startedAt: number
 }) => {
     const [stored, used] = await Promise.all([keys(), trackUris()])
@@ -66,7 +66,7 @@ export const removeOrphanedAudioFiles = async ({
             !referenced.has(key) &&
             keyTimestamp(key) < startedAt - IMPORT_MARGIN,
     )
-    for (const key of orphans) await removeFile(key)
+    if (orphans.length > 0) await removeFiles(orphans)
 }
 
 // Files stored after this (by an import of this session) are never cleaned up as orphans
@@ -80,7 +80,7 @@ export const cleanUpStoredAudio = async () => {
             keys: () => keys(),
             trackUris: async () =>
                 (await database.get<TrackWithClips>('tracks').query().fetch()).map((track) => track.uri),
-            removeFile: (key) => del(key),
+            removeFiles: (orphans) => delMany(orphans),
             startedAt: appStartedAt,
         })
     } catch (error) {

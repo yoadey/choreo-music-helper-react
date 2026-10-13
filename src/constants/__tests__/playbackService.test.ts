@@ -300,6 +300,24 @@ describe('player errors (state)', () => {
         expect(markFailed).toHaveBeenCalledWith(83.9)
     })
 
+    it('does not use the position of the previous song for an error of a newly loaded song', async () => {
+        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
+        const markFailed = jest.spyOn(helpers, 'markPlayerFailed')
+        await startService()
+        await progress(180)
+        await m.player.emitPlayerEvent(m.player.Event.PlaybackActiveTrackChanged, {})
+        await setPlayerState(m.player.State.Error)
+        expect(markFailed).toHaveBeenCalledWith(0)
+    })
+
+    it('Stop still pauses the playing song while another song is loading', async () => {
+        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
+        await startService()
+        jest.spyOn(helpers, 'isTrackLoading').mockReturnValue(true)
+        await m.service.stopPlayback()
+        expect(TrackPlayer().pause).toHaveBeenCalled()
+    })
+
     it('ignores the controls while another song is loading (they would use the clips of the old song)', async () => {
         const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
         await startService()

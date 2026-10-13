@@ -213,10 +213,13 @@ const stopPlayer = control(async () => {
     await seekAndPublish(getStopTarget(getActiveLoop(), state.prefs.leadIn))
 })
 
-/** Stops the playback without unloading the track, so it can be played again directly. */
+/**
+ * Stops the playback without unloading the track, so it can be played again directly. While another song
+ * loads, the playing song is only paused (the new one starts at its beginning anyway).
+ */
 export const stopPlayback = async () => {
     cancelPendingPlay()
-    await stopPlayer()
+    await (isTrackLoading() ? pausePlayer() : stopPlayer())
 }
 
 /** Clip start positions, sorted (the ranges are sorted when they are computed) */
@@ -338,8 +341,9 @@ export const playbackService = async () => {
 
 
     TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, () => {
-        // A newly loaded track starts with the player defaults
+        // A newly loaded track starts with the player defaults, at its beginning
         state.duration = 0
+        state.lastPosition = 0
         recompute()
         state.lastRate = undefined
         state.lastVolume = undefined

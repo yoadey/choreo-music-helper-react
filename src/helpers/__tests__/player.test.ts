@@ -308,6 +308,55 @@ describe('after the player dropped the song (error)', () => {
         expect(create).toHaveBeenCalledWith(track('1'), 30)
     })
 
+    it('does not load the dropped song again while the user selected another song (the selection wins)', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(30)
+        const { get } = require('idb-keyval') as { get: jest.Mock }
+        let releaseBlob: () => void = () => undefined
+        get.mockImplementationOnce(
+            () => new Promise((resolve) => (releaseBlob = () => resolve(new Blob(['audio'])))),
+        )
+        const selecting = m.player.selectTrack(track('2'))
+        const create = jest.fn(async () => undefined)
+        await m.player.addClipAtCurrentPosition(track('1'), create)
+        releaseBlob()
+        await expect(selecting).resolves.toBe(true)
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('2'))
+        expect(create).not.toHaveBeenCalled()
+    })
+
+    it('waits for the jump back to the position of the error before using the song', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(150)
+        let releaseSeek: () => void = () => undefined
+        ;(m.trackPlayer.default.seekTo as unknown as jest.Mock).mockImplementationOnce(
+            (...args: unknown[]) =>
+                new Promise<undefined>((resolve) => {
+                    releaseSeek = () => {
+                        m.trackPlayer.playerState.position = args[0] as number
+                        resolve(undefined)
+                    }
+                }),
+        )
+        const playing = m.player.playCurrentTrack()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        const create = jest.fn(async () => undefined)
+        const adding = m.player.addClipAtCurrentPosition(track('1'), create)
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        releaseSeek()
+        await Promise.all([playing, adding])
+        expect(create).toHaveBeenCalledWith(track('1'), 150)
+    })
+
+    it('never rejects when jumping back after loading the song again fails', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(150)
+        ;(m.trackPlayer.default.seekTo as unknown as jest.Mock).mockImplementationOnce(async () => {
+            throw new Error('The player is not set up')
+        })
+        await expect(m.player.selectTrack(track('1'))).resolves.toBe(true)
+    })
+
     it('keeps the position of the first error (a later error of the empty player reports 0)', async () => {
         await m.player.selectTrack(track('1'))
         m.player.markPlayerFailed(70)

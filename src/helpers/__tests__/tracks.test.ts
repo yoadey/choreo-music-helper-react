@@ -67,7 +67,7 @@ describe('removeOrphanedAudioFiles', () => {
     it('removes stored files no song refers to, but not recent files (an import may be running, also in another tab)', async () => {
         const minute = 60_000
         const startedAt = 100 * minute
-        const removeFile = jest.fn(async () => undefined)
+        const removeFiles = jest.fn(async (_keys: string[]) => undefined)
         await removeOrphanedAudioFiles({
             keys: async () => [
                 `/audio/kept_${10 * minute}.mp3`,
@@ -77,10 +77,11 @@ describe('removeOrphanedAudioFiles', () => {
                 'other',
             ],
             trackUris: async () => [`/audio/kept_${10 * minute}.mp3`],
-            removeFile,
+            removeFiles,
             startedAt,
         })
-        expect(removeFile).toHaveBeenCalledTimes(1)
-        expect(removeFile).toHaveBeenCalledWith(`/audio/orphan_${10 * minute}.mp3`)
+        // In one transaction
+        expect(removeFiles).toHaveBeenCalledTimes(1)
+        expect(removeFiles).toHaveBeenCalledWith([`/audio/orphan_${10 * minute}.mp3`])
     })
 })

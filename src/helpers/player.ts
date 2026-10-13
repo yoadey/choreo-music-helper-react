@@ -42,8 +42,8 @@ export const selectTrack = async (track: TrackWithClips, { silent = false } = {}
 
 /** Tells the user why a song could not be loaded and updates the current song. */
 const handleLoadResult = (result: LoadResult, silent: boolean) => {
-    // The player holds the new song or nothing
-    if (result === 'loaded' || result === 'failed') droppedAt = undefined
+    // The player holds the new song or nothing (a reload of the dropped song clears it after jumping back)
+    if ((result === 'loaded' && !dropReload) || result === 'failed') droppedAt = undefined
     switch (result) {
         case 'missing':
         case 'unreadable':
@@ -92,7 +92,7 @@ export const addClipAtCurrentPosition = async (
 ) => {
     try {
         // After an error the player reports position 0: the song is loaded again at the position of the error
-        if (droppedAt !== undefined && !(await ensureTrackLoaded())) return
+        if (isTrackDropped() && !(await ensureTrackLoaded())) return
         const activeTrack = await TrackPlayer.getActiveTrack()
         if (activeTrack?.id !== track.id) return
         const { position } = await TrackPlayer.getProgress()
@@ -124,17 +124,18 @@ export const markPlayerFailed = (position: number) => {
     droppedAt ??= position
 }
 
-/** True if the player dropped the current song after an error. */
-export const isTrackDropped = () => droppedAt !== undefined
+/** True if the player dropped the current song after an error (until it is loaded again and in position). */
+export const isTrackDropped = () => droppedAt !== undefined || dropReload !== undefined
 
 /**
  * Loads the current song again if the player dropped it, at the position of the error. Returns false if
- * there is no usable song.
+ * there is no usable song, also while another song is loading (it replaces the dropped one). Never rejects.
  */
 export const ensureTrackLoaded = async () => {
     const current = useCurrentTrackStore.getState().currentTrack
     if (!current) return false
-    if (droppedAt === undefined && !dropReload) return true
+    if (!isTrackDropped()) return true
+    if (!dropReload && trackLoader.isLoading()) return false
     return (await reloadDropped(current)) === 'loaded'
 }
 
@@ -144,9 +145,14 @@ const reloadDropped = (track: TrackWithClips): Promise<LoadResult> => {
         const result = await trackLoader.load(track)
         handleLoadResult(result, false)
         if (result !== 'loaded') return result
-        if (position > 0) await TrackPlayer.seekTo(position)
-        // The reload published 0:00
-        await refreshProgress()
+        try {
+            if (position > 0) await TrackPlayer.seekTo(position)
+            // The reload published 0:00
+            await refreshProgress()
+        } catch (error) {
+            console.warn('Could not return to the position of the error', error)
+        }
+        droppedAt = undefined
         return result
     })().finally(() => {
         dropReload = undefined
@@ -178,7 +184,7 @@ export const playCurrentTrack = async ({ unlessLoading = false } = {}) => {
         }
         if (!useCurrentTrackStore.getState().currentTrack) return
         // (Only awaited when needed: otherwise play() is called synchronously)
-        if (droppedAt !== undefined && !(await ensureTrackLoaded())) return
+        if (isTrackDropped() && !(await ensureTrackLoaded())) return
         // Paused (or started again) while waiting
         if (request !== playRequests) return
         await TrackPlayer.play()

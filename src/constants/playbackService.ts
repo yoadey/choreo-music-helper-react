@@ -16,12 +16,8 @@ import {
 } from '@/helpers/playback'
 import {
     cancelPendingPlay,
-    getDroppedPosition,
-    isTrackDropped,
-    isOtherTrackLoading,
+    handlePlayerError,
     isTrackLoading,
-    markPlayerFailed,
-    moveDroppedPosition,
     playCurrentTrack,
     whenTrackIdle,
 } from '@/helpers/player'
@@ -38,7 +34,7 @@ import {
     getSpeed,
     preferences,
 } from '@/store/playbackState'
-import { getLastPlayerPosition, noteLastPlayerPosition, publishProgress, refreshProgress } from '@/store/progress'
+import { publishProgress, refreshProgress } from '@/store/progress'
 import { useCurrentTrackStore, useLoopStatusStore } from '@/store/store'
 import { Q } from '@nozbe/watermelondb'
 import TrackPlayer, { Event, State } from 'react-native-track-player'
@@ -116,23 +112,8 @@ const getProgress = async () => {
     return progress
 }
 
-/**
- * Position for the controls: after an error the player dropped the song and reports 0, then the position of
- * the dropped song is used (and moved by the controls, see seekAndPublish).
- */
-const getControlProgress = async () => {
-    const droppedPosition = getDroppedPosition()
-    if (droppedPosition === undefined) return getProgress()
-    return { position: droppedPosition, duration: state.duration }
-}
-
 /** Seeks and publishes the new position right away (no progress polling while paused). */
 const seekAndPublish = async (position: number) => {
-    if (isTrackDropped()) {
-        // The song is loaded again at this position (Play, selecting it)
-        moveDroppedPosition(position)
-        return
-    }
     await TrackPlayer.seekTo(position)
     await refreshProgress()
 }
@@ -146,9 +127,8 @@ const control =
     async (...args: A) => {
         if (!useCurrentTrackStore.getState().currentTrack) return
         try {
-            // Another song is loading: the clips and positions are still those of the old song (a dropped song
-            // that loads again uses its remembered position meanwhile)
-            if (needsSong && isOtherTrackLoading()) return
+            // Another song is loading: the clips and positions are still those of the old song
+            if (needsSong && isTrackLoading()) return
             await action(...args)
         } catch (error) {
             console.warn('The player control failed', error)
@@ -207,13 +187,7 @@ const applyIfPlaying = async (position: number) => {
     }
 }
 
-const pausePlayer = control(
-    async () => {
-        // A dropped song does not play
-        if (!isTrackDropped()) await TrackPlayer.pause()
-    },
-    { needsSong: false },
-)
+const pausePlayer = control(() => TrackPlayer.pause(), { needsSong: false })
 
 /** Pauses, also a start that still waits for a song to load. */
 export const pausePlayback = async () => {
@@ -222,10 +196,8 @@ export const pausePlayback = async () => {
 }
 
 const stopPlayer = control(async () => {
-    if (!isTrackDropped()) {
-        await TrackPlayer.pause()
-        await getProgress()
-    }
+    await TrackPlayer.pause()
+    await getProgress()
     await seekAndPublish(getStopTarget(getActiveLoop(), state.prefs.leadIn))
 })
 
@@ -235,14 +207,14 @@ const stopPlayer = control(async () => {
  */
 export const stopPlayback = async () => {
     cancelPendingPlay()
-    await (isOtherTrackLoading() ? pausePlayer() : stopPlayer())
+    await (isTrackLoading() ? pausePlayer() : stopPlayer())
 }
 
 /** Clip start positions, sorted (the ranges are sorted when they are computed) */
 const clipStarts = () => state.ranges.map((range) => range.start)
 
 export const skipToNextClip = control(async () => {
-    const { position } = await getControlProgress()
+    const { position } = await getProgress()
     const target = getNextClipTarget(position, clipStarts(), state.prefs.leadIn)
     if (target !== null) {
         await seekAndPublish(target)
@@ -250,7 +222,7 @@ export const skipToNextClip = control(async () => {
 })
 
 export const skipToPreviousClip = control(async () => {
-    const { position } = await getControlProgress()
+    const { position } = await getProgress()
     await seekAndPublish(getPreviousClipTarget(position, clipStarts(), state.prefs.leadIn))
 })
 
@@ -260,7 +232,7 @@ export const seekToClip = control(async (clipPosition: number) => {
 })
 
 export const jumpBy = control(async (seconds: number) => {
-    const { position, duration } = await getControlProgress()
+    const { position, duration } = await getProgress()
     const target = Math.max(position + seconds, 0)
     await seekAndPublish(duration > 0 ? Math.min(target, duration) : target)
 })
@@ -326,7 +298,6 @@ export const playbackService = async () => {
     })
 
     TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, async ({ position, duration }) => {
-        noteLastPlayerPosition(position)
         updateDuration(duration)
         // The UI is updated from these events. While hidden only whole seconds (enough for the lock screen,
         // which also gets the current rate with them), the exact position is refreshed when visible again.
@@ -343,10 +314,8 @@ export const playbackService = async () => {
             syncPlayWhenReady(playbackState === State.Playing)
         }
         if (playbackState === State.Error) {
-            // The web player unloaded the song (its position is 0 now): the last known exact position is kept.
-            // Also while another song loads: if that one is not loaded (e.g. its file is missing), this one
-            // stays current. A finished load resets it.
-            markPlayerFailed(getLastPlayerPosition())
+            // The web player unloaded the song
+            await handlePlayerError()
             return
         }
         refreshProgress()
@@ -357,9 +326,8 @@ export const playbackService = async () => {
 
 
     TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, () => {
-        // A newly loaded track starts with the player defaults, at its beginning
+        // A newly loaded track starts with the player defaults
         state.duration = 0
-        noteLastPlayerPosition(0)
         recompute()
         state.lastRate = undefined
         state.lastVolume = undefined

@@ -276,96 +276,18 @@ describe('preferences', () => {
 })
 
 describe('player errors (state)', () => {
-    it('remembers that the player dropped the song (reloaded on Play), without reloading by itself', async () => {
+    it('lets the player helpers handle an error during playback', async () => {
         const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
-        const markFailed = jest.spyOn(helpers, 'markPlayerFailed')
+        const handle = jest.spyOn(helpers, 'handlePlayerError').mockImplementation(async () => undefined)
         await startService()
-        await progress(12.5)
         await setPlayerState(m.player.State.Error)
-        expect(markFailed).toHaveBeenCalledWith(12.5)
-        expect(TrackPlayer().reset).not.toHaveBeenCalled()
-    })
-
-    it('remembers the exact position of the error, also while the app is hidden', async () => {
-        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
-        const markFailed = jest.spyOn(helpers, 'markPlayerFailed')
-        await startService()
-        Object.defineProperty(document, 'hidden', { value: true, configurable: true })
-        try {
-            await progress(83.9)
-            await setPlayerState(m.player.State.Error)
-        } finally {
-            Object.defineProperty(document, 'hidden', { value: false, configurable: true })
-        }
-        expect(markFailed).toHaveBeenCalledWith(83.9)
-    })
-
-    it('does not use the position of the previous song for an error of a newly loaded song', async () => {
-        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
-        const markFailed = jest.spyOn(helpers, 'markPlayerFailed')
-        await startService()
-        await progress(180)
-        // The newly loaded song is at its beginning
-        m.player.playerState.position = 0
-        await m.player.emitPlayerEvent(m.player.Event.PlaybackActiveTrackChanged, {})
-        await setPlayerState(m.player.State.Error)
-        expect(markFailed).toHaveBeenCalledWith(0)
-    })
-
-    it('uses the position after the song was loaded again for a repeated error (no progress event yet)', async () => {
-        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
-        const { refreshProgress } = require('@/store/progress') as typeof import('@/store/progress')
-        const markFailed = jest.spyOn(helpers, 'markPlayerFailed')
-        await startService()
-        await m.player.emitPlayerEvent(m.player.Event.PlaybackActiveTrackChanged, {})
-        // The reload jumps back and publishes the position
-        m.player.playerState.position = 95
-        await refreshProgress()
-        await setPlayerState(m.player.State.Error)
-        expect(markFailed).toHaveBeenLastCalledWith(95)
-    })
-
-    it('Stop on a dropped song moves its position instead of loading it again', async () => {
-        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
-        await startService()
-        helpers.markPlayerFailed(50)
-        const move = jest.spyOn(helpers, 'moveDroppedPosition')
-        const ensure = jest.spyOn(helpers, 'ensureTrackLoaded')
-        await m.service.stopPlayback()
-        expect(ensure).not.toHaveBeenCalled()
-        expect(move).toHaveBeenCalledWith(0)
-    })
-
-    it('the controls move the position of a dropped song without loading it', async () => {
-        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
-        await startService()
-        helpers.markPlayerFailed(50)
-        await m.service.jumpBy(10)
-        expect(helpers.getDroppedPosition()).toBe(60)
-        await m.service.seekToClip(20)
-        expect(helpers.getDroppedPosition()).toBe(20)
-        await m.service.skipToPreviousClip()
-        expect(helpers.getDroppedPosition()).toBeLessThan(20)
-        expect(TrackPlayer().reset).not.toHaveBeenCalled()
-        expect(TrackPlayer().seekTo).not.toHaveBeenCalled()
-    })
-
-    it('the controls and Stop move the position while the dropped song itself is loading again', async () => {
-        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
-        await startService()
-        helpers.markPlayerFailed(50)
-        jest.spyOn(helpers, 'isTrackLoading').mockReturnValue(true)
-        jest.spyOn(helpers, 'isOtherTrackLoading').mockReturnValue(false)
-        await m.service.jumpBy(10)
-        expect(helpers.getDroppedPosition()).toBe(60)
-        await m.service.stopPlayback()
-        expect(helpers.getDroppedPosition()).toBe(0)
+        expect(handle).toHaveBeenCalled()
     })
 
     it('Stop still pauses the playing song while another song is loading', async () => {
         const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
         await startService()
-        jest.spyOn(helpers, 'isOtherTrackLoading').mockReturnValue(true)
+        jest.spyOn(helpers, 'isTrackLoading').mockReturnValue(true)
         await m.service.stopPlayback()
         expect(TrackPlayer().pause).toHaveBeenCalled()
         // Only paused: the position stays (the new song starts at its beginning anyway)
@@ -376,7 +298,7 @@ describe('player errors (state)', () => {
         const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
         await startService()
         await progress(5)
-        jest.spyOn(helpers, 'isOtherTrackLoading').mockReturnValue(true)
+        jest.spyOn(helpers, 'isTrackLoading').mockReturnValue(true)
         await m.service.skipToNextClip()
         await m.service.seekToClip(20)
         expect(TrackPlayer().seekTo).not.toHaveBeenCalled()
@@ -419,15 +341,6 @@ describe('player errors (state)', () => {
 })
 
 describe('pause', () => {
-    it('does not load a dropped song again only to pause it', async () => {
-        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
-        await startService()
-        helpers.markPlayerFailed(5)
-        const ensure = jest.spyOn(helpers, 'ensureTrackLoaded')
-        await m.service.pausePlayback()
-        expect(ensure).not.toHaveBeenCalled()
-    })
-
     it('never rejects, e.g. before the player is set up', async () => {
         await startService()
         ;(TrackPlayer().pause as unknown as jest.Mock).mockImplementationOnce(async () => {

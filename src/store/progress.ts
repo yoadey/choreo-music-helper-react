@@ -18,31 +18,10 @@ export const publishProgress = (position: number, duration: number) => {
     }
 }
 
-// Last exact position of the player (the published one is rounded while the app is hidden), e.g. the
-// position of a player error
-let lastPlayerPosition = 0
-
-export const getLastPlayerPosition = () => lastPlayerPosition
-
-/** Notes the exact position of the player (from its events, or 0 for a newly loaded song). */
-export const noteLastPlayerPosition = (position: number) => {
-    lastPlayerPosition = position
-}
-
-// While the player dropped the song after an error it reports 0: the shown progress is kept
-let held = false
-
-/** Keeps the shown progress (refreshProgress does not read the player), e.g. while the song is dropped. */
-export const holdProgress = (hold: boolean) => {
-    held = hold
-}
-
 /** Reads the progress from the player once, e.g. after a seek, a state change or a track change. */
 export const refreshProgress = async () => {
-    if (held) return
     try {
         const { position, duration } = await TrackPlayer.getProgress()
-        lastPlayerPosition = position
         publishProgress(position, duration)
     } catch {
         // The player is not set up yet

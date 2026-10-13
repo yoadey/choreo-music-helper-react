@@ -1,5 +1,6 @@
 import logo from '@/assets/logo192.png'
 import { jumpBy, pausePlayback, seekTo, skipToNextClip, skipToPreviousClip, stopPlayback } from '@/constants/playbackService'
+import { trackDisplayTitle } from '@/helpers/miscellaneous'
 import { playCurrentTrack } from '@/helpers/player'
 import { useEffect } from 'react'
 import { usePlayerProgressStore } from '@/store/progress'
@@ -34,7 +35,8 @@ export const useMediaSession = () => {
     // Whole seconds suffice, the OS extrapolates the position in between
     const position = usePlayerProgressStore((progress) => Math.floor(progress.position))
     const duration = usePlayerProgressStore((progress) => progress.duration)
-    const title = currentTrack?.title
+    // A song with a cleared title is still a song (shown with a fallback title)
+    const title = currentTrack ? trackDisplayTitle(currentTrack.title) : undefined
     const supported = typeof navigator !== 'undefined' && 'mediaSession' in navigator
 
     useEffect(() => {

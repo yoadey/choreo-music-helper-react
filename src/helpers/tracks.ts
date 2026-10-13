@@ -18,7 +18,8 @@ const removeStoredFile = async (key: string) => {
 export const removeTrack = (track: TrackWithClips) =>
     // A failed save is reported as failed delete, not additionally by the background save
     withOwnSaveFailureReport(async () => {
-        await releaseTrack(track.id)
+        // The loop and the last song are only removed once the song is deleted (below)
+        await releaseTrack(track.id, { keepPreferences: true })
         await deleteTrack(database, track, removeStoredFile, async () => {
             try {
                 await flushDatabase()
@@ -58,6 +59,8 @@ export const removeOrphanedAudioFiles = async ({
     startedAt: number
 }) => {
     const [stored, used] = await Promise.all([keys(), trackUris()])
+    // No songs but stored files: the database may have been reset, the files are the only copy left
+    if (used.length === 0) return
     const referenced = new Set(used)
     const orphans = stored.filter(
         (key): key is string =>

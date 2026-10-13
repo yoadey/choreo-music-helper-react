@@ -1,3 +1,4 @@
+import { trackDisplayTitle } from '@/helpers/miscellaneous'
 import { colors } from '@/constants/tokens'
 import { useCurrentTrack } from '@/hooks/useCurrentTrack'
 import { t } from '@/i18n'
@@ -27,7 +28,7 @@ const DrawerNavigator = () => {
                     ...drawerStyleOptions,
                     title: t.musicPlayer,
                     headerShown: true,
-                    headerTitle: `${currentTrack ? `${currentTrack.title} - ` : ''}Choreo Music Helper`,
+                    headerTitle: `${currentTrack ? `${trackDisplayTitle(currentTrack.title)} - ` : ''}Choreo Music Helper`,
                     drawerIcon: ({ color, size }) => <FontAwesome6 name="music" size={size} color={color} />,
                 }}
             />

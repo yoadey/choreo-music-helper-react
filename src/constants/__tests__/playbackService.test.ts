@@ -305,9 +305,35 @@ describe('player errors (state)', () => {
         const markFailed = jest.spyOn(helpers, 'markPlayerFailed')
         await startService()
         await progress(180)
+        // The newly loaded song is at its beginning
+        m.player.playerState.position = 0
         await m.player.emitPlayerEvent(m.player.Event.PlaybackActiveTrackChanged, {})
         await setPlayerState(m.player.State.Error)
         expect(markFailed).toHaveBeenCalledWith(0)
+    })
+
+    it('uses the position after the song was loaded again for a repeated error (no progress event yet)', async () => {
+        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
+        const { refreshProgress } = require('@/store/progress') as typeof import('@/store/progress')
+        const markFailed = jest.spyOn(helpers, 'markPlayerFailed')
+        await startService()
+        await m.player.emitPlayerEvent(m.player.Event.PlaybackActiveTrackChanged, {})
+        // The reload jumps back and publishes the position
+        m.player.playerState.position = 95
+        await refreshProgress()
+        await setPlayerState(m.player.State.Error)
+        expect(markFailed).toHaveBeenLastCalledWith(95)
+    })
+
+    it('Stop on a dropped song moves its position instead of loading it again', async () => {
+        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
+        await startService()
+        helpers.markPlayerFailed(50)
+        const move = jest.spyOn(helpers, 'moveDroppedPosition')
+        const ensure = jest.spyOn(helpers, 'ensureTrackLoaded')
+        await m.service.stopPlayback()
+        expect(ensure).not.toHaveBeenCalled()
+        expect(move).toHaveBeenCalledWith(0)
     })
 
     it('Stop still pauses the playing song while another song is loading', async () => {

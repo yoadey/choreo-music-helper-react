@@ -28,11 +28,19 @@ beforeEach(() => {
 describe('removeTrack', () => {
     it('releases the song from the player first, then deletes it (written before its file is removed)', async () => {
         await removeTrack(track)
-        expect(player().releaseTrack).toHaveBeenCalledWith('t1')
+        expect(player().releaseTrack).toHaveBeenCalledWith('t1', { keepPreferences: true })
         expect(repository().deleteTrack).toHaveBeenCalledWith({}, track, expect.any(Function), expect.any(Function))
         expect(player().releaseTrack.mock.invocationCallOrder[0]).toBeLessThan(
             repository().deleteTrack.mock.invocationCallOrder[0],
         )
+    })
+
+    it('keeps the loop and the last song when the song could not be deleted', async () => {
+        repository().deleteTrack.mockImplementationOnce(async () => {
+            throw new Error('writer failed')
+        })
+        await expect(removeTrack(track)).rejects.toThrow()
+        expect(player().releaseTrack).toHaveBeenCalledWith('t1', { keepPreferences: true })
     })
 
     it('forgets a deleted song that is remembered as last song (e.g. it could not be loaded)', async () => {
@@ -60,6 +68,19 @@ describe('removeTrack', () => {
         })
         await expect(removeTrack(track)).rejects.toThrow('writer failed')
         expect(model().markSaveFailureReported).not.toHaveBeenCalled()
+    })
+})
+
+describe('removeOrphanedAudioFiles without songs', () => {
+    it('removes nothing when the database has no songs but files exist (it may have been reset)', async () => {
+        const removeFiles = jest.fn(async (_keys: string[]) => undefined)
+        await removeOrphanedAudioFiles({
+            keys: async () => ['/audio/song_1.mp3'],
+            trackUris: async () => [],
+            removeFiles,
+            startedAt: Date.now(),
+        })
+        expect(removeFiles).not.toHaveBeenCalled()
     })
 })
 

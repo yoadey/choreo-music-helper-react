@@ -20,6 +20,7 @@ import {
     isTrackDropped,
     isTrackLoading,
     markPlayerFailed,
+    moveDroppedPosition,
     playCurrentTrack,
     whenTrackIdle,
 } from '@/helpers/player'
@@ -36,7 +37,7 @@ import {
     getSpeed,
     preferences,
 } from '@/store/playbackState'
-import { publishProgress, refreshProgress } from '@/store/progress'
+import { getLastPlayerPosition, noteLastPlayerPosition, publishProgress, refreshProgress } from '@/store/progress'
 import { useCurrentTrackStore, useLoopStatusStore } from '@/store/store'
 import { Q } from '@nozbe/watermelondb'
 import TrackPlayer, { Event, State } from 'react-native-track-player'
@@ -65,8 +66,6 @@ const state = {
     // null: not subscribed yet (undefined: no song)
     trackId: null as string | undefined | null,
     clipsPending: false,
-    // Exact position from the player events (the published progress is rounded while hidden)
-    lastPosition: 0,
     subscription: undefined as Subscription | undefined,
     lastRate: undefined as number | undefined,
     lastVolume: undefined as number | undefined,
@@ -119,7 +118,6 @@ const getProgress = async () => {
 /** Seeks and publishes the new position right away (no progress polling while paused). */
 const seekAndPublish = async (position: number) => {
     await TrackPlayer.seekTo(position)
-    state.lastPosition = position
     await refreshProgress()
 }
 
@@ -219,7 +217,14 @@ const stopPlayer = control(async () => {
  */
 export const stopPlayback = async () => {
     cancelPendingPlay()
-    await (isTrackLoading() ? pausePlayer() : stopPlayer())
+    if (isTrackLoading()) {
+        await pausePlayer()
+    } else if (isTrackDropped()) {
+        // Nothing plays: the dropped song continues at the stop position when it is loaded again
+        moveDroppedPosition(getStopTarget(getActiveLoop(), state.prefs.leadIn))
+    } else {
+        await stopPlayer()
+    }
 }
 
 /** Clip start positions, sorted (the ranges are sorted when they are computed) */
@@ -310,7 +315,7 @@ export const playbackService = async () => {
     })
 
     TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, async ({ position, duration }) => {
-        state.lastPosition = position
+        noteLastPlayerPosition(position)
         updateDuration(duration)
         // The UI is updated from these events. While hidden only whole seconds (enough for the lock screen,
         // which also gets the current rate with them), the exact position is refreshed when visible again.
@@ -330,7 +335,7 @@ export const playbackService = async () => {
             // The web player unloaded the song (its position is 0 now): the last known exact position is kept.
             // Also while another song loads: if that one is not loaded (e.g. its file is missing), this one
             // stays current. A finished load resets it.
-            markPlayerFailed(state.lastPosition)
+            markPlayerFailed(getLastPlayerPosition())
             return
         }
         refreshProgress()
@@ -343,7 +348,7 @@ export const playbackService = async () => {
     TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, () => {
         // A newly loaded track starts with the player defaults, at its beginning
         state.duration = 0
-        state.lastPosition = 0
+        noteLastPlayerPosition(0)
         recompute()
         state.lastRate = undefined
         state.lastVolume = undefined

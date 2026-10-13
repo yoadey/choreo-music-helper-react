@@ -1,3 +1,5 @@
+import { t } from '@/i18n'
+
 export const formatSecondsToMinutes = (seconds: number) => {
     const safeSeconds = Number.isFinite(seconds) ? Math.max(seconds, 0) : 0
     const minutes = Math.floor(safeSeconds / 60)
@@ -34,3 +36,6 @@ export const parseDurationInput = (text: string): number | null => {
 
 /** Adds delta to a number of seconds (tenths precision, never negative) */
 export const stepSeconds = (seconds: number, delta: number) => Math.max(0, Math.round((seconds + delta) * 10) / 10)
+
+/** Title of a song as shown (a cleared title shows a fallback) */
+export const trackDisplayTitle = (title: string | null | undefined) => title || t.untitledTrack

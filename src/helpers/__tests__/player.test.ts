@@ -127,6 +127,15 @@ describe('releaseTrack (before deleting a track)', () => {
         expect(pause.mock.invocationCallOrder[0]).toBeLessThan(reset.mock.invocationCallOrder[0])
     })
 
+    it('can keep the loop and the last song (until the delete succeeded)', async () => {
+        await m.player.selectTrack(track('1'))
+        m.prefs.setLoopStart({ id: 'a' })
+        await m.player.releaseTrack('1', { keepPreferences: true })
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toBeNull()
+        expect(m.prefs.getLastTrack()).toBe('1')
+        expect(m.prefs.getLoopStartId()).toBe('a')
+    })
+
     it('unloads the current track', async () => {
         await m.player.selectTrack(track('1'))
         await m.player.releaseTrack('1')
@@ -355,6 +364,41 @@ describe('after the player dropped the song (error)', () => {
             throw new Error('The player is not set up')
         })
         await expect(m.player.selectTrack(track('1'))).resolves.toBe(true)
+    })
+
+    it('the last selection wins also between reloads of the dropped song', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(30)
+        const { get } = require('idb-keyval') as { get: jest.Mock }
+        const blobs: (() => void)[] = []
+        get.mockImplementation(
+            () => new Promise((resolve) => blobs.push(() => resolve(new Blob(['audio'])))),
+        )
+        const reload = m.player.playCurrentTrack()
+        const other = m.player.selectTrack(track('2'))
+        const again = m.player.selectTrack(track('1'))
+        get.mockImplementation(async () => new Blob(['audio']))
+        blobs.forEach((release) => release())
+        await Promise.all([reload, other, again])
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('1'))
+        expect(m.trackPlayer.playerState.activeTrack?.id).toBe('1')
+    })
+
+    it('forgets the error position when another song was loaded (also while the reload was cancelled)', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(30)
+        const reload = m.player.playCurrentTrack()
+        await m.player.selectTrack(track('2'))
+        await reload
+        expect(m.player.isTrackDropped()).toBe(false)
+    })
+
+    it('can move the error position (e.g. Stop) without loading the song', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(30)
+        m.player.moveDroppedPosition(5)
+        await m.player.ensureTrackLoaded()
+        expect(m.trackPlayer.default.seekTo).toHaveBeenLastCalledWith(5)
     })
 
     it('keeps the position of the first error (a later error of the empty player reports 0)', async () => {

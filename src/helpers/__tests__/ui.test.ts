@@ -1,5 +1,12 @@
 import { describe, expect, it } from '@jest/globals'
-import { clipProgressFraction, formatClipTime, formatSecondsToMinutes, parseDurationInput, stepSeconds } from '../miscellaneous'
+import {
+    clipProgressFraction,
+    formatClipTime,
+    formatSecondsToMinutes,
+    parseDurationInput,
+    stepSeconds,
+    trackDisplayTitle,
+} from '../miscellaneous'
 import { MAX_SPEED, MIN_SPEED, sliderToSpeed, speedToSlider, stepSpeed } from '../speed'
 
 describe('speed slider mapping', () => {
@@ -87,5 +94,13 @@ describe('stepSeconds', () => {
 
     it('never goes below zero', () => {
         expect(stepSeconds(0.5, -1)).toBe(0)
+    })
+})
+
+describe('trackDisplayTitle', () => {
+    it('shows a fallback for songs whose title was cleared', () => {
+        const { t } = require('@/i18n') as typeof import('@/i18n')
+        expect(trackDisplayTitle('')).toBe(t.untitledTrack)
+        expect(trackDisplayTitle('Song')).toBe('Song')
     })
 })

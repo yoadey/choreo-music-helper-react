@@ -1,5 +1,6 @@
 import { colors, TRANSPARENT } from '@/constants/tokens'
 import { confirmAction, showMessage } from '@/helpers/dialogs'
+import { trackDisplayTitle } from '@/helpers/miscellaneous'
 import { removeTrack } from '@/helpers/tracks'
 import { t } from '@/i18n'
 import TrackWithClips from '@/model/track'
@@ -33,7 +34,7 @@ export const TracksListItem = memo(function TracksListItem({
 }: TracksListItemProps) {
     const { showActionSheetWithOptions } = useActionSheet()
     const router = useRouter()
-    const displayTitle = title || t.untitledTrack
+    const displayTitle = trackDisplayTitle(title)
     const backgroundColor = color || TRANSPARENT
 
     const handleDelete = async () => {

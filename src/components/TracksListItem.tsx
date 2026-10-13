@@ -1,17 +1,14 @@
 import { colors, TRANSPARENT } from '@/constants/tokens'
 import { confirmAction, showMessage } from '@/helpers/dialogs'
-import { releaseTrack } from '@/helpers/player'
+import { removeTrack } from '@/helpers/tracks'
 import { t } from '@/i18n'
-import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
-import { deleteTrack } from '@/model/trackRepository'
 import { defaultStyles } from '@/styles'
 import { useActionSheet } from '@expo/react-native-action-sheet'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { del } from 'idb-keyval'
 import { memo } from 'react'
-import { ActivityIndicator, Platform, StyleSheet, Text, TouchableHighlight, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, Text, TouchableHighlight, View } from 'react-native'
 
 export type TracksListItemProps = {
     track: TrackWithClips
@@ -23,10 +20,6 @@ export type TracksListItemProps = {
     /** Only relevant for the active track */
     isPlaying: boolean
     onTrackSelect: (track: TrackWithClips) => void
-}
-
-const removeStoredFile = async (key: string) => {
-    if (Platform.OS === 'web') await del(key)
 }
 
 export const TracksListItem = memo(function TracksListItem({
@@ -46,8 +39,7 @@ export const TracksListItem = memo(function TracksListItem({
     const handleDelete = async () => {
         if (!(await confirmAction(t.confirmDeleteTrack(displayTitle)))) return
         try {
-            await releaseTrack(track.id)
-            await deleteTrack(database, track, removeStoredFile)
+            await removeTrack(track)
         } catch (error) {
             console.warn('Could not delete the track', error)
             showMessage(t.deleteFailed)

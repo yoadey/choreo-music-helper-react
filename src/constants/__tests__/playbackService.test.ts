@@ -280,8 +280,9 @@ describe('player errors (state)', () => {
         const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
         const markFailed = jest.spyOn(helpers, 'markPlayerFailed')
         await startService()
+        await progress(12.5)
         await setPlayerState(m.player.State.Error)
-        expect(markFailed).toHaveBeenCalled()
+        expect(markFailed).toHaveBeenCalledWith(12.5)
         expect(TrackPlayer().reset).not.toHaveBeenCalled()
     })
 

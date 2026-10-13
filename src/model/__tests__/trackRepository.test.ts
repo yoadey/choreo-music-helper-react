@@ -68,6 +68,16 @@ describe('trackRepository', () => {
         expect(await database.get<TrackWithClips>('tracks').query().fetchCount()).toBe(0)
     })
 
+    it('removes the audio file only after the delete was written (otherwise the song returns without file)', async () => {
+        const track = await createTrackWithClips(database, imported)
+        const removeFile = jest.fn(async () => undefined)
+        const persist = jest.fn(async () => {
+            throw new Error('storage full')
+        })
+        await expect(deleteTrack(database, track, removeFile, persist)).rejects.toThrow('storage full')
+        expect(removeFile).not.toHaveBeenCalled()
+    })
+
     it('deletes a single clip', async () => {
         const track = await createTrackWithClips(database, imported)
         const [clip] = await track.clips.fetch()

@@ -14,7 +14,14 @@ import {
     resolveLoop,
     SPEED_FADE_DURATION,
 } from '@/helpers/playback'
-import { isTrackLoading, markPlayerFailed, playCurrentTrack, whenTrackIdle } from '@/helpers/player'
+import {
+    ensureTrackLoaded,
+    isTrackDropped,
+    isTrackLoading,
+    markPlayerFailed,
+    playCurrentTrack,
+    whenTrackIdle,
+} from '@/helpers/player'
 import Clip from '@/model/clip'
 import { database } from '@/model/index.web'
 import {
@@ -28,7 +35,7 @@ import {
     getSpeed,
     preferences,
 } from '@/store/playbackState'
-import { publishProgress, refreshProgress } from '@/store/progress'
+import { publishProgress, refreshProgress, usePlayerProgressStore } from '@/store/progress'
 import { useCurrentTrackStore, useLoopStatusStore } from '@/store/store'
 import { Q } from '@nozbe/watermelondb'
 import TrackPlayer, { Event, State } from 'react-native-track-player'
@@ -121,6 +128,8 @@ const control =
     async (...args: A) => {
         if (!useCurrentTrackStore.getState().currentTrack) return
         try {
+            // After an error the player dropped the song: it is loaded again first
+            if (isTrackDropped() && !(await ensureTrackLoaded())) return
             await action(...args)
         } catch (error) {
             console.warn('The player control failed', error)
@@ -291,13 +300,16 @@ export const playbackService = async () => {
         if (playbackState !== State.Buffering && playbackState !== State.Loading) {
             syncPlayWhenReady(playbackState === State.Playing)
         }
+        if (playbackState === State.Error) {
+            // The web player unloaded the song (its position is 0 now): the last published position is kept.
+            // Also while another song loads: if that one is not loaded (e.g. its file is missing), this one
+            // stays current. A finished load resets it.
+            markPlayerFailed(usePlayerProgressStore.getState().position)
+            return
+        }
         refreshProgress()
         if (playbackState === State.Ended) {
             await handleTrackEnded()
-        } else if (playbackState === State.Error) {
-            // The web player unloaded the song. Also while another song loads: if that one is not loaded
-            // (e.g. its file is missing), this one stays current. A finished load resets it.
-            markPlayerFailed()
         }
     })
 

@@ -64,6 +64,18 @@ describe('selectTrack', () => {
         expect(m.prefs.getLastTrack()).toBe('1')
     })
 
+    it('keeps the loop of the current song when another song could not be loaded', async () => {
+        await m.player.selectTrack(track('1'))
+        m.prefs.setLoopStart({ id: 'a' })
+        m.prefs.setLoopEnd({ id: 'b' })
+        ;(m.trackPlayer.default.load as unknown as jest.Mock).mockImplementationOnce(async () => {
+            throw new Error('decode error')
+        })
+        await m.player.selectTrack(track('2'))
+        await m.player.selectTrack(track('1'))
+        expect(m.prefs.getLoopStartId()).toBe('a')
+    })
+
     it('never rejects and shows a message when the player cannot load the file', async () => {
         await m.player.selectTrack(track('1'))
         ;(m.trackPlayer.default.load as unknown as jest.Mock).mockImplementationOnce(async () => {
@@ -73,7 +85,6 @@ describe('selectTrack', () => {
         expect(m.dialogs.showMessage).toHaveBeenCalledWith(m.i18n.t.loadFailed)
         // The player was reset, so no track is shown as current anymore
         expect(m.store.useCurrentTrackStore.getState().currentTrack).toBeNull()
-        expect(m.prefs.getLastTrack()).toBeUndefined()
     })
 
     it('keeps the current track when the file of the selected track is missing', async () => {
@@ -252,7 +263,7 @@ describe('restoreLastTrack', () => {
 describe('after the player dropped the song (error)', () => {
     it('reloads the song when it is selected again', async () => {
         await m.player.selectTrack(track('1'))
-        m.player.markPlayerFailed()
+        m.player.markPlayerFailed(10)
         const reset = m.trackPlayer.default.reset as unknown as jest.Mock
         reset.mockClear()
         await expect(m.player.selectTrack(track('1'))).resolves.toBe(true)
@@ -263,11 +274,12 @@ describe('after the player dropped the song (error)', () => {
         expect(reset).not.toHaveBeenCalled()
     })
 
-    it('reloads the song on Play and continues at the previous position', async () => {
+    it('reloads the song on Play and continues at the position of the error', async () => {
         const { usePlayerProgressStore } = require('@/store/progress') as typeof import('@/store/progress')
         await m.player.selectTrack(track('1'))
-        usePlayerProgressStore.setState({ position: 150, duration: 200 })
-        m.player.markPlayerFailed()
+        m.player.markPlayerFailed(150)
+        // The emptied player reports 0, e.g. after a refresh when the app became visible again
+        usePlayerProgressStore.setState({ position: 0, duration: 0 })
         const reset = m.trackPlayer.default.reset as unknown as jest.Mock
         reset.mockClear()
         await m.player.playCurrentTrack()
@@ -276,12 +288,21 @@ describe('after the player dropped the song (error)', () => {
         expect(m.trackPlayer.default.play).toHaveBeenCalled()
     })
 
+    it('adds a clip at the position of the error, not at 0:00 of the emptied player', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(42)
+        m.trackPlayer.playerState.position = 0
+        const create = jest.fn(async () => undefined)
+        await m.player.addClipAtCurrentPosition(track('1'), create)
+        expect(create).toHaveBeenCalledWith(track('1'), 42)
+    })
+
     it('reloads the song when it failed while the newly selected song could not be loaded', async () => {
         await m.player.selectTrack(track('1'))
         const { get } = require('idb-keyval') as { get: jest.Mock }
         get.mockImplementationOnce(async () => {
             // The playing song fails while the file of the new selection is read
-            m.player.markPlayerFailed()
+            m.player.markPlayerFailed(5)
             return undefined
         })
         await expect(m.player.selectTrack(track('2'))).resolves.toBe(false)
@@ -293,7 +314,7 @@ describe('after the player dropped the song (error)', () => {
 
     it('does not reload after another song was loaded meanwhile', async () => {
         await m.player.selectTrack(track('1'))
-        m.player.markPlayerFailed()
+        m.player.markPlayerFailed(5)
         await m.player.selectTrack(track('2'))
         const reset = m.trackPlayer.default.reset as unknown as jest.Mock
         reset.mockClear()

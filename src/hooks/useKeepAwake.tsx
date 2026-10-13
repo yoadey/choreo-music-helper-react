@@ -8,6 +8,10 @@ export const KEEP_AWAKE_AFTER_PLAYBACK = 5 * 60 * 1000
 type WakeLockSentinelLike = { released: boolean; release: () => Promise<void>; addEventListener: (type: 'release', listener: () => void) => void }
 type WakeLockNavigator = Navigator & { wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinelLike> } }
 
+/** False if the browser cannot keep the screen on (Screen Wake Lock API), the setting is hidden then. */
+export const isKeepAwakeSupported = () =>
+    typeof navigator !== 'undefined' && !!(navigator as WakeLockNavigator).wakeLock
+
 /** True while playing and for KEEP_AWAKE_AFTER_PLAYBACK after the playback stopped. */
 const useRecentlyPlaying = () => {
     const playing = !!useIsPlaying().playing
@@ -39,10 +43,15 @@ export const useKeepAwake = () => {
         const wakeLock = typeof navigator === 'undefined' ? undefined : (navigator as WakeLockNavigator).wakeLock
         if (!wanted || !wakeLock || typeof document === 'undefined') return undefined
         let sentinel: WakeLockSentinelLike | undefined
+        let requesting = false
         let stopped = false
 
         const acquire = async () => {
-            if (stopped || document.visibilityState !== 'visible' || (sentinel && !sentinel.released)) return
+            // Only one request at a time (e.g. the app becomes visible while the first one is pending)
+            if (stopped || requesting || document.visibilityState !== 'visible' || (sentinel && !sentinel.released)) {
+                return
+            }
+            requesting = true
             try {
                 const lock = await wakeLock.request('screen')
                 if (stopped) {
@@ -53,6 +62,8 @@ export const useKeepAwake = () => {
             } catch (error) {
                 // E.g. battery saver mode or not allowed, the screen just turns off as usual
                 console.warn('Could not keep the screen on', error)
+            } finally {
+                requesting = false
             }
         }
         // The browser releases the lock when the app is hidden, it is requested again once it is visible

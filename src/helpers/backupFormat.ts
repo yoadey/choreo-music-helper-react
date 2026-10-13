@@ -1,3 +1,5 @@
+import { makeUniqueAudioKey } from './audioImport'
+
 /**
  * Backup file: a first line `ChoreoMusicHelperBackup <version> <header bytes>`, the header (JSON) and the
  * audio files one after another. The audio files are referenced by offset in the header, so a backup is
@@ -144,4 +146,18 @@ export const readBackup = async (file: Blob): Promise<BackupContent> => {
                 : undefined,
         })),
     }
+}
+
+/**
+ * New key for a restored audio file (see makeUniqueAudioKey): with the timestamp of the restore, a pending file
+ * is not mistaken for an old orphan by another tab of the app that starts during the restore.
+ */
+export const restoredAudioKey = (uri: string, timestamp: number) => {
+    let name: string
+    try {
+        name = decodeURIComponent(uri.replace(/^\/audio\//, ''))
+    } catch {
+        name = 'audio'
+    }
+    return makeUniqueAudioKey(name.replace(/_\d+(?=(\.[\w-]+)?$)/, ''), timestamp)
 }

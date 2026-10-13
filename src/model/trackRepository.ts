@@ -121,8 +121,20 @@ export const restoreTracks = async (database: Database, data: readonly TrackData
         const existingTracks = new Map(
             (await tracks.query(Q.where('id', Q.oneOf(data.map((t) => t.id)))).fetch()).map((t) => [t.id, t]),
         )
-        // Clip ids that are used by any song (a clip id of another song must not be reused)
-        const existingClips = new Map((await clips.query().fetch()).map((c) => [c.id, c]))
+        // The clips of the restored songs and clips with the ids of the backup (also of another song, whose id
+        // must not be reused)
+        const existingClips = new Map(
+            (
+                await clips
+                    .query(
+                        Q.or(
+                            Q.where('track_id', Q.oneOf(data.map((t) => t.id))),
+                            Q.where('id', Q.oneOf(data.flatMap((t) => t.clips.map((c) => c.id)))),
+                        ),
+                    )
+                    .fetch()
+            ).map((c) => [c.id, c]),
+        )
         const unusedFiles: string[] = []
         const operations: Model[] = []
 

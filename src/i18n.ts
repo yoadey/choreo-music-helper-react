@@ -62,6 +62,8 @@ const de = {
     createBackup: 'Sicherung erstellen',
     restoreBackup: 'Sicherung wiederherstellen',
     backupCreated: (count: number) => `Die Sicherung mit ${count} ${count === 1 ? 'Song' : 'Songs'} wurde heruntergeladen.`,
+    backupMissingAudio: (count: number) =>
+        `Von ${count} ${count === 1 ? 'Song fehlt' : 'Songs fehlt'} auf diesem Gerät die Audiodatei, ${count === 1 ? 'er ist' : 'sie sind'} ohne Audio gesichert.`,
     backupFailed: 'Die Sicherung konnte nicht erstellt werden.',
     confirmRestore: 'Songs aus der Sicherung hinzufügen und gleiche Songs ersetzen?',
     restored: (count: number) => `${count} ${count === 1 ? 'Song wurde' : 'Songs wurden'} wiederhergestellt.`,
@@ -151,6 +153,10 @@ const en: Translations = {
     createBackup: 'Create backup',
     restoreBackup: 'Restore backup',
     backupCreated: (count: number) => `The backup with ${count} ${count === 1 ? 'song' : 'songs'} was downloaded.`,
+    backupMissingAudio: (count: number) =>
+        count === 1
+            ? 'The audio file of 1 song is missing on this device, it was saved without audio.'
+            : `The audio files of ${count} songs are missing on this device, they were saved without audio.`,
     backupFailed: 'The backup could not be created.',
     confirmRestore: 'Add the songs of the backup and replace the same songs?',
     restored: (count: number) => `${count} ${count === 1 ? 'song was' : 'songs were'} restored.`,

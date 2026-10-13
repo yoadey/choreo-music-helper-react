@@ -2,6 +2,7 @@ import { colors, fontSize } from '@/constants/tokens'
 import { createBackup, isBackupSupported, pickBackupFile, restoreBackup, restoreErrorMessage } from '@/helpers/backup'
 import { confirmAction, showMessage } from '@/helpers/dialogs'
 import { getInstallPlatform, promptInstall, useInstallState } from '@/helpers/pwa'
+import { isKeepAwakeSupported } from '@/hooks/useKeepAwake'
 import { t } from '@/i18n'
 import {
     isUiScaleSupported,
@@ -84,20 +85,24 @@ const Playback = () => {
     const [backButton, setBackButton] = useBackButtonMode()
     return (
         <>
-            <View style={styles.row}>
-                <Text style={[styles.label, styles.flex]}>{t.keepAwake}</Text>
-                <Switch
-                    testID="keep-awake"
-                    value={keepAwake}
-                    onValueChange={setKeepAwake}
-                    trackColor={{ true: colors.primary, false: colors.maximumTrackTintColor }}
-                    thumbColor={colors.text}
-                    // react-native-web colors the thumb of an enabled switch with its own prop
-                    {...({ activeThumbColor: colors.text } as object)}
-                    accessibilityLabel={t.keepAwake}
-                />
-            </View>
-            <Text style={styles.hint}>{t.keepAwakeHint}</Text>
+            {isKeepAwakeSupported() && (
+                <>
+                    <View style={styles.row}>
+                        <Text style={[styles.label, styles.flex]}>{t.keepAwake}</Text>
+                        <Switch
+                            testID="keep-awake"
+                            value={keepAwake}
+                            onValueChange={setKeepAwake}
+                            trackColor={{ true: colors.primary, false: colors.maximumTrackTintColor }}
+                            thumbColor={colors.text}
+                            // react-native-web colors the thumb of an enabled switch with its own prop
+                            {...({ activeThumbColor: colors.text } as object)}
+                            accessibilityLabel={t.keepAwake}
+                        />
+                    </View>
+                    <Text style={styles.hint}>{t.keepAwakeHint}</Text>
+                </>
+            )}
             <Text style={styles.label}>{t.backButton}</Text>
             <Segmented
                 options={[
@@ -126,16 +131,22 @@ const Backup = () => {
     const create = () =>
         run(async () => {
             try {
-                showMessage(t.backupCreated(await createBackup()))
+                const { songs, missingAudio } = await createBackup()
+                showMessage(
+                    missingAudio > 0
+                        ? `${t.backupCreated(songs)} ${t.backupMissingAudio(missingAudio)}`
+                        : t.backupCreated(songs),
+                )
             } catch (error) {
                 console.warn('Could not create the backup', error)
                 showMessage(t.backupFailed)
             }
         })
-    const restore = () =>
-        run(async () => {
-            const file = await pickBackupFile()
-            if (!file || !(await confirmAction(t.confirmRestore))) return
+    const restore = async () => {
+        // Not busy while the picker is open: some browsers never report a cancelled picker
+        const file = await pickBackupFile()
+        if (!file || !(await confirmAction(t.confirmRestore))) return
+        await run(async () => {
             try {
                 showMessage(t.restored(await restoreBackup(file)))
             } catch (error) {
@@ -143,6 +154,7 @@ const Backup = () => {
                 showMessage(restoreErrorMessage(error))
             }
         })
+    }
     return (
         <>
             <Text style={styles.hint}>{t.backupHint}</Text>

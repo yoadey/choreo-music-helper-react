@@ -1,10 +1,11 @@
-import { BACKUP_EXTENSION, createBackupBlob, InvalidBackupError, readBackup } from '@/helpers/backupFormat'
+import { requestPersistentStorage } from '@/helpers/audio'
+import { BACKUP_EXTENSION, createBackupBlob, InvalidBackupError, readBackup, restoredAudioKey } from '@/helpers/backupFormat'
 import { releaseTrack, selectTrack } from '@/helpers/player'
 import { t } from '@/i18n'
-import { database, flushDatabase, withOwnSaveFailureReport } from '@/model/index.web'
+import { database, flushDatabase, markSaveFailureReported, withOwnSaveFailureReport } from '@/model/index.web'
 import { isQuotaError } from '@/model/saveErrors'
 import TrackWithClips from '@/model/track'
-import { readAllTracks, restoreTracks } from '@/model/trackRepository'
+import { readAllTracks, restoreTracks, type TrackData } from '@/model/trackRepository'
 import { preferences } from '@/store/playbackState'
 import { addPendingFile, removePendingFiles, removeStoredFile } from '@/store/pendingFiles'
 import { applyUiScale, SETTINGS_KEYS } from '@/store/settings'
@@ -30,7 +31,11 @@ const download = (blob: Blob, fileName: string) => {
     setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
-/** Saves all songs with their clips, audio files and the settings as one file. Returns the number of songs. */
+/**
+ * Saves all songs with their clips, audio files and the settings as one file. Rejects if an audio file cannot be
+ * read (a backup must not lose audio silently). Returns the number of songs and of songs whose file is missing
+ * on this device (they cannot be played here either).
+ */
 export const createBackup = async () => {
     const tracks = await readAllTracks(database)
     const settings: Record<string, string> = {}
@@ -41,17 +46,24 @@ export const createBackup = async () => {
     const content = {
         createdAt: new Date().toISOString(),
         settings,
-        tracks: await Promise.all(
-            tracks.map(async (track) => ({ ...track, audio: await get<Blob>(track.uri).catch(() => undefined) })),
-        ),
+        tracks: await Promise.all(tracks.map(async (track) => ({ ...track, audio: await get<Blob>(track.uri) }))),
     }
     download(createBackupBlob(content), backupFileName(new Date()))
-    return tracks.length
+    return { songs: tracks.length, missingAudio: content.tracks.filter((track) => !track.audio).length }
 }
 
 /** Message for a failed restore */
 export const restoreErrorMessage = (error: unknown) =>
     error instanceof InvalidBackupError ? t.backupInvalid : isQuotaError(error) ? t.storageFull : t.restoreFailed
+
+/** Loads the song again that was unloaded for the restore (if it still exists). Never rejects. */
+const reloadTrack = async (trackId: string) => {
+    try {
+        await selectTrack(await database.get<TrackWithClips>('tracks').find(trackId), { silent: true })
+    } catch (error) {
+        console.warn('Could not load the song again after the restore', error)
+    }
+}
 
 /**
  * Restores a backup file: songs of the backup are added, songs that exist (same song) are replaced, all other
@@ -62,36 +74,57 @@ export const restoreBackup = async (file: Blob) => {
     const restoredIds = new Set(backup.tracks.map((track) => track.id))
     const current = useCurrentTrackStore.getState().currentTrack
     const reloadCurrent = !!current && restoredIds.has(current.id)
-    // The current song gets new clips and maybe a new file: it is loaded again afterwards
+    // The current song gets new clips and maybe a new file: it is loaded again afterwards (also after a failure)
     if (reloadCurrent) await releaseTrack(current.id, { keepPreferences: true })
+    try {
+        const existingUris = new Map(
+            (await database.get<TrackWithClips>('tracks').query().fetch()).map((track) => [track.id, track.uri]),
+        )
+        const now = Date.now()
+        // Pending until the songs are saved, otherwise cleaned up at a later start (see removeOrphanedAudioFiles)
+        const written: string[] = []
+        const tracks: TrackData[] = []
+        for (const [index, { audio, ...track }] of backup.tracks.entries()) {
+            // Files that are already stored for the song are kept (no need to write hundreds of MB again)
+            const unchanged =
+                !audio || (existingUris.get(track.id) === track.uri && (await get<Blob>(track.uri)) !== undefined)
+            if (unchanged) {
+                tracks.push(track)
+                continue
+            }
+            const uri = restoredAudioKey(track.uri, now + index)
+            addPendingFile(uri)
+            written.push(uri)
+            await set(uri, audio)
+            tracks.push({ ...track, uri })
+        }
+        const unusedFiles = await withOwnSaveFailureReport(async () => {
+            const unused = await restoreTracks(database, tracks)
+            try {
+                await flushDatabase()
+            } catch (error) {
+                // Reported as failed restore
+                markSaveFailureReported()
+                throw error
+            }
+            return unused
+        })
+        removePendingFiles(written)
+        for (const key of unusedFiles) {
+            await removeStoredFile(key).catch((error) => console.warn(`Could not remove the audio file ${key}`, error))
+        }
+        // Not awaited: some browsers ask the user and may never answer
+        requestPersistentStorage().catch(() => undefined)
 
-    // Pending until the songs are saved, otherwise cleaned up at a later start (see removeOrphanedAudioFiles)
-    const files = backup.tracks.filter((track) => track.audio)
-    for (const track of files) {
-        addPendingFile(track.uri)
-        await set(track.uri, track.audio)
+        for (const key of SETTINGS_KEYS) {
+            const value = backup.settings[key]
+            if (value !== undefined) preferences.set(key, value)
+        }
+        applyUiScale()
+        return backup.tracks.length
+    } finally {
+        if (reloadCurrent) await reloadTrack(current.id)
     }
-    const unusedFiles = await withOwnSaveFailureReport(async () => {
-        const unused = await restoreTracks(database, backup.tracks)
-        await flushDatabase()
-        return unused
-    })
-    removePendingFiles(files.map((track) => track.uri))
-    for (const key of unusedFiles) {
-        await removeStoredFile(key).catch((error) => console.warn(`Could not remove the audio file ${key}`, error))
-    }
-
-    for (const key of SETTINGS_KEYS) {
-        const value = backup.settings[key]
-        if (value !== undefined) preferences.set(key, value)
-    }
-    applyUiScale()
-
-    if (reloadCurrent) {
-        const track = await database.get<TrackWithClips>('tracks').find(current.id)
-        await selectTrack(track, { silent: true })
-    }
-    return backup.tracks.length
 }
 
 /** Lets the user pick a backup file. Returns undefined if no file was picked. */

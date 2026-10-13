@@ -588,6 +588,29 @@ test.describe('backup', () => {
         await expect(page.getByTestId('clip-2')).toContainText('0:08.0')
     })
 
+    test('restoring over the existing songs keeps them loaded and playable', async ({ page }) => {
+        const messages = dialogMessages(page)
+        await importFile(page, 'chapters.mp3')
+        await expect(page.getByTestId('track-0')).toContainText('Testsong')
+        await waitForAudio(page, 'a.readyState > 0')
+        await openMenuItem(page, 'Einstellungen')
+        const download = page.waitForEvent('download')
+        await page.getByTestId('create-backup').click()
+        const file = await (await download).path()
+
+        const chooser = page.waitForEvent('filechooser')
+        await page.getByTestId('restore-backup').click()
+        await (await chooser).setFiles(file)
+        await expect.poll(() => messages).toContain('1 Song wurde wiederhergestellt.')
+
+        await openMenuItem(page, 'Musik')
+        await expect(page.getByTestId(/^track-\d+$/)).toHaveCount(1)
+        await expect(page.getByTestId('track-0').getByTestId('active-track')).toBeVisible()
+        await waitForAudio(page, 'a.readyState > 0 && a.duration > 10')
+        await play(page)
+        await waitForAudio(page, '!a.paused && a.currentTime > 0.5')
+    })
+
     test('rejects files that are no backup', async ({ page }) => {
         const messages = dialogMessages(page)
         await openMenuItem(page, 'Einstellungen')

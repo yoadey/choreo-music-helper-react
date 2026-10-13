@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals'
-import { BackupContent, createBackupBlob, InvalidBackupError, readBackup } from '../backupFormat'
+import { BackupContent, createBackupBlob, InvalidBackupError, readBackup, restoredAudioKey } from '../backupFormat'
 
 const readBlob = (blob: Blob) =>
     new Promise<string>((resolve, reject) => {
@@ -55,5 +55,14 @@ describe('backup file', () => {
             .rejects.toThrow('unsupported version')
         await expect(readBackup(new Blob(['ChoreoMusicHelperBackup 1 12\n{"tracks":1}'])))
             .rejects.toBeInstanceOf(InvalidBackupError)
+    })
+
+    it('restores audio files with a new key of the restore time', () => {
+        expect(restoredAudioKey('/audio/Mein%20Song_1690000000000.mp3', 1800000000000)).toBe(
+            '/audio/Mein%20Song_1800000000000.mp3',
+        )
+        expect(restoredAudioKey('/audio/song_1690000000000', 5)).toBe('/audio/song_5')
+        expect(restoredAudioKey('file:///cache/old.mp3', 5)).toBe(`/audio/${encodeURIComponent('file:///cache/old_5.mp3')}`)
+        expect(restoredAudioKey('/audio/%E0%A4%A', 5)).toBe('/audio/audio_5')
     })
 })

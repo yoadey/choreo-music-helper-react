@@ -105,13 +105,26 @@ export const whenTrackIdle = () => trackLoader.whenIdle()
 /**
  * Called when the player reported an error during playback (e.g. a decode error). The web player then
  * unloads the song: it is not current anymore and the user is told; selecting it again loads it again (its
- * loop is kept). Errors while a song loads are handled by the load.
+ * loop is kept). Never rejects.
  */
 export const handlePlayerError = async () => {
-    if (trackLoader.isLoading() || !useCurrentTrackStore.getState().currentTrack) return
-    await unloadCurrentTrack({ keepPreferences: true })
-    showMessage(t.playbackFailed)
+    const failed = useCurrentTrackStore.getState().currentTrack
+    // A further error (e.g. of the emptied player) while the first one is handled
+    if (!failed || handlingError) return
+    handlingError = true
+    try {
+        // Another song is loading and replaces this one, unless it cannot be loaded (e.g. its file is missing)
+        if (trackLoader.isLoading()) await trackLoader.whenIdle()
+        if (useCurrentTrackStore.getState().currentTrack !== failed) return
+        if (await unloadCurrentTrack({ keepPreferences: true })) showMessage(t.playbackFailed)
+    } catch (error) {
+        console.warn('Could not handle the player error', error)
+    } finally {
+        handlingError = false
+    }
 }
+
+let handlingError = false
 
 // Increased by every start and pause: a start that waits (for a load) is dropped if the user paused meanwhile
 let playRequests = 0
@@ -180,7 +193,7 @@ export const restoreLastTrack = async (database: Database) => {
  * Unloads the current track, e.g. after it was deleted (not a song selected meanwhile). keepPreferences:
  * the loop and the last song are kept (e.g. until a delete succeeded).
  */
-export const unloadCurrentTrack = async ({ keepPreferences = false } = {}) => {
+export const unloadCurrentTrack = async ({ keepPreferences = false } = {}): Promise<boolean> => {
     const owner = trackLoader.owner()
     const current = useCurrentTrackStore.getState().currentTrack
     // Unloading does not pause the audio element, without it the player would still report "playing"
@@ -188,10 +201,11 @@ export const unloadCurrentTrack = async ({ keepPreferences = false } = {}) => {
         // The player is not set up, nothing plays
     })
     // A song selected meanwhile owns the player now: it stays
-    if (!(await trackLoader.unload({ ifOwner: owner }))) return
-    if (useCurrentTrackStore.getState().currentTrack !== current) return
+    if (!(await trackLoader.unload({ ifOwner: owner }))) return false
+    if (useCurrentTrackStore.getState().currentTrack !== current) return false
     clearCurrentTrack({ keepPreferences })
     refreshProgress()
+    return true
 }
 
 /**

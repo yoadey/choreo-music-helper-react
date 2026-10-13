@@ -286,6 +286,32 @@ describe('handlePlayerError', () => {
         expect(m.prefs.getLoopStartId()).toBe('a')
     })
 
+    it('handles an error of the playing song when the newly selected song cannot be loaded', async () => {
+        await m.player.selectTrack(track('1'))
+        const { get } = require('idb-keyval') as { get: jest.Mock }
+        let releaseBlob: () => void = () => undefined
+        get.mockImplementationOnce(() => new Promise((resolve) => (releaseBlob = () => resolve(undefined))))
+        const pending = m.player.selectTrack(track('2'))
+        const handling = m.player.handlePlayerError()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        releaseBlob()
+        await Promise.all([pending, handling])
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toBeNull()
+        expect(m.dialogs.showMessage).toHaveBeenCalledWith(m.i18n.t.playbackFailed)
+    })
+
+    it('reports a repeated error only once and never rejects', async () => {
+        await m.player.selectTrack(track('1'))
+        ;(m.trackPlayer.default.reset as unknown as jest.Mock).mockImplementationOnce(async () => {
+            throw new Error('reset failed')
+        })
+        await expect(Promise.all([m.player.handlePlayerError(), m.player.handlePlayerError()])).resolves.toBeDefined()
+        expect(
+            (m.dialogs.showMessage as jest.Mock).mock.calls.filter(([message]) => message === m.i18n.t.playbackFailed)
+                .length,
+        ).toBeLessThanOrEqual(1)
+    })
+
     it('leaves errors while a song loads to the load', async () => {
         await m.player.selectTrack(track('1'))
         let releaseLoad: () => void = () => undefined
@@ -294,10 +320,12 @@ describe('handlePlayerError', () => {
         )
         const pending = m.player.selectTrack(track('2'))
         await new Promise((resolve) => setTimeout(resolve, 0))
-        await m.player.handlePlayerError()
-        expect(m.dialogs.showMessage).not.toHaveBeenCalled()
+        const handling = m.player.handlePlayerError()
         releaseLoad()
         await expect(pending).resolves.toBe(true)
+        await handling
+        // The new song replaced the failed one
+        expect(m.dialogs.showMessage).not.toHaveBeenCalled()
         expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('2'))
     })
 })

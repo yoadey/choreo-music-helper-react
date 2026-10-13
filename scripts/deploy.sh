@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Installs the latest build of main (release "web-latest", published by .github/workflows/ci.yml) in the current
-# directory. The files of the installed version are moved into a backup first, other files in the directory
-# (e.g. this script, .htaccess) are not touched.
+# Installs a build of the web app in the current directory: the artifact web-<commit>.zip of a CI run
+# (.github/workflows/ci.yml, job web-artifact), which has to be copied into the directory first. The files of the
+# installed version are moved into a backup first, other files in the directory (e.g. this script, .htaccess)
+# are not touched.
 #
-#   ./deploy.sh                   install the latest build
+#   ./deploy.sh [file.zip]        install the zip file (default: the newest *.zip in the current directory)
 #   ./deploy.sh list              list the backups (newest first)
 #   ./deploy.sh restore [backup]  restore a backup (default: the newest one)
 #
-# Requires bash, curl (or wget) and unzip. Backups are kept in .deploy-backups, the newest 5 are kept.
+# Requires bash and unzip. Backups are kept in .deploy-backups, the newest 5 are kept.
 set -euo pipefail
 
-URL=https://github.com/yoadey/choreo-music-helper-react/releases/download/web-latest/web.zip
 BACKUP_DIR=.deploy-backups
 KEEP_BACKUPS=5
 # Names of the files and directories of the installed version
@@ -27,14 +27,14 @@ mkdir -p "$BACKUP_DIR"
 TEMP=$BACKUP_DIR/tmp-$$
 trap 'rm -rf "$TEMP"' EXIT
 
-download() {
-    if command -v curl > /dev/null; then
-        curl -fsSL -o "$2" "$1"
-    elif command -v wget > /dev/null; then
-        wget -q -O "$2" "$1"
-    else
-        die "curl or wget is needed"
-    fi
+# Prints the newest zip file in the current directory
+newest_zip() {
+    local file newest=""
+    for file in *.zip; do
+        [[ -f "$file" ]] || continue
+        if [[ -z "$newest" || "$file" -nt "$newest" ]]; then newest=$file; fi
+    done
+    echo "$newest"
 }
 
 # Prints the names of the entries of a directory, one per line
@@ -86,15 +86,18 @@ prune_backups() {
 }
 
 update() {
-    echo "Downloading $URL"
+    local zip=${1:-}
+    [[ -n "$zip" ]] || zip=$(newest_zip)
+    [[ -n "$zip" ]] || die "no zip file in $(pwd), copy the artifact web-<commit>.zip of a CI run here first"
+    [[ -f "$zip" ]] || die "$zip not found"
+    echo "Installing $zip"
     mkdir -p "$TEMP/web"
-    download "$URL" "$TEMP/web.zip" || die "download failed"
-    unzip -q "$TEMP/web.zip" -d "$TEMP/web"
-    [[ -f "$TEMP/web/index.html" ]] || die "the download contains no index.html"
+    unzip -q "$zip" -d "$TEMP/web"
+    [[ -f "$TEMP/web/index.html" ]] || die "$zip contains no index.html, it is not a build of the app"
     backup_current "$TEMP/web"
     install_from "$TEMP/web"
     prune_backups
-    echo "Installed the latest version in $(pwd)"
+    echo "Installed $zip in $(pwd)"
 }
 
 list() {
@@ -114,10 +117,10 @@ restore() {
     echo "Restored backup $name in $(pwd)"
 }
 
-case ${1:-update} in
-    update) update ;;
+case ${1:-} in
     list) list ;;
     restore) restore "${2:-}" ;;
     -h | --help | help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *.zip | "") update "${1:-}" ;;
     *) die "unknown command $1, see: $0 --help" ;;
 esac

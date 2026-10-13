@@ -49,12 +49,11 @@ artifact `web-<commit>` once the tests pass. It is built for the root of the dom
 `/_expo/...`), unzip it into the web root. Deep links like `/info` need `404.html` as fallback after a reload, e.g.
 `ErrorDocument 404 /404.html` (Apache) or `try_files $uri $uri/ /index.html;` (nginx).
 
-Builds of main that pass the tests are also published as `web.zip` in the release `web-latest`.
-`scripts/deploy.sh` installs it without any configuration: copy it into the web root on the server and run it
-there (needs `curl` or `wget` and `unzip`):
+`scripts/deploy.sh` installs it without any configuration: copy the script and the downloaded artifact
+(`web-<commit>.zip`) into the web root on the server and run it there (needs `unzip`):
 
 ```bash
-./deploy.sh                  # install the latest build of main
+./deploy.sh                  # install the newest *.zip in the directory (or: ./deploy.sh web-<commit>.zip)
 ./deploy.sh list             # list the backups
 ./deploy.sh restore [backup] # restore a backup (default: the newest one)
 ```

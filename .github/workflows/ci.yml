@@ -49,14 +49,11 @@ jobs:
 
   # Static files for an own web server, served from the root of the domain (EXPO_BASE_URL empty).
   # Relative paths are not possible: Expo references the scripts absolutely and the router needs the base path
-  # to match routes. Unzip the artifact into the web root of the server.
-  # Builds of main are also published as release web-latest (web.zip), which scripts/deploy.sh installs: unlike
-  # artifacts, release files can be downloaded without a token.
+  # to match routes. Unzip the artifact into the web root of the server, or let scripts/deploy.sh do it (with a
+  # backup of the installed version). Only builds that pass the tests are uploaded.
   web-artifact:
     needs: [check, e2e]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -69,15 +66,3 @@ jobs:
         with:
           name: web-${{ github.sha }}
           path: dist
-      - name: Publish as release web-latest
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          (cd dist && zip -qr ../web.zip .)
-          git tag -f web-latest
-          git push -f origin refs/tags/web-latest
-          gh release view web-latest > /dev/null 2>&1 ||
-            gh release create web-latest --prerelease --title "Latest build of main" --notes "Built from main"
-          gh release upload web-latest web.zip --clobber
-          gh release edit web-latest --notes "Built from main, commit $GITHUB_SHA. Install it with scripts/deploy.sh."

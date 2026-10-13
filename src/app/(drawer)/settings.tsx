@@ -155,7 +155,10 @@ const Backup = () => {
         if (!file || !(await confirmAction(t.confirmRestore))) return
         await run(async () => {
             try {
-                showMessage(t.restored(await restoreBackup(file)))
+                const { songs, missingAudio } = await restoreBackup(file)
+                showMessage(
+                    missingAudio > 0 ? `${t.restored(songs)} ${t.restoredMissingAudio(missingAudio)}` : t.restored(songs),
+                )
             } catch (error) {
                 console.warn('Could not restore the backup', error)
                 showMessage(restoreErrorMessage(error))

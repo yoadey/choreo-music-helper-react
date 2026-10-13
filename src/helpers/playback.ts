@@ -242,8 +242,11 @@ export const getNextClipTarget = (position: number, starts: readonly number[], l
 }
 
 /** Target position for "previous clip" (clip starts sorted ascending). In the first clip (or before it) it returns to the first clip / start. */
-export const getPreviousClipTarget = (position: number, starts: readonly number[], leadIn: number): number => {
-    const index = findClipIndex(position + leadIn, starts)
+export const getPreviousClipTarget = (position: number, starts: readonly number[], leadIn: number): number =>
+    previousClipTarget(findClipIndex(position + leadIn, starts), starts, leadIn)
+
+/** Start of the clip before the clip with the index (the first clip / track start in or before the first clip). */
+const previousClipTarget = (index: number, starts: readonly number[], leadIn: number): number => {
     if (index <= 0) return leadInStart(index === 0 ? starts[0] : 0, leadIn)
     return leadInStart(starts[index - 1], leadIn)
 }
@@ -270,6 +273,5 @@ export const getRestartClipTarget = (
     if (jumpedToNext && position + leadIn >= next - POSITION_TOLERANCE) index++
     const current = leadInStart(index < 0 ? 0 : starts[index], leadIn)
     if (position - current > RESTART_THRESHOLD) return current
-    if (index <= 0) return leadInStart(index === 0 ? starts[0] : 0, leadIn)
-    return leadInStart(starts[index - 1], leadIn)
+    return previousClipTarget(index, starts, leadIn)
 }

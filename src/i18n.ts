@@ -67,6 +67,10 @@ const de = {
     backupFailed: 'Die Sicherung konnte nicht erstellt werden.',
     confirmRestore: 'Songs aus der Sicherung hinzufügen und gleiche Songs ersetzen?',
     restored: (count: number) => `${count} ${count === 1 ? 'Song wurde' : 'Songs wurden'} wiederhergestellt.`,
+    restoredMissingAudio: (count: number) =>
+        count === 1
+            ? 'Für 1 Song enthält die Sicherung keine Audiodatei, er kann erst nach einem erneuten Import abgespielt werden.'
+            : `Für ${count} Songs enthält die Sicherung keine Audiodatei, sie können erst nach einem erneuten Import abgespielt werden.`,
     restoreFailed: 'Die Sicherung konnte nicht wiederhergestellt werden.',
     backupInvalid: 'Die Datei ist keine gültige Sicherung des Choreo Music Helpers.',
     installApp: 'Als App installieren',
@@ -160,6 +164,10 @@ const en: Translations = {
     backupFailed: 'The backup could not be created.',
     confirmRestore: 'Add the songs of the backup and replace the same songs?',
     restored: (count: number) => `${count} ${count === 1 ? 'song was' : 'songs were'} restored.`,
+    restoredMissingAudio: (count: number) =>
+        count === 1
+            ? 'The backup has no audio file for 1 song, it can only be played after importing it again.'
+            : `The backup has no audio files for ${count} songs, they can only be played after importing them again.`,
     restoreFailed: 'The backup could not be restored.',
     backupInvalid: 'The file is not a valid backup of the Choreo Music Helper.',
     installApp: 'Install as app',

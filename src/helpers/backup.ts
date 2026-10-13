@@ -98,7 +98,8 @@ const saveOrUndo = async (undo: () => Promise<void>) => {
 
 /**
  * Restores a backup file: songs of the backup are added, songs that exist (same song) are replaced, all other
- * songs stay. The settings of the backup are applied. Returns the number of restored songs.
+ * songs stay. The settings of the backup are applied. Returns the number of restored songs and of songs without
+ * audio file (neither in the backup nor on this device).
  */
 export const restoreBackup = async (file: Blob) => {
     const backup = await readBackup(file)
@@ -107,9 +108,13 @@ export const restoreBackup = async (file: Blob) => {
     // progress), the selected one is loaded again afterwards (also after a failure). A song that is loading is
     // the latest selection of the user.
     let selectedBefore: string | undefined
+    // The current song is not the latest selection while another (not restored) song loads
+    const loadingAtStart = isTrackLoading()
     for (const id of restoredIds) {
         const released = await releaseTrack(id, { keepPreferences: true })
-        if (released === 'loading' || (released === 'current' && !selectedBefore)) selectedBefore = id
+        if (released === 'loading' || (released === 'current' && !loadingAtStart && !selectedBefore)) {
+            selectedBefore = id
+        }
     }
     // Another song may still be current (a restored one was loading): only a different song selected while the
     // restore runs is a new selection of the user
@@ -117,7 +122,7 @@ export const restoreBackup = async (file: Blob) => {
     // Other tabs do not clean up the pending files while the restore runs (it can take long)
     return whilePendingFilesInUse(async () => {
         try {
-            const previous = (await readAllTracks(database)).filter((track) => restoredIds.includes(track.id))
+            const previous = await readAllTracks(database, restoredIds)
             const existingUris = new Map(previous.map((track) => [track.id, track.uri]))
             // Pending until the songs are saved, otherwise cleaned up at a later start (see removeOrphanedAudioFiles)
             const written: string[] = []
@@ -130,6 +135,7 @@ export const restoreBackup = async (file: Blob) => {
                 removePendingFiles(replaced)
                 for (const key of written) await removeStoredFile(key).catch(() => undefined)
             }
+            let missingAudio = 0
             let lastTimestamp = 0
             try {
                 for (const { audio, ...track } of backup.tracks) {
@@ -140,6 +146,7 @@ export const restoreBackup = async (file: Blob) => {
                         audio,
                         getStored: (uri) => get<Blob>(uri),
                     })
+                    if (resolved.action === 'missing') missingAudio++
                     if (resolved.action !== 'write' || !audio) {
                         tracks.push({ ...track, uri: resolved.action === 'write' ? track.uri : resolved.uri })
                         continue
@@ -190,7 +197,7 @@ export const restoreBackup = async (file: Blob) => {
                 if (value !== undefined) preferences.set(key, value)
             }
             applyUiScale()
-            return backup.tracks.length
+            return { songs: backup.tracks.length, missingAudio }
         } finally {
             await reloadSelection(restoredIds, selectedBefore, currentAtStart)
         }

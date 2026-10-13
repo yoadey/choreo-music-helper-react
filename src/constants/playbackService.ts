@@ -88,6 +88,7 @@ const subscribeToClips = (trackId: string | undefined) => {
     state.subscription?.unsubscribe()
     state.subscription = undefined
     state.trackId = trackId
+    state.lastSeek = undefined
     state.clips = []
     state.clipsPending = !!trackId
     recompute()
@@ -170,6 +171,9 @@ const setVolume = async (volume: number) => {
 /** Applies speed, volume and loop for the current position. */
 export const applyPlaybackRules = async (position: number) => {
     const { prefs, ranges } = state
+    // The position moved back without a seek of the service (e.g. the track was played again from the start):
+    // the last jump no longer tells where the player is (see getRestartClipTarget)
+    if (state.lastSeek !== undefined && position < state.lastSeek - 0.5) state.lastSeek = undefined
     const rate = prefs.globalSpeedOnly
         ? prefs.speed
         : prefs.speed *

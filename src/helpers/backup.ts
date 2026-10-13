@@ -67,14 +67,19 @@ const reloadTrack = async (trackId: string) => {
 
 /**
  * After the restore: the song the user had selected is loaded again, also a restored song that was selected
- * while the restore ran (it was loaded with its previous file and clips). Never rejects.
+ * while the restore ran (it was loaded with its previous file and clips). A selection the user made while the
+ * restore ran is kept. Never rejects.
  */
-const reloadSelection = async (restoredIds: readonly string[], selectedBefore: string | undefined) => {
+const reloadSelection = async (
+    restoredIds: readonly string[],
+    selectedBefore: string | undefined,
+    currentAtStart: string | undefined,
+) => {
     const current = useCurrentTrackStore.getState().currentTrack
     if (current && restoredIds.includes(current.id)) {
         await releaseTrack(current.id, { keepPreferences: true }).catch(() => 'none')
         await reloadTrack(current.id)
-    } else if (selectedBefore && !current && !isTrackLoading()) {
+    } else if (selectedBefore && current?.id === currentAtStart && !isTrackLoading()) {
         await reloadTrack(selectedBefore)
     }
 }
@@ -106,6 +111,9 @@ export const restoreBackup = async (file: Blob) => {
         const released = await releaseTrack(id, { keepPreferences: true })
         if (released === 'loading' || (released === 'current' && !selectedBefore)) selectedBefore = id
     }
+    // Another song may still be current (a restored one was loading): only a different song selected while the
+    // restore runs is a new selection of the user
+    const currentAtStart = useCurrentTrackStore.getState().currentTrack?.id
     // Other tabs do not clean up the pending files while the restore runs (it can take long)
     return whilePendingFilesInUse(async () => {
         try {
@@ -117,30 +125,47 @@ export const restoreBackup = async (file: Blob) => {
             // that is interrupted they are cleaned up at a later start, as long as no song refers to them)
             const replaced: string[] = []
             const tracks: TrackData[] = []
-            let lastTimestamp = 0
-            for (const { audio, ...track } of backup.tracks) {
-                const existingUri = existingUris.get(track.id)
-                const resolved = await resolveRestoredAudio({
-                    existingUri,
-                    backupUri: track.uri,
-                    hasAudio: !!audio,
-                    isStored: async () => (await get<Blob>(track.uri)) !== undefined,
-                })
-                if (resolved.action !== 'write' || !audio) {
-                    tracks.push({ ...track, uri: resolved.action === 'write' ? track.uri : resolved.uri })
-                    continue
-                }
-                lastTimestamp = Math.max(Date.now(), lastTimestamp + 1)
-                const uri = restoredAudioKey(track.uri, lastTimestamp)
-                addPendingFile(uri)
-                written.push(uri)
-                await set(uri, audio)
-                tracks.push({ ...track, uri })
-                if (existingUri !== undefined) replaced.push(existingUri)
+            // Nothing is changed if writing a file or the songs fails: the files written so far are removed
+            const discardFiles = async () => {
+                removePendingFiles(replaced)
+                for (const key of written) await removeStoredFile(key).catch(() => undefined)
             }
-            replaced.forEach(addPendingFile)
+            let lastTimestamp = 0
+            try {
+                for (const { audio, ...track } of backup.tracks) {
+                    const existingUri = existingUris.get(track.id)
+                    const resolved = await resolveRestoredAudio({
+                        existingUri,
+                        backupUri: track.uri,
+                        audio,
+                        getStored: (uri) => get<Blob>(uri),
+                    })
+                    if (resolved.action !== 'write' || !audio) {
+                        tracks.push({ ...track, uri: resolved.action === 'write' ? track.uri : resolved.uri })
+                        continue
+                    }
+                    lastTimestamp = Math.max(Date.now(), lastTimestamp + 1)
+                    const uri = restoredAudioKey(track.uri, lastTimestamp)
+                    addPendingFile(uri)
+                    written.push(uri)
+                    await set(uri, audio)
+                    tracks.push({ ...track, uri })
+                    if (existingUri !== undefined) replaced.push(existingUri)
+                }
+                replaced.forEach(addPendingFile)
+            } catch (error) {
+                await discardFiles()
+                throw error
+            }
+            // A failed save is reported as failed restore, not additionally by the background save
             await withOwnSaveFailureReport(async () => {
-                await restoreTracks(database, tracks)
+                try {
+                    // One batch: the songs are either all restored or not at all
+                    await restoreTracks(database, tracks)
+                } catch (error) {
+                    await discardFiles()
+                    throw error
+                }
                 await saveOrUndo(async () => {
                     // The previous songs come back, songs that did not exist are removed again
                     await restoreTracks(database, previous)
@@ -148,8 +173,7 @@ export const restoreBackup = async (file: Blob) => {
                         database,
                         restoredIds.filter((id) => !existingUris.has(id)),
                     )
-                    removePendingFiles(replaced)
-                    for (const key of written) await removeStoredFile(key).catch(() => undefined)
+                    await discardFiles()
                 })
             })
             removePendingFiles(written)
@@ -168,7 +192,7 @@ export const restoreBackup = async (file: Blob) => {
             applyUiScale()
             return backup.tracks.length
         } finally {
-            await reloadSelection(restoredIds, selectedBefore)
+            await reloadSelection(restoredIds, selectedBefore, currentAtStart)
         }
     })
 }

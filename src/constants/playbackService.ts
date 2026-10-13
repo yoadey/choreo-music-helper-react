@@ -68,6 +68,8 @@ const state = {
     subscription: undefined as Subscription | undefined,
     lastRate: undefined as number | undefined,
     lastVolume: undefined as number | undefined,
+    // Target of the last seek (see getRestartClipTarget)
+    lastSeek: undefined as number | undefined,
 }
 
 const recompute = () => {
@@ -116,6 +118,8 @@ const getProgress = async () => {
 
 /** Seeks and publishes the new position right away (no progress polling while paused). */
 const seekAndPublish = async (position: number) => {
+    // "Restart clip" needs to know whether the player jumped to the lead in of a clip
+    state.lastSeek = position
     await TrackPlayer.seekTo(position)
     await refreshProgress()
 }
@@ -225,8 +229,13 @@ export const skipToNextClip = control(async () => {
 
 export const skipToPreviousClip = control(async () => {
     const { position } = await getProgress()
-    const getTarget = getBackButtonMode() === 'restart' ? getRestartClipTarget : getPreviousClipTarget
-    await seekAndPublish(getTarget(position, clipStarts(), state.prefs.leadIn))
+    const starts = clipStarts()
+    const { leadIn } = state.prefs
+    await seekAndPublish(
+        getBackButtonMode() === 'restart'
+            ? getRestartClipTarget(position, starts, leadIn, state.lastSeek)
+            : getPreviousClipTarget(position, starts, leadIn),
+    )
 })
 
 /** Seeks to the start of a clip, including the lead in. */

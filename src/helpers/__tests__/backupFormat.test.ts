@@ -60,18 +60,32 @@ describe('backup file', () => {
     })
 
     it('never replaces a stored file by a missing one and writes only changed files', async () => {
-        const stored = async () => true
-        const notStored = async () => false
-        const resolve = (existingUri: string | undefined, hasAudio: boolean, isStored = stored) =>
-            resolveRestoredAudio({ existingUri, backupUri: '/audio/a_1.mp3', hasAudio, isStored })
+        const audio = new Blob(['audio'], { type: 'audio/mpeg' })
+        const resolve = (existingUri: string | undefined, backupAudio: Blob | undefined, stored?: Blob) =>
+            resolveRestoredAudio({
+                existingUri,
+                backupUri: '/audio/a_1.mp3',
+                audio: backupAudio,
+                getStored: async () => stored,
+            })
         // The backup has no audio: the file of this device stays, otherwise the song has no file
-        expect(await resolve('/audio/a_2.mp3', false)).toEqual({ action: 'keep', uri: '/audio/a_2.mp3' })
-        expect(await resolve(undefined, false)).toEqual({ action: 'missing', uri: '/audio/a_1.mp3' })
-        // The same file is stored already
-        expect(await resolve('/audio/a_1.mp3', true)).toEqual({ action: 'keep', uri: '/audio/a_1.mp3' })
-        expect(await resolve('/audio/a_1.mp3', true, notStored)).toEqual({ action: 'write' })
-        expect(await resolve('/audio/a_2.mp3', true)).toEqual({ action: 'write' })
-        expect(await resolve(undefined, true)).toEqual({ action: 'write' })
+        expect(await resolve('/audio/a_2.mp3', undefined, audio)).toEqual({ action: 'keep', uri: '/audio/a_2.mp3' })
+        expect(await resolve(undefined, undefined)).toEqual({ action: 'missing', uri: '/audio/a_1.mp3' })
+        // The same file is stored already, also under another key (restored before)
+        expect(await resolve('/audio/a_1.mp3', audio, new Blob(['audio'], { type: 'audio/mpeg' }))).toEqual({
+            action: 'keep',
+            uri: '/audio/a_1.mp3',
+        })
+        expect(await resolve('/audio/a_9.mp3', audio, new Blob(['audio'], { type: 'audio/mpeg' }))).toEqual({
+            action: 'keep',
+            uri: '/audio/a_9.mp3',
+        })
+        // Missing or different file
+        expect(await resolve('/audio/a_1.mp3', audio, undefined)).toEqual({ action: 'write' })
+        expect(await resolve('/audio/a_1.mp3', audio, new Blob(['other audio'], { type: 'audio/mpeg' }))).toEqual({
+            action: 'write',
+        })
+        expect(await resolve(undefined, audio)).toEqual({ action: 'write' })
     })
 
     it('restores audio files with a new key of the restore time', () => {

@@ -254,10 +254,22 @@ export const RESTART_THRESHOLD = 2
 /**
  * Target position for "restart clip" (clip starts sorted ascending): the start of the current clip (including
  * the lead in), or the previous clip if the position is right at that start (pressed twice).
+ * The lead in before a clip belongs to that clip only if the player jumped to it (lastSeek, e.g. "next clip" or
+ * the loop); a clip that is played to its end is still the current clip during the lead in of the next one.
  */
-export const getRestartClipTarget = (position: number, starts: readonly number[], leadIn: number): number => {
-    const index = findClipIndex(position + leadIn, starts)
-    const currentStart = leadInStart(index < 0 ? 0 : starts[index], leadIn)
-    if (position - currentStart > RESTART_THRESHOLD) return currentStart
-    return getPreviousClipTarget(position, starts, leadIn)
+export const getRestartClipTarget = (
+    position: number,
+    starts: readonly number[],
+    leadIn: number,
+    lastSeek?: number,
+): number => {
+    let index = findClipIndex(position, starts)
+    const next = starts[index + 1]
+    const jumpedToNext =
+        next !== undefined && lastSeek !== undefined && Math.abs(lastSeek - leadInStart(next, leadIn)) <= POSITION_TOLERANCE
+    if (jumpedToNext && position + leadIn >= next - POSITION_TOLERANCE) index++
+    const current = leadInStart(index < 0 ? 0 : starts[index], leadIn)
+    if (position - current > RESTART_THRESHOLD) return current
+    if (index <= 0) return leadInStart(index === 0 ? starts[0] : 0, leadIn)
+    return leadInStart(starts[index - 1], leadIn)
 }

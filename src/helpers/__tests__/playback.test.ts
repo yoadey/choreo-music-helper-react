@@ -371,9 +371,18 @@ describe('clip navigation', () => {
     it('restarts the current clip, right at its start it jumps to the previous clip', () => {
         expect(getRestartClipTarget(15, starts, 0)).toBe(10)
         expect(getRestartClipTarget(11, starts, 0)).toBe(0)
-        // The lead in counts as part of the clip
         expect(getRestartClipTarget(25, starts, 2)).toBe(18)
         expect(getRestartClipTarget(19, starts, 2)).toBe(8)
+    })
+
+    it('treats the lead in as part of the next clip only if the player jumped there', () => {
+        // Played to the end of clip 2 (lead in 4 s): restarts clip 2, not the lead in of clip 3
+        expect(getRestartClipTarget(18.5, starts, 4)).toBe(6)
+        expect(getRestartClipTarget(18.5, starts, 4, 6)).toBe(6)
+        // Jumped to the lead in of clip 3 ("next clip"), then played for 2.5 s
+        expect(getRestartClipTarget(18.5, starts, 4, 16)).toBe(16)
+        // Pressed right after the jump: the previous clip
+        expect(getRestartClipTarget(17, starts, 4, 16)).toBe(6)
     })
 
     it('restarts the first clip and handles empty clip lists', () => {

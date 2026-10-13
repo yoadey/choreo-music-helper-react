@@ -180,17 +180,21 @@ export type RestoredAudio = { action: 'keep'; uri: string } | { action: 'write' 
 export const resolveRestoredAudio = async ({
     existingUri,
     backupUri,
-    hasAudio,
-    isStored,
+    audio,
+    getStored,
 }: {
     /** uri of the song on this device, undefined if it does not exist here */
     existingUri: string | undefined
     backupUri: string
-    hasAudio: boolean
-    /** Whether the file of the song on this device exists */
-    isStored: () => Promise<boolean>
+    audio: Blob | undefined
+    /** The stored file of the song on this device */
+    getStored: (uri: string) => Promise<Blob | undefined>
 }): Promise<RestoredAudio> => {
-    if (!hasAudio) return existingUri !== undefined ? { action: 'keep', uri: existingUri } : { action: 'missing', uri: backupUri }
-    if (existingUri !== backupUri) return { action: 'write' }
-    return (await isStored()) ? { action: 'keep', uri: existingUri } : { action: 'write' }
+    if (!audio) return existingUri !== undefined ? { action: 'keep', uri: existingUri } : { action: 'missing', uri: backupUri }
+    if (existingUri === undefined) return { action: 'write' }
+    // The same file (also if it was restored from this backup before, under a new key): no need to write it again
+    const stored = await getStored(existingUri)
+    return stored && stored.size === audio.size && stored.type === audio.type
+        ? { action: 'keep', uri: existingUri }
+        : { action: 'write' }
 }

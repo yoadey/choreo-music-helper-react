@@ -29,8 +29,17 @@ export const noteLastPlayerPosition = (position: number) => {
     lastPlayerPosition = position
 }
 
+// While the player dropped the song after an error it reports 0: the shown progress is kept
+let held = false
+
+/** Keeps the shown progress (refreshProgress does not read the player), e.g. while the song is dropped. */
+export const holdProgress = (hold: boolean) => {
+    held = hold
+}
+
 /** Reads the progress from the player once, e.g. after a seek, a state change or a track change. */
 export const refreshProgress = async () => {
+    if (held) return
     try {
         const { position, duration } = await TrackPlayer.getProgress()
         lastPlayerPosition = position

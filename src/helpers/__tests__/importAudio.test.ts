@@ -33,6 +33,7 @@ const pickedFile = () => {
 }
 
 beforeEach(() => {
+    localStorage.clear()
     URL.revokeObjectURL = jest.fn()
 })
 
@@ -71,6 +72,22 @@ describe('importAudioFile', () => {
         mockResolvePick({ canceled: false, assets: [{ name: 'song.mp3', uri: 'blob:picked', file: pickedFile() }] })
         await importing
         expect(createTrackWithClips).toHaveBeenCalled()
+    })
+})
+
+describe('importAudioFile when the song cannot be created', () => {
+    it('reports the original error, also when removing the stored file fails', async () => {
+        const repository = require('@/model/trackRepository') as { createTrackWithClips: jest.Mock }
+        repository.createTrackWithClips.mockImplementationOnce(async () => {
+            throw new DOMException('full', 'QuotaExceededError')
+        })
+        const { del } = require('idb-keyval') as { del: jest.Mock }
+        del.mockImplementationOnce(async () => {
+            throw new Error('transaction aborted')
+        })
+        const importing = importAudioFile()
+        mockResolvePick({ canceled: false, assets: [{ name: 'song.mp3', uri: 'blob:picked', file: pickedFile() }] })
+        await expect(importing).rejects.toMatchObject({ name: 'QuotaExceededError' })
     })
 })
 

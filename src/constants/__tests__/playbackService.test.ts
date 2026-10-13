@@ -350,19 +350,33 @@ describe('player errors (state)', () => {
         expect(TrackPlayer().seekTo).not.toHaveBeenCalled()
     })
 
+    it('the controls and Stop move the position while the dropped song itself is loading again', async () => {
+        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
+        await startService()
+        helpers.markPlayerFailed(50)
+        jest.spyOn(helpers, 'isTrackLoading').mockReturnValue(true)
+        jest.spyOn(helpers, 'isOtherTrackLoading').mockReturnValue(false)
+        await m.service.jumpBy(10)
+        expect(helpers.getDroppedPosition()).toBe(60)
+        await m.service.stopPlayback()
+        expect(helpers.getDroppedPosition()).toBe(0)
+    })
+
     it('Stop still pauses the playing song while another song is loading', async () => {
         const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
         await startService()
-        jest.spyOn(helpers, 'isTrackLoading').mockReturnValue(true)
+        jest.spyOn(helpers, 'isOtherTrackLoading').mockReturnValue(true)
         await m.service.stopPlayback()
         expect(TrackPlayer().pause).toHaveBeenCalled()
+        // Only paused: the position stays (the new song starts at its beginning anyway)
+        expect(TrackPlayer().seekTo).not.toHaveBeenCalled()
     })
 
     it('ignores the controls while another song is loading (they would use the clips of the old song)', async () => {
         const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
         await startService()
         await progress(5)
-        jest.spyOn(helpers, 'isTrackLoading').mockReturnValue(true)
+        jest.spyOn(helpers, 'isOtherTrackLoading').mockReturnValue(true)
         await m.service.skipToNextClip()
         await m.service.seekToClip(20)
         expect(TrackPlayer().seekTo).not.toHaveBeenCalled()

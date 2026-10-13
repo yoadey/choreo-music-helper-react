@@ -357,8 +357,36 @@ describe('after the player dropped the song (error)', () => {
         ;(m.trackPlayer.default.seekTo as unknown as jest.Mock).mockImplementationOnce(async () => {
             m.player.markPlayerFailed(0)
         })
-        await m.player.ensureTrackLoaded()
+        await expect(m.player.ensureTrackLoaded()).resolves.toBe(false)
         expect(m.player.isTrackDropped()).toBe(true)
+    })
+
+    it('jumps to a position that was moved during the jump back (e.g. a clip was tapped)', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(150)
+        let releaseSeek: () => void = () => undefined
+        ;(m.trackPlayer.default.seekTo as unknown as jest.Mock).mockImplementationOnce(
+            () => new Promise<undefined>((resolve) => (releaseSeek = () => resolve(undefined))),
+        )
+        const reloading = m.player.ensureTrackLoaded()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        m.player.moveDroppedPosition(20)
+        releaseSeek()
+        await reloading
+        expect(m.trackPlayer.default.seekTo).toHaveBeenLastCalledWith(20)
+    })
+
+    it('keeps showing the position and duration of the dropped song (the empty player reports 0)', async () => {
+        const { refreshProgress, usePlayerProgressStore } = require('@/store/progress') as typeof import('@/store/progress')
+        await m.player.selectTrack(track('1'))
+        usePlayerProgressStore.setState({ position: 90, duration: 200 })
+        m.player.markPlayerFailed(90)
+        m.trackPlayer.playerState.position = 0
+        m.trackPlayer.playerState.duration = 0
+        await refreshProgress()
+        expect(usePlayerProgressStore.getState()).toMatchObject({ position: 90, duration: 200 })
+        m.player.moveDroppedPosition(100)
+        expect(usePlayerProgressStore.getState()).toMatchObject({ position: 100, duration: 200 })
     })
 
     it('continues at a position that was moved while the song was loaded again (e.g. Stop)', async () => {

@@ -104,6 +104,14 @@ describe('removeOrphanedAudioFiles', () => {
         expect(forget).not.toHaveBeenCalled()
     })
 
+    it('also cleans up pending files with old names without timestamp', async () => {
+        const removeFiles = jest.fn(async (_keys: string[]) => undefined)
+        const forget = jest.fn()
+        await removeOrphanedAudioFiles({ pending: ['/audio/Track01'], trackUris: async () => ['/audio/x_1.mp3'], removeFiles, forget, startedAt })
+        expect(removeFiles).toHaveBeenCalledWith(['/audio/Track01'])
+        expect(forget).toHaveBeenCalledWith(['/audio/Track01'])
+    })
+
     it('never touches files that are not pending (e.g. after the database was reset)', async () => {
         const removeFiles = jest.fn(async (_keys: string[]) => undefined)
         await removeOrphanedAudioFiles({ pending: [], trackUris: async () => [], removeFiles, forget: jest.fn(), startedAt })

@@ -4,10 +4,10 @@ import { selectTrack } from '@/helpers/player'
 import { t } from '@/i18n'
 import { database, flushDatabase, markSaveFailureReported, withOwnSaveFailureReport } from '@/model/index.web'
 import { isQuotaError } from '@/model/saveErrors'
-import { addPendingFile, removePendingFile } from '@/store/pendingFiles'
+import { addPendingFile, removePendingFile, removeStoredFile } from '@/store/pendingFiles'
 import { createTrackWithClips, deleteTrack } from '@/model/trackRepository'
 import * as DocumentPicker from 'expo-document-picker'
-import { del, set } from 'idb-keyval'
+import { set } from 'idb-keyval'
 import { Platform } from 'react-native'
 
 const importWebFile = async (asset: DocumentPicker.DocumentPickerAsset) => {
@@ -31,8 +31,10 @@ const createAndSave = async (audio: Awaited<ReturnType<typeof analyzeAudio>>) =>
 	try {
 		track = await createTrackWithClips(database, audio)
 	} catch (error) {
-		// Do not leave an orphaned file behind
-		await removeFile(audio.key)
+		// Do not leave an orphaned file behind (if that fails too, it stays pending; the original error counts)
+		await removeStoredFile(audio.key).catch((cleanupError) => {
+			console.warn('Could not remove the stored file', cleanupError)
+		})
 		throw error
 	}
 	try {
@@ -43,7 +45,7 @@ const createAndSave = async (audio: Awaited<ReturnType<typeof analyzeAudio>>) =>
 		markSaveFailureReported()
 		// The file is only removed once the clean up is written (otherwise the song could return without it,
 		// e.g. if the background save stored the song); else it is cleaned up at a later start
-		await deleteTrack(database, track, removeFile, flushDatabase).catch((cleanupError) => {
+		await deleteTrack(database, track, removeStoredFile, flushDatabase).catch((cleanupError) => {
 			console.warn('Could not remove the import that was not saved', cleanupError)
 		})
 		throw error
@@ -54,10 +56,6 @@ const createAndSave = async (audio: Awaited<ReturnType<typeof analyzeAudio>>) =>
 	return track
 }
 
-const removeFile = async (key: string) => {
-	await del(key)
-	removePendingFile(key)
-}
 
 const importNativeFile = (asset: DocumentPicker.DocumentPickerAsset) =>
 	createTrackWithClips(database, {

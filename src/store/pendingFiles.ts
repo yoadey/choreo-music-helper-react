@@ -1,3 +1,5 @@
+import { del } from 'idb-keyval'
+import { Platform } from 'react-native'
 import { createMMKV } from 'react-native-mmkv'
 
 // Own storage: changes must not trigger the listeners of the playback preferences
@@ -18,8 +20,13 @@ export const getPendingFiles = (): string[] => {
 }
 
 const setPendingFiles = (keys: string[]) => {
-    if (keys.length === 0) storage.remove(KEY)
-    else storage.set(KEY, JSON.stringify(keys))
+    try {
+        if (keys.length === 0) storage.remove(KEY)
+        else storage.set(KEY, JSON.stringify(keys))
+    } catch (error) {
+        // E.g. the storage is full or blocked: only the clean up of an interrupted import/delete is lost
+        console.warn('Could not remember the pending audio files', error)
+    }
 }
 
 export const addPendingFile = (key: string) => {
@@ -31,4 +38,10 @@ export const removePendingFile = (key: string) => removePendingFiles([key])
 
 export const removePendingFiles = (done: string[]) => {
     setPendingFiles(getPendingFiles().filter((key) => !done.includes(key)))
+}
+
+/** Removes a stored audio file (web) and forgets it as pending. */
+export const removeStoredFile = async (key: string) => {
+    if (Platform.OS === 'web') await del(key)
+    removePendingFile(key)
 }

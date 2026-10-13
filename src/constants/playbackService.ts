@@ -18,6 +18,7 @@ import {
     cancelPendingPlay,
     getDroppedPosition,
     isTrackDropped,
+    isOtherTrackLoading,
     isTrackLoading,
     markPlayerFailed,
     moveDroppedPosition,
@@ -145,8 +146,9 @@ const control =
     async (...args: A) => {
         if (!useCurrentTrackStore.getState().currentTrack) return
         try {
-            // Another song is loading: the clips and positions are still those of the old song
-            if (needsSong && isTrackLoading()) return
+            // Another song is loading: the clips and positions are still those of the old song (a dropped song
+            // that loads again uses its remembered position meanwhile)
+            if (needsSong && isOtherTrackLoading()) return
             await action(...args)
         } catch (error) {
             console.warn('The player control failed', error)
@@ -233,7 +235,7 @@ const stopPlayer = control(async () => {
  */
 export const stopPlayback = async () => {
     cancelPendingPlay()
-    await (isTrackLoading() ? pausePlayer() : stopPlayer())
+    await (isOtherTrackLoading() ? pausePlayer() : stopPlayer())
 }
 
 /** Clip start positions, sorted (the ranges are sorted when they are computed) */

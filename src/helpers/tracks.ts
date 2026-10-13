@@ -3,14 +3,9 @@ import { database, flushDatabase, markSaveFailureReported, withOwnSaveFailureRep
 import TrackWithClips from '@/model/track'
 import { deleteTrack } from '@/model/trackRepository'
 import { clearLastTrack, clearLoop, getLastTrack } from '@/store/playbackState'
-import { addPendingFile, getPendingFiles, removePendingFile, removePendingFiles } from '@/store/pendingFiles'
-import { del, delMany } from 'idb-keyval'
+import { addPendingFile, getPendingFiles, removePendingFiles, removeStoredFile } from '@/store/pendingFiles'
+import { delMany } from 'idb-keyval'
 import { Platform } from 'react-native'
-
-const removeStoredFile = async (key: string) => {
-    if (Platform.OS === 'web') await del(key)
-    removePendingFile(key)
-}
 
 /**
  * Deletes the song. It is released from the player first (also a load of it that is in progress), so no
@@ -64,7 +59,11 @@ export const removeOrphanedAudioFiles = async ({
     forget: (keys: string[]) => void
     startedAt: number
 }) => {
-    const settled = pending.filter((key) => keyTimestamp(key) < startedAt - IMPORT_MARGIN)
+    // Old file names have no timestamp: such files were stored long ago
+    const settled = pending.filter((key) => {
+        const timestamp = keyTimestamp(key)
+        return Number.isNaN(timestamp) || timestamp < startedAt - IMPORT_MARGIN
+    })
     if (settled.length === 0) return
     const referenced = new Set(await trackUris())
     const orphans = settled.filter((key) => !referenced.has(key))

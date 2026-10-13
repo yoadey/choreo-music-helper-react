@@ -10,12 +10,16 @@ import { ActionSheetProvider } from '@expo/react-native-action-sheet'
 import { SplashScreen, Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { refreshProgress } from '@/store/progress'
+import { applyUiScale } from '@/store/settings'
 import { useCallback, useEffect } from 'react'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import TrackPlayer from 'react-native-track-player'
 
 SplashScreen.preventAutoHideAsync()
+
+// Before the first render, so the layout does not jump
+applyUiScale()
 
 TrackPlayer.registerPlaybackService(() => playbackService)
 

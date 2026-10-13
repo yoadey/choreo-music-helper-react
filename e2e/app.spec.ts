@@ -447,3 +447,51 @@ test.describe('hosting', () => {
         }
     })
 })
+
+test.describe('settings', () => {
+    const openSettings = async (page: Page) => {
+        await page.getByRole('button', { name: /Show navigation menu|Navigationsmenü/ }).click()
+        await page.getByText('Einstellungen', { exact: true }).click()
+    }
+
+    test('shows install instructions and the install button once the browser offers it', async ({ page }) => {
+        await openSettings(page)
+        await expect(page.getByTestId('install-state')).toContainText('Adressleiste')
+        await page.evaluate(() => {
+            const event = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+                prompt: async () => {},
+                userChoice: Promise.resolve({ outcome: 'accepted' }),
+            })
+            window.dispatchEvent(event)
+        })
+        await page.getByTestId('install-app').click()
+        await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')))
+        await expect(page.getByTestId('install-state')).toHaveText('Die App ist installiert.')
+    })
+})
+
+test.describe('settings on a phone', () => {
+    test.use({
+        viewport: { width: 360, height: 640 },
+        isMobile: true,
+        hasTouch: true,
+        userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36',
+    })
+
+    test('the display size makes everything smaller and is kept after a reload', async ({ page }) => {
+        const layoutWidth = () => page.evaluate(() => document.documentElement.clientWidth)
+        expect(await layoutWidth()).toBe(360)
+        await page.getByRole('button', { name: /Show navigation menu|Navigationsmenü/ }).tap()
+        await page.getByText('Einstellungen', { exact: true }).tap()
+        await expect(page.getByTestId('install-state')).toContainText('Zum Startbildschirm hinzufügen')
+
+        await page.getByTestId('ui-scale-0.8').tap()
+        await expect.poll(layoutWidth).toBe(450)
+        await page.reload()
+        await expect(page.getByTestId('ui-scale-0.8')).toBeVisible()
+        await expect.poll(layoutWidth).toBe(450)
+
+        await page.getByTestId('ui-scale-1').tap()
+        await expect.poll(layoutWidth).toBe(360)
+    })
+})

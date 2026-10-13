@@ -46,3 +46,6 @@ temp
 # Playwright
 /test-results/
 /playwright-report/
+
+# Server deployment configuration (contains the GitHub token)
+scripts/deploy-server.env

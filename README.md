@@ -48,3 +48,24 @@ For an own web server, every CI run (`.github/workflows/ci.yml`, job `web-artifa
 artifact `web-<commit>`. It is built for the root of the domain (absolute paths like `/_expo/...`), unzip it
 into the web root. Deep links like `/info` need `404.html` as fallback after a reload, e.g.
 `ErrorDocument 404 /404.html` (Apache) or `try_files $uri $uri/ /index.html;` (nginx).
+
+`scripts/deploy-server.sh` installs it on the server: it downloads the artifact of the latest successful CI
+run on main, saves the current state as a backup and replaces it. It needs `curl`, `jq`, `unzip` and a GitHub
+token with read access to Actions (e.g. a fine-grained token with "Actions: Read-only"). Copy the script to the
+server and put the configuration next to it in `deploy-server.env`:
+
+```bash
+TARGET_DIR=/var/www/choreo-music-helper  # web root
+GITHUB_TOKEN=github_pat_...
+# Optional: BACKUP_DIR (default: $TARGET_DIR.backups), KEEP_BACKUPS (default: 10),
+# PRESERVE (files of the web root that are kept, default: ".htaccess .well-known")
+```
+
+```bash
+./deploy-server.sh                         # install the latest build (skipped if already installed, --force)
+./deploy-server.sh update --file web-x.zip # install a downloaded artifact
+./deploy-server.sh list                    # list the backups
+./deploy-server.sh restore [backup]        # restore a backup (default: the newest one)
+```
+
+A restore also saves the current state as a backup first, so it can be undone with another restore.

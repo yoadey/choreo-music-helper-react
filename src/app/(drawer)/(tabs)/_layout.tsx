@@ -13,6 +13,7 @@ const TabsNavigation = () => {
 			<Tabs
 				screenOptions={{
 					tabBarActiveTintColor: colors.primary,
+					tabBarInactiveTintColor: colors.textMuted,
 					tabBarLabelStyle: {
 						fontSize: fontSize.xs,
 						fontWeight: '500',

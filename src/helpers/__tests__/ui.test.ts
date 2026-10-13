@@ -65,6 +65,12 @@ describe('time formatting', () => {
         expect(formatClipTime(-1)).toBe('0:00.0')
     })
 
+    it('rounds like the +/- steps, so a step always changes the shown time', () => {
+        expect(formatClipTime(12.36)).toBe('0:12.4')
+        expect(formatClipTime(stepSeconds(12.36, -0.1))).toBe('0:12.3')
+        expect(formatClipTime(59.96)).toBe('1:00.0')
+    })
+
     it('never shows negative or NaN remaining times', () => {
         expect(formatSecondsToMinutes(-0.2)).toBe('00:00')
         expect(formatSecondsToMinutes(Number.NaN)).toBe('00:00')

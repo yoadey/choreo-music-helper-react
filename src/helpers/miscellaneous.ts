@@ -9,12 +9,12 @@ export const formatSecondsToMinutes = (seconds: number) => {
     return `${formattedMinutes}:${formattedSeconds}`
 }
 
-/** Formats a clip position (seconds) as m:ss.t */
+/** Formats a clip position (seconds) as m:ss.t, rounded to tenths like the steps of the time editor */
 export const formatClipTime = (position: number) => {
-    const safe = Number.isFinite(position) ? Math.max(position, 0) : 0
-    const minutes = Math.floor(safe / 60)
-    const seconds = Math.floor(safe % 60)
-    const tenths = Math.floor((safe * 10) % 10)
+    const totalTenths = Math.round((Number.isFinite(position) ? Math.max(position, 0) : 0) * 10)
+    const minutes = Math.floor(totalTenths / 600)
+    const seconds = Math.floor((totalTenths % 600) / 10)
+    const tenths = totalTenths % 10
     return `${minutes}:${String(seconds).padStart(2, '0')}.${tenths}`
 }
 

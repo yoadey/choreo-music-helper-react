@@ -15,6 +15,7 @@ import {
     SPEED_FADE_DURATION,
 } from '@/helpers/playback'
 import {
+    cancelPendingPlay,
     ensureTrackLoaded,
     isTrackDropped,
     isTrackLoading,
@@ -35,7 +36,7 @@ import {
     getSpeed,
     preferences,
 } from '@/store/playbackState'
-import { publishProgress, refreshProgress, usePlayerProgressStore } from '@/store/progress'
+import { publishProgress, refreshProgress } from '@/store/progress'
 import { useCurrentTrackStore, useLoopStatusStore } from '@/store/store'
 import { Q } from '@nozbe/watermelondb'
 import TrackPlayer, { Event, State } from 'react-native-track-player'
@@ -64,6 +65,8 @@ const state = {
     // null: not subscribed yet (undefined: no song)
     trackId: null as string | undefined | null,
     clipsPending: false,
+    // Exact position from the player events (the published progress is rounded while hidden)
+    lastPosition: 0,
     subscription: undefined as Subscription | undefined,
     lastRate: undefined as number | undefined,
     lastVolume: undefined as number | undefined,
@@ -116,6 +119,7 @@ const getProgress = async () => {
 /** Seeks and publishes the new position right away (no progress polling while paused). */
 const seekAndPublish = async (position: number) => {
     await TrackPlayer.seekTo(position)
+    state.lastPosition = position
     await refreshProgress()
 }
 
@@ -132,6 +136,9 @@ const control =
             if (isTrackDropped()) {
                 if (!needsSong) return
                 if (!(await ensureTrackLoaded())) return
+            } else if (needsSong && isTrackLoading()) {
+                // Another song is loading: the clips and positions are still those of the old song
+                return
             }
             await action(...args)
         } catch (error) {
@@ -192,14 +199,25 @@ const applyIfPlaying = async (position: number) => {
 }
 
 // A dropped song does not play: nothing to pause
-export const pausePlayback = control(() => TrackPlayer.pause(), { needsSong: false })
+const pausePlayer = control(() => TrackPlayer.pause(), { needsSong: false })
 
-/** Stops the playback without unloading the track, so it can be played again directly. */
-export const stopPlayback = control(async () => {
+/** Pauses, also a start that still waits for a song to load. */
+export const pausePlayback = async () => {
+    cancelPendingPlay()
+    await pausePlayer()
+}
+
+const stopPlayer = control(async () => {
     await TrackPlayer.pause()
     await getProgress()
     await seekAndPublish(getStopTarget(getActiveLoop(), state.prefs.leadIn))
 })
+
+/** Stops the playback without unloading the track, so it can be played again directly. */
+export const stopPlayback = async () => {
+    cancelPendingPlay()
+    await stopPlayer()
+}
 
 /** Clip start positions, sorted (the ranges are sorted when they are computed) */
 const clipStarts = () => state.ranges.map((range) => range.start)
@@ -289,6 +307,7 @@ export const playbackService = async () => {
     })
 
     TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, async ({ position, duration }) => {
+        state.lastPosition = position
         updateDuration(duration)
         // The UI is updated from these events. While hidden only whole seconds (enough for the lock screen,
         // which also gets the current rate with them), the exact position is refreshed when visible again.
@@ -305,10 +324,10 @@ export const playbackService = async () => {
             syncPlayWhenReady(playbackState === State.Playing)
         }
         if (playbackState === State.Error) {
-            // The web player unloaded the song (its position is 0 now): the last published position is kept.
+            // The web player unloaded the song (its position is 0 now): the last known exact position is kept.
             // Also while another song loads: if that one is not loaded (e.g. its file is missing), this one
             // stays current. A finished load resets it.
-            markPlayerFailed(usePlayerProgressStore.getState().position)
+            markPlayerFailed(state.lastPosition)
             return
         }
         refreshProgress()

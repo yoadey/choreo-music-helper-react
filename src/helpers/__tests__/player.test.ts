@@ -292,6 +292,39 @@ describe('after the player dropped the song (error)', () => {
         expect(m.trackPlayer.playerState.activeTrack?.id).toBe('2')
     })
 
+    it('loads the song only once when several actions need it at the same time (none is dropped)', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(30)
+        const reset = m.trackPlayer.default.reset as unknown as jest.Mock
+        reset.mockClear()
+        const create = jest.fn(async () => undefined)
+        await Promise.all([
+            m.player.playCurrentTrack(),
+            m.player.addClipAtCurrentPosition(track('1'), create),
+            m.player.selectTrack(track('1')),
+        ])
+        expect(reset).toHaveBeenCalledTimes(1)
+        expect(m.trackPlayer.default.play).toHaveBeenCalled()
+        expect(create).toHaveBeenCalledWith(track('1'), 30)
+    })
+
+    it('keeps the position of the first error (a later error of the empty player reports 0)', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(70)
+        m.player.markPlayerFailed(0)
+        await m.player.ensureTrackLoaded()
+        expect(m.trackPlayer.default.seekTo).toHaveBeenLastCalledWith(70)
+    })
+
+    it('does not start playing when the user paused while the song was loaded again', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(30)
+        const playing = m.player.playCurrentTrack()
+        m.player.cancelPendingPlay()
+        await playing
+        expect(m.trackPlayer.default.play).not.toHaveBeenCalled()
+    })
+
     it('reloads the song when it is selected again', async () => {
         await m.player.selectTrack(track('1'))
         m.player.markPlayerFailed(10)

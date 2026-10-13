@@ -29,7 +29,7 @@ describe('removeTrack', () => {
     it('releases the song from the player first, then deletes it (written before its file is removed)', async () => {
         await removeTrack(track)
         expect(player().releaseTrack).toHaveBeenCalledWith('t1')
-        expect(repository().deleteTrack).toHaveBeenCalledWith({}, track, expect.any(Function), model().flushDatabase)
+        expect(repository().deleteTrack).toHaveBeenCalledWith({}, track, expect.any(Function), expect.any(Function))
         expect(player().releaseTrack.mock.invocationCallOrder[0]).toBeLessThan(
             repository().deleteTrack.mock.invocationCallOrder[0],
         )
@@ -44,25 +44,43 @@ describe('removeTrack', () => {
     })
 
     it('reports a failed save once (as failed delete)', async () => {
-        repository().deleteTrack.mockImplementationOnce(async () => {
-            throw new Error('quota')
+        repository().deleteTrack.mockImplementationOnce(async (...args: unknown[]) => {
+            model().flushDatabase.mockImplementationOnce(async () => {
+                throw new Error('quota')
+            })
+            await (args[3] as () => Promise<void>)()
         })
         await expect(removeTrack(track)).rejects.toThrow('quota')
         expect(model().markSaveFailureReported).toHaveBeenCalled()
     })
+
+    it('does not count other failures as reported save failures (later ones are still shown)', async () => {
+        repository().deleteTrack.mockImplementationOnce(async () => {
+            throw new Error('writer failed')
+        })
+        await expect(removeTrack(track)).rejects.toThrow('writer failed')
+        expect(model().markSaveFailureReported).not.toHaveBeenCalled()
+    })
 })
 
 describe('removeOrphanedAudioFiles', () => {
-    it('removes stored files no song refers to, but not files of an import that is running', async () => {
-        const startedAt = 1_000
+    it('removes stored files no song refers to, but not recent files (an import may be running, also in another tab)', async () => {
+        const minute = 60_000
+        const startedAt = 100 * minute
         const removeFile = jest.fn(async () => undefined)
         await removeOrphanedAudioFiles({
-            keys: async () => ['/audio/kept_500.mp3', '/audio/orphan_600.mp3', '/audio/new_2000.mp3', 'other'],
-            trackUris: async () => ['/audio/kept_500.mp3'],
+            keys: async () => [
+                `/audio/kept_${10 * minute}.mp3`,
+                `/audio/orphan_${10 * minute}.mp3`,
+                `/audio/recent_${95 * minute}.mp3`,
+                `/audio/new_${200 * minute}.mp3`,
+                'other',
+            ],
+            trackUris: async () => [`/audio/kept_${10 * minute}.mp3`],
             removeFile,
             startedAt,
         })
         expect(removeFile).toHaveBeenCalledTimes(1)
-        expect(removeFile).toHaveBeenCalledWith('/audio/orphan_600.mp3')
+        expect(removeFile).toHaveBeenCalledWith(`/audio/orphan_${10 * minute}.mp3`)
     })
 })

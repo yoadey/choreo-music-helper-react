@@ -286,6 +286,39 @@ describe('player errors (state)', () => {
         expect(TrackPlayer().reset).not.toHaveBeenCalled()
     })
 
+    it('remembers the exact position of the error, also while the app is hidden', async () => {
+        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
+        const markFailed = jest.spyOn(helpers, 'markPlayerFailed')
+        await startService()
+        Object.defineProperty(document, 'hidden', { value: true, configurable: true })
+        try {
+            await progress(83.9)
+            await setPlayerState(m.player.State.Error)
+        } finally {
+            Object.defineProperty(document, 'hidden', { value: false, configurable: true })
+        }
+        expect(markFailed).toHaveBeenCalledWith(83.9)
+    })
+
+    it('ignores the controls while another song is loading (they would use the clips of the old song)', async () => {
+        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
+        await startService()
+        await progress(5)
+        jest.spyOn(helpers, 'isTrackLoading').mockReturnValue(true)
+        await m.service.skipToNextClip()
+        await m.service.seekToClip(20)
+        expect(TrackPlayer().seekTo).not.toHaveBeenCalled()
+    })
+
+    it('cancels a pending start on pause', async () => {
+        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
+        const cancel = jest.spyOn(helpers, 'cancelPendingPlay')
+        await startService()
+        await m.service.pausePlayback()
+        await m.service.stopPlayback()
+        expect(cancel).toHaveBeenCalledTimes(2)
+    })
+
     it('does not jump in a song the user selected at the end of the old one', async () => {
         const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
         jest.spyOn(helpers, 'isTrackLoading').mockReturnValue(true)

@@ -19,12 +19,15 @@ export const removeTrack = (track: TrackWithClips) =>
     // A failed save is reported as failed delete, not additionally by the background save
     withOwnSaveFailureReport(async () => {
         await releaseTrack(track.id)
-        try {
-            await deleteTrack(database, track, removeStoredFile, flushDatabase)
-        } catch (error) {
-            markSaveFailureReported()
-            throw error
-        }
+        await deleteTrack(database, track, removeStoredFile, async () => {
+            try {
+                await flushDatabase()
+            } catch (error) {
+                // Reported as failed delete
+                markSaveFailureReported()
+                throw error
+            }
+        })
         // E.g. the remembered song could not be loaded at the start, its loop markers refer to its clips
         if (getLastTrack() === track.id) {
             clearLastTrack()
@@ -35,9 +38,13 @@ export const removeTrack = (track: TrackWithClips) =>
 /** Timestamp in the name of a stored audio file (see makeUniqueAudioKey), NaN if there is none. */
 const keyTimestamp = (key: string) => Number(/_(\d+)(?:\.[\w-]+)?$/.exec(decodeURIComponent(key))?.[1])
 
+// A running import stores its file shortly before its song (also in another tab, whose song may not be in
+// the database this tab read at its start): only files that are clearly older are cleaned up
+const IMPORT_MARGIN = 10 * 60 * 1000
+
 /**
  * Removes stored audio files that no song refers to (e.g. the save of a delete failed after the song was
- * removed). Only files stored before the app started: a running import stores its file before the song.
+ * removed). Only files stored well before the app started (see IMPORT_MARGIN).
  */
 export const removeOrphanedAudioFiles = async ({
     keys,
@@ -57,7 +64,7 @@ export const removeOrphanedAudioFiles = async ({
             typeof key === 'string' &&
             key.startsWith('/audio/') &&
             !referenced.has(key) &&
-            keyTimestamp(key) < startedAt,
+            keyTimestamp(key) < startedAt - IMPORT_MARGIN,
     )
     for (const key of orphans) await removeFile(key)
 }

@@ -14,6 +14,9 @@ describe('display size', () => {
         expect(getUiScale()).toBe(1)
         preferences.set(KEY_UI_SCALE, 0.1)
         expect(getUiScale()).toBe(1)
+        // Larger sizes of an earlier version zoomed into the page
+        preferences.set(KEY_UI_SCALE, 1.25)
+        expect(getUiScale()).toBe(1)
     })
 
     it('scales the viewport when changed and on start', () => {

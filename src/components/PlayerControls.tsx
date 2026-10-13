@@ -81,7 +81,7 @@ export const PlayerControls = ({ style }: PlayerControlsProps) => {
 		<View style={[styles.container, style]}>
 			<View style={styles.row}>
 				<LoopButton />
-				<PlayerAddClipButton size={32} />
+				<PlayerAddClipButton size={32} buttonStyle={styles.button} />
 				<SpeedButton />
 			</View>
 			<PlayerProgressBar style={{ marginTop: 10, paddingHorizontal: 10 }} />

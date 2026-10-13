@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals'
-import { BackupContent, createBackupBlob, InvalidBackupError, readBackup, restoredAudioKey } from '../backupFormat'
+import { BackupContent, createBackupBlob, InvalidBackupError, readBackup, resolveRestoredAudio, restoredAudioKey } from '../backupFormat'
 
 const readBlob = (blob: Blob) =>
     new Promise<string>((resolve, reject) => {
@@ -55,6 +55,23 @@ describe('backup file', () => {
             .rejects.toThrow('unsupported version')
         await expect(readBackup(new Blob(['ChoreoMusicHelperBackup 1 12\n{"tracks":1}'])))
             .rejects.toBeInstanceOf(InvalidBackupError)
+        const duplicate = createBackupBlob({ createdAt: '', settings: {}, tracks: [track('a', undefined), track('a', undefined)] })
+        await expect(readBackup(duplicate)).rejects.toThrow('duplicate ids')
+    })
+
+    it('never replaces a stored file by a missing one and writes only changed files', async () => {
+        const stored = async () => true
+        const notStored = async () => false
+        const resolve = (existingUri: string | undefined, hasAudio: boolean, isStored = stored) =>
+            resolveRestoredAudio({ existingUri, backupUri: '/audio/a_1.mp3', hasAudio, isStored })
+        // The backup has no audio: the file of this device stays, otherwise the song has no file
+        expect(await resolve('/audio/a_2.mp3', false)).toEqual({ action: 'keep', uri: '/audio/a_2.mp3' })
+        expect(await resolve(undefined, false)).toEqual({ action: 'missing', uri: '/audio/a_1.mp3' })
+        // The same file is stored already
+        expect(await resolve('/audio/a_1.mp3', true)).toEqual({ action: 'keep', uri: '/audio/a_1.mp3' })
+        expect(await resolve('/audio/a_1.mp3', true, notStored)).toEqual({ action: 'write' })
+        expect(await resolve('/audio/a_2.mp3', true)).toEqual({ action: 'write' })
+        expect(await resolve(undefined, true)).toEqual({ action: 'write' })
     })
 
     it('restores audio files with a new key of the restore time', () => {

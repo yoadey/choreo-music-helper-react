@@ -112,7 +112,6 @@ export const readAllTracks = async (database: Database): Promise<TrackData[]> =>
 /**
  * Restores songs from a backup in one batch. Songs that exist (same id) are replaced including their clips,
  * all other songs stay. The ids are kept, so the loop markers of the restored clips stay valid.
- * Returns the replaced audio file keys that are no longer used.
  */
 export const restoreTracks = async (database: Database, data: readonly TrackData[]) =>
     database.write(async () => {
@@ -135,7 +134,6 @@ export const restoreTracks = async (database: Database, data: readonly TrackData
                     .fetch()
             ).map((c) => [c.id, c]),
         )
-        const unusedFiles: string[] = []
         const operations: Model[] = []
 
         for (const item of data) {
@@ -149,7 +147,6 @@ export const restoreTracks = async (database: Database, data: readonly TrackData
             const existing = existingTracks.get(item.id)
             let track: TrackWithClips
             if (existing) {
-                if (existing.uri !== item.uri) unusedFiles.push(existing.uri)
                 track = existing.prepareUpdate(setFields)
             } else {
                 track = tracks.prepareCreate((t) => {
@@ -191,5 +188,4 @@ export const restoreTracks = async (database: Database, data: readonly TrackData
             }
         }
         await database.batch(...operations)
-        return unusedFiles
     })

@@ -2,8 +2,11 @@ import { useMMKVBoolean, useMMKVNumber, useMMKVString } from 'react-native-mmkv'
 import { Platform } from 'react-native'
 import { preferences } from './playbackState'
 
-/** Selectable display sizes, 1 is the normal size. */
-export const UI_SCALES = [0.8, 0.9, 1, 1.1, 1.25] as const
+/**
+ * Selectable display sizes, 1 is the normal size. Only smaller sizes: a larger initial scale of the viewport does
+ * not reduce the layout width, it would just zoom into the page (the browser zoom enlarges the app).
+ */
+export const UI_SCALES = [0.75, 0.8, 0.85, 0.9, 1] as const
 
 const isValidScale = (scale: number | undefined): scale is number =>
     scale !== undefined && (UI_SCALES as readonly number[]).includes(scale)

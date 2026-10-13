@@ -99,7 +99,7 @@ describe('trackRepository', () => {
             const backup = await readAllTracks(database)
             await deleteTrack(database, track, async () => undefined)
 
-            expect(await restoreTracks(database, backup)).toEqual([])
+            await restoreTracks(database, backup)
             expect(await readAllTracks(database)).toEqual(backup)
         })
 
@@ -119,7 +119,7 @@ describe('trackRepository', () => {
             await createClip(database, track, { title: 'New', position: 20 })
             await deleteClip(database, (await track.clips.fetch()).find((c) => c.id === refrain.id)!)
 
-            expect(await restoreTracks(database, [backup])).toEqual(['/audio/song_3.mp3'])
+            await restoreTracks(database, [backup])
             const restored = (await readAllTracks(database)).find((t) => t.id === track.id)!
             expect(restored.title).toBe('Song')
             expect(restored.uri).toBe('/audio/song_1.mp3')

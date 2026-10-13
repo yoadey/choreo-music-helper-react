@@ -8,9 +8,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { ComponentProps } from 'react'
 import { TouchableOpacity, ViewStyle } from 'react-native'
 
-type IconProps = Omit<ComponentProps<typeof MaterialCommunityIcons>, 'name'> & { buttonStyle?: ViewStyle }
+type IconProps = Omit<ComponentProps<typeof MaterialCommunityIcons>, 'name'> & { buttonStyle: ViewStyle }
 
-export const PlayerAddClipButton = ({ buttonStyle = { padding: 10 }, ...iconProps }: IconProps) => {
+export const PlayerAddClipButton = ({ buttonStyle, ...iconProps }: IconProps) => {
     const { currentTrack } = useCurrentTrack()
 
     const addClipToTrack = async () => {

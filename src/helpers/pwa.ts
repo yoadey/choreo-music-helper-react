@@ -49,17 +49,24 @@ const subscribe = (onChange: () => void) => {
 
 export const useInstallState = () => useSyncExternalStore(subscribe, getInstallState, getInstallState)
 
-/** Shows the install dialog of the browser. Returns true if the app was installed. */
+/** Shows the install dialog of the browser. Returns true if the app was installed. Never rejects. */
 export const promptInstall = async () => {
     const w = installWindow()
     const event = w?.deferredInstallPrompt
     if (!w || !event) return false
     // The event can only be used once
     w.deferredInstallPrompt = undefined
-    await event.prompt()
-    const { outcome } = await event.userChoice
-    w.dispatchEvent(new Event('installpromptchange'))
-    return outcome === 'accepted'
+    try {
+        await event.prompt()
+        const { outcome } = await event.userChoice
+        return outcome === 'accepted'
+    } catch (error) {
+        // E.g. not allowed in this context: the instructions are shown instead
+        console.warn('Could not show the install dialog', error)
+        return false
+    } finally {
+        w.dispatchEvent(new Event('installpromptchange'))
+    }
 }
 
 export type InstallPlatform = 'ios' | 'android' | 'desktop'

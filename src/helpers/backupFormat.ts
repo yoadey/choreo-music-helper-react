@@ -133,6 +133,12 @@ export const readBackup = async (file: Blob): Promise<BackupContent> => {
     if (!header || !Array.isArray(header.tracks) || !header.tracks.every((track) => validTrack(track, dataSize))) {
         throw new InvalidBackupError('invalid songs')
     }
+    // Each song and clip once (a restore creates them with these ids)
+    const trackIds = header.tracks.map((track) => track.id)
+    const clipIds = header.tracks.flatMap((track) => track.clips.map((clip) => clip.id))
+    if (new Set(trackIds).size !== trackIds.length || new Set(clipIds).size !== clipIds.length) {
+        throw new InvalidBackupError('duplicate ids')
+    }
     const settings = Object.fromEntries(
         Object.entries(header.settings ?? {}).filter((entry): entry is [string, string] => isString(entry[1])),
     )
@@ -160,4 +166,31 @@ export const restoredAudioKey = (uri: string, timestamp: number) => {
         name = 'audio'
     }
     return makeUniqueAudioKey(name.replace(/_\d+(?=(\.[\w-]+)?$)/, ''), timestamp)
+}
+
+/**
+ * Which audio file a restored song uses:
+ * - keep: the file that is stored for the song on this device (the same file as in the backup, or the backup has
+ *   no audio for it: a working file is never replaced by a missing one)
+ * - write: the audio of the backup is stored as a new file
+ * - missing: neither the backup nor this device has the file
+ */
+export type RestoredAudio = { action: 'keep'; uri: string } | { action: 'write' } | { action: 'missing'; uri: string }
+
+export const resolveRestoredAudio = async ({
+    existingUri,
+    backupUri,
+    hasAudio,
+    isStored,
+}: {
+    /** uri of the song on this device, undefined if it does not exist here */
+    existingUri: string | undefined
+    backupUri: string
+    hasAudio: boolean
+    /** Whether the file of the song on this device exists */
+    isStored: () => Promise<boolean>
+}): Promise<RestoredAudio> => {
+    if (!hasAudio) return existingUri !== undefined ? { action: 'keep', uri: existingUri } : { action: 'missing', uri: backupUri }
+    if (existingUri !== backupUri) return { action: 'write' }
+    return (await isStored()) ? { action: 'keep', uri: existingUri } : { action: 'write' }
 }

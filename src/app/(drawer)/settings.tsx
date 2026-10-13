@@ -187,6 +187,13 @@ const manualInstructions = {
 
 const Install = () => {
     const state = useInstallState()
+    // While the dialog of the browser is open
+    const [installing, setInstalling] = useState(false)
+    const install = async () => {
+        setInstalling(true)
+        await promptInstall()
+        setInstalling(false)
+    }
     if (state === 'installed') {
         return (
             <View style={styles.row}>
@@ -201,7 +208,8 @@ const Install = () => {
             {state === 'prompt' ? (
                 <Pressable
                     style={styles.button}
-                    onPress={() => promptInstall()}
+                    onPress={install}
+                    disabled={installing}
                     accessibilityRole="button"
                     testID="install-app"
                 >

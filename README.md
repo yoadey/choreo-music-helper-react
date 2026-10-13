@@ -43,3 +43,8 @@ BASE_PATH=/choreo-music-helper-react npm run test:e2e
 
 Pushing a tag `v*` builds the app and deploys it to GitHub Pages (`.github/workflows/deploy.yml`).
 The base path is taken from the GitHub Pages configuration automatically.
+
+For an own web server, every CI run (`.github/workflows/ci.yml`, job `web-artifact`) uploads the build as the
+artifact `web-<commit>`. It is built for the root of the domain (absolute paths like `/_expo/...`), unzip it
+into the web root. Deep links like `/info` need `404.html` as fallback after a reload, e.g.
+`ErrorDocument 404 /404.html` (Apache) or `try_files $uri $uri/ /index.html;` (nginx).

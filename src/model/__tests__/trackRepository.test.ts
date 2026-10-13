@@ -4,7 +4,7 @@ import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs'
 import Clip from '../clip'
 import schema from '../schema'
 import TrackWithClips from '../track'
-import { createClip, createTrackWithClips, deleteClip, deleteTrack, readAllTracks, restoreTracks } from '../trackRepository'
+import { createClip, createTrackWithClips, deleteClip, deleteTrack, readAllTracks, removeTracksById, restoreTracks } from '../trackRepository'
 
 const createTestDatabase = () =>
     new Database({
@@ -125,6 +125,23 @@ describe('trackRepository', () => {
             expect(restored.uri).toBe('/audio/song_1.mp3')
             expect(restored.clips.map((c) => c.id).sort()).toEqual([intro.id, refrain.id].sort())
             expect((await readAllTracks(database)).find((t) => t.id === other.id)?.title).toBe('Other')
+        })
+
+        it('undoes a restore: the previous songs come back, new ones are removed', async () => {
+            const track = await createTrackWithClips(database, imported)
+            const before = await readAllTracks(database)
+            const backup = [
+                { ...before[0], title: 'From backup', clips: [] },
+                { ...before[0], id: 'new-song', uri: '/audio/new_9.mp3', clips: [{ id: 'new-clip', title: 'A', position: 1, color: '#00000000', speed: 1 }] },
+            ]
+            await restoreTracks(database, backup)
+            expect((await readAllTracks(database)).map((t) => t.title).sort()).toEqual(['From backup', 'Song'])
+
+            await restoreTracks(database, before)
+            await removeTracksById(database, ['new-song'])
+            expect(await readAllTracks(database)).toEqual(before)
+            expect(await database.get('clips').query().fetchCount()).toBe(before[0].clips.length)
+            expect(track.title).toBe('Song')
         })
     })
 })

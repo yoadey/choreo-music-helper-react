@@ -45,3 +45,25 @@ export const removeStoredFile = async (key: string) => {
     if (Platform.OS === 'web') await del(key)
     removePendingFile(key)
 }
+
+const PENDING_FILES_LOCK = 'choreo-music-helper-pending-files'
+
+const lockManager = () => (typeof navigator === 'undefined' ? undefined : navigator.locks)
+
+/**
+ * Holds a lock (Web Locks API, shared by all tabs) while files are pending for a long time, e.g. during a
+ * restore: other tabs that start meanwhile do not clean up these files (see whenPendingFilesUnused).
+ */
+export const whilePendingFilesInUse = <T,>(action: () => Promise<T>): Promise<T> => {
+    const locks = lockManager()
+    return locks ? locks.request(PENDING_FILES_LOCK, action) : action()
+}
+
+/** Runs the clean up of pending files, unless another tab holds them (see whilePendingFilesInUse). */
+export const whenPendingFilesUnused = async (cleanUp: () => Promise<void>) => {
+    const locks = lockManager()
+    if (!locks) return cleanUp()
+    await locks.request(PENDING_FILES_LOCK, { ifAvailable: true }, async (lock) => {
+        if (lock) await cleanUp()
+    })
+}

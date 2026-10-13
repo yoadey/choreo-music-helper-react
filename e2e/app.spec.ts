@@ -555,6 +555,10 @@ test.describe('backup', () => {
         const messages = dialogMessages(page)
         await importFile(page, 'chapters.mp3')
         await expect(page.getByTestId('track-0')).toContainText('Testsong')
+        await page.getByRole('button', { name: 'Preparation time' }).click()
+        await page.getByTestId('lead-in-seconds').fill('3')
+        await page.getByTestId('loop-ok').click()
+        await expect(page.getByText('-3s')).toBeVisible()
         await openMenuItem(page, 'Einstellungen')
         await page.getByTestId('player-layout-compact').click()
 
@@ -564,9 +568,13 @@ test.describe('backup', () => {
         expect((await download).suggestedFilename()).toMatch(/^choreo-music-helper-\d{4}-\d{2}-\d{2}\.choreobackup$/)
         await expect.poll(() => messages).toContain('Die Sicherung mit 1 Song wurde heruntergeladen.')
 
-        // Everything is lost (deleted song, reset setting)
+        // Everything is lost (deleted song, reset settings)
         await page.getByTestId('player-layout-large').click()
         await openMenuItem(page, 'Musik')
+        await page.getByRole('button', { name: 'Preparation time' }).click()
+        await page.getByTestId('lead-in-seconds').fill('0')
+        await page.getByTestId('loop-ok').click()
+        await expect(page.getByText('-3s')).toHaveCount(0)
         await page.getByTestId('track-0').click({ delay: 900 })
         await page.getByText('Löschen', { exact: true }).click()
         await expect(page.getByTestId('track-0')).toHaveCount(0)
@@ -578,8 +586,9 @@ test.describe('backup', () => {
         await expect.poll(() => messages).toContain('1 Song wurde wiederhergestellt.')
 
         await openMenuItem(page, 'Musik')
-        // The setting of the backup is restored
+        // The settings of the backup are restored
         await expect(page.getByTestId('player-compact')).toBeVisible()
+        await expect(page.getByText('-3s')).toBeVisible()
         await expect(page.getByTestId('track-0')).toContainText('Testsong')
         await page.getByTestId('track-0').click()
         await waitForAudio(page, 'a.readyState > 0 && a.duration > 10')

@@ -144,7 +144,14 @@ const Backup = () => {
         })
     const restore = async () => {
         // Not busy while the picker is open: some browsers never report a cancelled picker
-        const file = await pickBackupFile()
+        let file: Blob | undefined
+        try {
+            file = await pickBackupFile()
+        } catch (error) {
+            console.warn('Could not read the backup file', error)
+            showMessage(t.restoreFailed)
+            return
+        }
         if (!file || !(await confirmAction(t.confirmRestore))) return
         await run(async () => {
             try {

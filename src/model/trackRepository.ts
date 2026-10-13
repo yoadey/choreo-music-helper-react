@@ -189,3 +189,15 @@ export const restoreTracks = async (database: Database, data: readonly TrackData
         }
         await database.batch(...operations)
     })
+
+/** Deletes the songs with their clips in one batch (not their audio files), e.g. to undo a restore. */
+export const removeTracksById = async (database: Database, ids: readonly string[]) =>
+    database.write(async () => {
+        if (ids.length === 0) return
+        const tracks = await database.get<TrackWithClips>('tracks').query(Q.where('id', Q.oneOf([...ids]))).fetch()
+        const clips = await database.get<Clip>('clips').query(Q.where('track_id', Q.oneOf([...ids]))).fetch()
+        await database.batch(
+            ...clips.map((clip) => clip.prepareDestroyPermanently()),
+            ...tracks.map((track) => track.prepareDestroyPermanently()),
+        )
+    })

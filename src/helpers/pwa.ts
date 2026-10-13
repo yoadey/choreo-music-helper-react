@@ -76,6 +76,8 @@ export const getInstallPlatform = (userAgent = installWindow()?.navigator.userAg
     // iPadOS reports itself as Mac, but has touch support
     const isIPad = /Macintosh/.test(userAgent) && (installWindow()?.navigator.maxTouchPoints ?? 0) > 1
     if (/iPhone|iPad|iPod/.test(userAgent) || isIPad) return 'ios'
-    if (/Android/.test(userAgent)) return 'android'
+    // Android tablets request desktop sites by default (Linux user agent), but have touch support
+    const isAndroidDesktopMode = /Linux/.test(userAgent) && (installWindow()?.navigator.maxTouchPoints ?? 0) > 0
+    if (/Android/.test(userAgent) || isAndroidDesktopMode) return 'android'
     return 'desktop'
 }

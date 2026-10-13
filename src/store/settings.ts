@@ -1,6 +1,14 @@
 import { useMMKVBoolean, useMMKVNumber, useMMKVString } from 'react-native-mmkv'
 import { Platform } from 'react-native'
-import { preferences } from './playbackState'
+import {
+    KEY_GLOBAL_SPEED_ONLY,
+    KEY_LEAD_IN_DURATION,
+    KEY_LEAD_IN_VOLUME,
+    KEY_LEAD_OUT_DURATION,
+    KEY_LEAD_OUT_VOLUME,
+    KEY_SPEED,
+    preferences,
+} from './playbackState'
 
 /**
  * Selectable display sizes, 1 is the normal size. Only smaller sizes: a larger initial scale of the viewport does
@@ -77,5 +85,16 @@ export const usePlayerLayout = () => {
     return [layout === 'compact' ? 'compact' : 'large', (value: PlayerLayout) => setLayout(value)] as const
 }
 
-/** Settings that are included in a backup. */
-export const SETTINGS_KEYS = [KEY_UI_SCALE, KEY_KEEP_AWAKE, KEY_BACK_BUTTON, KEY_PLAYER_LAYOUT] as const
+/** Settings that are included in a backup (the loop refers to clips and is not part of it). */
+export const SETTINGS_KEYS = [
+    KEY_UI_SCALE,
+    KEY_KEEP_AWAKE,
+    KEY_BACK_BUTTON,
+    KEY_PLAYER_LAYOUT,
+    KEY_SPEED,
+    KEY_GLOBAL_SPEED_ONLY,
+    KEY_LEAD_IN_DURATION,
+    KEY_LEAD_OUT_DURATION,
+    KEY_LEAD_IN_VOLUME,
+    KEY_LEAD_OUT_VOLUME,
+] as const

@@ -19,6 +19,14 @@ describe('install as app', () => {
         expect(getInstallPlatform('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Safari')).toBe('ios')
         expect(getInstallPlatform('Mozilla/5.0 (Linux; Android 15; Pixel 9) Chrome/140 Mobile')).toBe('android')
         expect(getInstallPlatform('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140')).toBe('desktop')
+        expect(getInstallPlatform('Mozilla/5.0 (X11; Linux x86_64) Chrome/140')).toBe('desktop')
+        // Android tablet in desktop mode
+        Object.defineProperty(navigator, 'maxTouchPoints', { value: 5, configurable: true })
+        try {
+            expect(getInstallPlatform('Mozilla/5.0 (X11; Linux x86_64) Chrome/140')).toBe('android')
+        } finally {
+            delete (navigator as { maxTouchPoints?: number }).maxTouchPoints
+        }
     })
 
     it('offers the browser dialog if available, otherwise instructions', () => {

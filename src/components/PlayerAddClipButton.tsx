@@ -1,38 +1,34 @@
 import { colors } from '@/constants/tokens'
+import { addClipAtCurrentPosition } from '@/helpers/player'
 import { useCurrentTrack } from '@/hooks/useCurrentTrack'
-import Clip from '@/model/clip'
+import { t } from '@/i18n'
 import { database } from '@/model/index.web'
+import { createClip } from '@/model/trackRepository'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { ComponentProps } from 'react'
-import TrackPlayer from 'react-native-track-player'
+import { TouchableOpacity } from 'react-native'
 
 type IconProps = Omit<ComponentProps<typeof MaterialCommunityIcons>, 'name'>
 
 export const PlayerAddClipButton = ({ ...iconProps }: IconProps) => {
     const { currentTrack } = useCurrentTrack()
 
-    const addClipToTrack = () => {
+    const addClipToTrack = async () => {
         if (!currentTrack) return
-
-        TrackPlayer.getProgress().then((progress) => {
-            database.write(async () => {
-                database.get<Clip>('clips').create((clip) => {
-                    clip.track.set(currentTrack)
-                    clip.title = `New clip`
-                    clip.color = `#00000000`
-                    clip.position = progress.position
-                    clip.speed = 1
-                })
-            })
-        })
+        await addClipAtCurrentPosition(currentTrack, (track, position) =>
+            createClip(database, track, { title: t.newClip, position }),
+        )
     }
 
     return (
-        <MaterialCommunityIcons
-            name={'playlist-plus'}
+        <TouchableOpacity
             onPress={addClipToTrack}
-            color={colors.icon}
-            {...iconProps}
-        />
+            disabled={!currentTrack}
+            accessibilityRole="button"
+            accessibilityLabel="Add clip"
+            style={{ padding: 10, opacity: currentTrack ? 1 : 0.4 }}
+        >
+            <MaterialCommunityIcons name="playlist-plus" color={colors.icon} {...iconProps} />
+        </TouchableOpacity>
     )
 }

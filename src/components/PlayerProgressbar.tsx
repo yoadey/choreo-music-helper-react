@@ -1,36 +1,36 @@
 import { colors, fontSize } from '@/constants/tokens'
 import { formatSecondsToMinutes } from '@/helpers/miscellaneous'
 import { useCurrentTrack } from '@/hooks/useCurrentTrack'
+import { useWaveform } from '@/hooks/useWaveform'
 import { defaultStyles } from '@/styles'
 import { StyleSheet, Text, View, ViewProps } from 'react-native'
-import TrackPlayer, { useActiveTrack, useProgress } from 'react-native-track-player'
+import { usePlayerProgressStore } from '@/store/progress'
+import { seekTo } from '@/constants/playbackService'
 import WaveformView from './waveform/WaveformView'
 
 export const PlayerProgressBar = ({ style }: ViewProps) => {
-	const { duration, position } = useProgress(50)
-	const track = useActiveTrack()
+	const position = usePlayerProgressStore((progress) => progress.position)
+	const duration = usePlayerProgressStore((progress) => progress.duration)
 	const { currentTrack } = useCurrentTrack()
-
-	const trackElapsedTime = formatSecondsToMinutes(position)
-	const trackRemainingTime = formatSecondsToMinutes(duration - position)
+	const waveform = useWaveform(currentTrack)
 
 	return (
 		<View style={style}>
 			<WaveformView
-				mp3Url={track?.url}
+				waveform={currentTrack ? waveform : []}
 				progress={position}
 				duration={duration}
-				onSeek={(newProgress) => TrackPlayer.seekTo(newProgress)}
+				onSeek={seekTo}
 				elapsedBarColor={colors.minimumTrackTintColor}
 				remainingBarColor={colors.maximumTrackTintColor}
-				trackId={currentTrack?.id}
 			/>
 
 			<View style={styles.timeRow}>
-				<Text id="elapsedTime" style={styles.timeText}>{trackElapsedTime}</Text>
-
-				<Text id="remainingTime" style={styles.timeText}>
-					{'-'} {trackRemainingTime}
+				<Text testID="elapsed-time" style={styles.timeText}>
+					{formatSecondsToMinutes(position)}
+				</Text>
+				<Text testID="remaining-time" style={styles.timeText}>
+					- {formatSecondsToMinutes(duration - position)}
 				</Text>
 			</View>
 		</View>

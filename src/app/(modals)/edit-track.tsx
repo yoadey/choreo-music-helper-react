@@ -1,92 +1,70 @@
 import { ColorPicker } from '@/components/ColorPicker'
-import { colors } from '@/constants/tokens'
+import { colors, colorSwatches, TRANSPARENT } from '@/constants/tokens'
+import { showMessage } from '@/helpers/dialogs'
+import { useObservedRecord } from '@/hooks/useObservedRecord'
+import { t } from '@/i18n'
 import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { containerStyles, inputStyles, modalStyles } from '@/styles'
-import { withObservables } from '@nozbe/watermelondb/react'
-import { useHeaderHeight } from '@react-navigation/elements'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams } from 'expo-router'
+import { ModalScreen } from '@/components/ModalScreen'
+import { useCloseModal } from '@/hooks/useCloseModal'
 import React, { useEffect, useState } from 'react'
-import { Button, Pressable, Text, TextInput, View } from 'react-native'
+import { Button, Text, TextInput, View } from 'react-native'
 
-const colorSwatchesSelected = [
-    '#00000000',
-    '#AFB42B',
-    '#E64A19',
-    '#C2185B',
-    '#D32F2F',
-    '#00796B',
-    '#689F38',
-    '#388E3C',
-    '#0097A7',
-    '#0288D1',
-    '#1976D2',
-    '#303F9F',
-    '#512DA8',
-    '#7B1FA2',
-    '#455A64',
-    '#5D4037',
-]
-
-const EditTrackModal = ({ track }: { track: TrackWithClips }) => {
-    const router = useRouter()
-    const headerHeight = useHeaderHeight()
-
+const EditTrackForm = ({ track, onClose }: { track: TrackWithClips; onClose: () => void }) => {
     const [title, setTitle] = useState(track.title)
-    const [color, setColor] = useState(track.color || '#00000000')
-
-    useEffect(() => {
-        setTitle(track.title)
-        setColor(track.color || '#00000000')
-    }, [track])
+    const [color, setColor] = useState(track.color || TRANSPARENT)
 
     const handleOk = async () => {
-        database.write(
-            async () =>
-                await track.update((trackUpdate) => {
-                    trackUpdate.title = title
-                    trackUpdate.color = color
-                }),
-        )
-        router.dismiss()
-    }
-
-    const handleCancel = () => {
-        router.dismiss()
+        try {
+            await database.write(async () => {
+                await track.update((tr) => {
+                    tr.title = title
+                    tr.color = color
+                })
+            })
+            onClose()
+        } catch (error) {
+            console.warn('Could not save the track', error)
+            showMessage(t.saveFailed)
+        }
     }
 
     return (
-        <View style={[modalStyles.modalContainer, { paddingTop: headerHeight }]}>
-            <Pressable style={modalStyles.backdrop} onPress={handleCancel} />
+        <View style={modalStyles.modal}>
+            <Text style={modalStyles.title}>{t.editTrack}</Text>
+            <View style={containerStyles.inputRow}>
+                <TextInput style={inputStyles.input} value={title} onChangeText={setTitle} testID="track-title-input" />
+            </View>
 
-            <View style={modalStyles.modal}>
-                <Text style={modalStyles.title}>Track bearbeiten</Text>
-                <View style={containerStyles.inputRow}>
-                    <TextInput style={inputStyles.input} value={title} onChangeText={setTitle} />
-                </View>
+            <View style={{ width: 250, padding: 10, paddingVertical: 20 }}>
+                <ColorPicker value={color} onChange={setColor} colors={colorSwatches} />
+            </View>
 
-                <View style={{ width: 250, padding: 10, paddingTop: 20, paddingBottom: 20 }}>
-                    <ColorPicker
-                        value={color}
-                        onChange={(e) => setColor(e)}
-                        colors={colorSwatchesSelected}
-                    />
-                </View>
-
-                <View style={{ marginTop: 24 }}>
-                    <Button title="OK" onPress={handleOk} color={colors.primary} />
-                </View>
+            <View style={{ marginTop: 24, flexDirection: 'row', gap: 12, justifyContent: 'flex-end' }}>
+                <Button title={t.cancel} onPress={onClose} color={colors.secondary} />
+                <Button title={t.ok} onPress={handleOk} color={colors.primary} testID="track-ok" />
             </View>
         </View>
     )
 }
 
-// @ts-expect-error - WatermelonDB typing does not expose observe
-const enhance = withObservables<Record<string, never>, { track: TrackWithClips }>([], () => {
+const EditTrackModal = () => {
     const { trackId } = useLocalSearchParams<{ trackId: string }>()
-    return {
-        track: database.collections.get<TrackWithClips>('tracks').findAndObserve(trackId),
-    }
-})
+    const track = useObservedRecord<TrackWithClips>('tracks', trackId)
+    const close = useCloseModal()
 
-export default enhance(EditTrackModal)
+    useEffect(() => {
+        // Unknown track (e.g. deleted or stale link after reload)
+        if (track === null) close()
+    }, [track, close])
+
+    return (
+        <ModalScreen onClose={close}>
+            {track && <EditTrackForm key={track.id} track={track} onClose={close} />}
+        </ModalScreen>
+    )
+}
+
+export default EditTrackModal

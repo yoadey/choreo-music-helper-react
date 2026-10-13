@@ -1,241 +1,345 @@
-import Clip from '@/model/clip';
-import { database } from '@/model/index.web';
-import { getGlobalSpeedOnly, getLastTrack, getLeadInDuration, getLeadInVolume, getLeadOutDuration, getLeadOutVolume, getLoopEnd, getLoopStart, getSpeed, preferences } from '@/store/playbackState';
-import { Q } from '@nozbe/watermelondb';
-import TrackPlayer, { Event, State } from 'react-native-track-player';
-import { setRate } from 'react-native-track-player/lib/src/trackPlayer';
-import type { Subscription } from 'rxjs';
+import {
+    buildClipRanges,
+    ClipLike,
+    ClipRange,
+    computeSpeedFactor,
+    computeVolume,
+    fitLoopToTrack,
+    getLoopSeekTarget,
+    getNextClipTarget,
+    getPreviousClipTarget,
+    getStopTarget,
+    leadInStart,
+    LoopRange,
+    resolveLoop,
+    SPEED_FADE_DURATION,
+} from '@/helpers/playback'
+import {
+    cancelPendingPlay,
+    handlePlayerError,
+    isTrackLoading,
+    playCurrentTrack,
+    whenTrackIdle,
+} from '@/helpers/player'
+import Clip from '@/model/clip'
+import { database } from '@/model/index.web'
+import {
+    getGlobalSpeedOnly,
+    getLeadInDuration,
+    getLeadInVolume,
+    getLeadOutDuration,
+    getLeadOutVolume,
+    getLoopEndId,
+    getLoopStartId,
+    getSpeed,
+    preferences,
+} from '@/store/playbackState'
+import { publishProgress, refreshProgress } from '@/store/progress'
+import { useCurrentTrackStore, useLoopStatusStore } from '@/store/store'
+import { Q } from '@nozbe/watermelondb'
+import TrackPlayer, { Event, State } from 'react-native-track-player'
+import type { Subscription } from 'rxjs'
 
-export const VOLUME_FADE_DURATION = 2; // 2 seconds
-export const SPEED_FADE_DURATION = 2; // 2 seconds
+const readPreferences = () => ({
+    speed: getSpeed(),
+    globalSpeedOnly: getGlobalSpeedOnly(),
+    leadIn: getLeadInDuration(),
+    leadOut: getLeadOutDuration(),
+    leadInVolume: getLeadInVolume(),
+    leadOutVolume: getLeadOutVolume(),
+    loopStartId: getLoopStartId(),
+    loopEndId: getLoopEndId(),
+})
+
+/** State shared by the playback service and the player controls. */
+const state = {
+    prefs: readPreferences(),
+    clips: [] as ClipLike[],
+    duration: 0,
+    // Derived from clips, duration and preferences, recomputed only when one of them changes
+    ranges: [] as ClipRange[],
+    loop: undefined as LoopRange | undefined,
+    playerState: undefined as string | undefined,
+    // null: not subscribed yet (undefined: no song)
+    trackId: null as string | undefined | null,
+    clipsPending: false,
+    subscription: undefined as Subscription | undefined,
+    lastRate: undefined as number | undefined,
+    lastVolume: undefined as number | undefined,
+}
+
+const recompute = () => {
+    state.ranges = buildClipRanges(state.clips, state.duration)
+    state.loop = state.clipsPending
+        ? undefined
+        : resolveLoop(state.prefs.loopStartId, state.prefs.loopEndId, state.ranges)
+    // While the clips of a newly selected song are read, a set loop is shown as active (not as invalid)
+    const active = state.clipsPending ? !!(state.prefs.loopStartId && state.prefs.loopEndId) : !!state.loop
+    const loopStatus = useLoopStatusStore.getState()
+    if (loopStatus.active !== active) loopStatus.setActive(active)
+}
+
+const subscribeToClips = (trackId: string | undefined) => {
+    if (trackId === state.trackId) return
+    state.subscription?.unsubscribe()
+    state.subscription = undefined
+    state.trackId = trackId
+    state.clips = []
+    state.clipsPending = !!trackId
+    recompute()
+    if (!trackId) return
+    state.subscription = database
+        .get<Clip>('clips')
+        .query(Q.where('track_id', trackId))
+        .observeWithColumns(['position', 'speed'])
+        .subscribe((clips) => {
+            state.clips = clips.map((clip) => ({ id: clip.id, position: clip.position, speed: clip.speed }))
+            state.clipsPending = false
+            recompute()
+        })
+}
+
+const updateDuration = (duration: number | undefined) => {
+    if (duration && Number.isFinite(duration) && duration > 0 && duration !== state.duration) {
+        state.duration = duration
+        recompute()
+    }
+}
+
+const getProgress = async () => {
+    const progress = await TrackPlayer.getProgress()
+    updateDuration(progress.duration)
+    return progress
+}
+
+/** Seeks and publishes the new position right away (no progress polling while paused). */
+const seekAndPublish = async (position: number) => {
+    await TrackPlayer.seekTo(position)
+    await refreshProgress()
+}
+
+/**
+ * Controls of the user (buttons, media keys): without a loaded song (e.g. before the player is set up,
+ * which happens lazily on the web) they do nothing, and they never reject.
+ */
+const control =
+    <A extends unknown[]>(action: (...args: A) => Promise<void>, { needsSong = true } = {}) =>
+    async (...args: A) => {
+        if (!useCurrentTrackStore.getState().currentTrack) return
+        try {
+            // Another song is loading: the clips and positions are still those of the old song
+            if (needsSong && isTrackLoading()) return
+            await action(...args)
+        } catch (error) {
+            console.warn('The player control failed', error)
+        }
+    }
+
+export const seekTo = control(seekAndPublish)
+
+/** The active loop resolved from the current clips, or undefined. */
+export const getActiveLoop = (): LoopRange | undefined => state.loop
+
+const setRate = async (rate: number) => {
+    if (state.lastRate !== undefined && Math.abs(state.lastRate - rate) < 0.001) return
+    state.lastRate = rate
+    try {
+        await TrackPlayer.setRate(rate)
+    } catch {
+        // Try again with the next progress update
+        state.lastRate = undefined
+    }
+}
+
+const setVolume = async (volume: number) => {
+    if (state.lastVolume !== undefined && Math.abs(state.lastVolume - volume) < 0.001) return
+    state.lastVolume = volume
+    try {
+        await TrackPlayer.setVolume(volume)
+    } catch {
+        state.lastVolume = undefined
+    }
+}
+
+/** Applies speed, volume and loop for the current position. */
+export const applyPlaybackRules = async (position: number) => {
+    const { prefs, ranges } = state
+    const rate = prefs.globalSpeedOnly
+        ? prefs.speed
+        : prefs.speed *
+          computeSpeedFactor(position, ranges, SPEED_FADE_DURATION, { loop: state.loop, leadOut: prefs.leadOut })
+    // The loop as it can be played (it ends shortly before the track end), for the volume and the jump
+    const { loop, leadOut } = state.loop
+        ? fitLoopToTrack({ loop: state.loop, leadOut: prefs.leadOut, duration: state.duration, rate })
+        : { loop: undefined, leadOut: prefs.leadOut }
+
+    await Promise.all([setRate(rate), setVolume(computeVolume({ position, ...prefs, loop, leadOut }))])
+
+    const target = getLoopSeekTarget({ position, loop, leadIn: prefs.leadIn, leadOut })
+    if (target !== null) {
+        await seekAndPublish(target)
+    }
+}
+
+const applyIfPlaying = async (position: number) => {
+    if (state.playerState === State.Playing) {
+        await applyPlaybackRules(position)
+    }
+}
+
+const pausePlayer = control(() => TrackPlayer.pause(), { needsSong: false })
+
+/** Pauses, also a start that still waits for a song to load. */
+export const pausePlayback = async () => {
+    cancelPendingPlay()
+    await pausePlayer()
+}
+
+const stopPlayer = control(async () => {
+    await TrackPlayer.pause()
+    await getProgress()
+    await seekAndPublish(getStopTarget(getActiveLoop(), state.prefs.leadIn))
+})
+
+/**
+ * Stops the playback without unloading the track, so it can be played again directly. While another song
+ * loads, the playing song is only paused (the new one starts at its beginning anyway).
+ */
+export const stopPlayback = async () => {
+    cancelPendingPlay()
+    await (isTrackLoading() ? pausePlayer() : stopPlayer())
+}
+
+/** Clip start positions, sorted (the ranges are sorted when they are computed) */
+const clipStarts = () => state.ranges.map((range) => range.start)
+
+export const skipToNextClip = control(async () => {
+    const { position } = await getProgress()
+    const target = getNextClipTarget(position, clipStarts(), state.prefs.leadIn)
+    if (target !== null) {
+        await seekAndPublish(target)
+    }
+})
+
+export const skipToPreviousClip = control(async () => {
+    const { position } = await getProgress()
+    await seekAndPublish(getPreviousClipTarget(position, clipStarts(), state.prefs.leadIn))
+})
+
+/** Seeks to the start of a clip, including the lead in. */
+export const seekToClip = control(async (clipPosition: number) => {
+    await seekAndPublish(leadInStart(clipPosition, state.prefs.leadIn))
+})
+
+export const jumpBy = control(async (seconds: number) => {
+    const { position, duration } = await getProgress()
+    const target = Math.max(position + seconds, 0)
+    await seekAndPublish(duration > 0 ? Math.min(target, duration) : target)
+})
+
+const syncPlayWhenReady = (playWhenReady: boolean) => {
+    TrackPlayer.setPlayWhenReady(playWhenReady).catch(() => {
+        // The player is not set up, there is nothing to sync
+    })
+}
+
+/**
+ * Restarts an active loop when the track ended. Usually the loop jumps back shortly before the end (see
+ * fitLoopToTrack); this covers progress updates that came too late, e.g. in a background tab.
+ */
+const handleTrackEnded = async () => {
+    if (isTrackLoading()) {
+        // The user selected another song: neither jump in it nor start it. If it could not be loaded, the
+        // ended song stays and its loop restarts.
+        const endedTrack = state.trackId
+        await whenTrackIdle()
+        if (state.trackId !== endedTrack) return
+    }
+    // Updates the duration, which a loop up to the end of the track needs
+    await getProgress()
+    const loop = getActiveLoop()
+    if (!loop) return
+    await seekAndPublish(getStopTarget(loop, state.prefs.leadIn))
+    // Not if the user selected another song meanwhile: selecting a song never starts it
+    await playCurrentTrack({ unlessLoading: true })
+}
 
 export const playbackService = async () => {
-    let leadInDuration = 0;
-    let leadInVolume = 1;
-    let leadOutDuration = 0;
-    let leadOutVolume = 1;
-    let loopStart: number | undefined = undefined;
-    let loopEnd: number | undefined = undefined;
-    let speed = 1;
-    let globalSpeedOnly = false;
-    let playerReady = false;
-    let clipsSorted: { start: number; end: number; speed: number }[] = [];
-    let clipSubscription: Subscription | undefined;
+    state.prefs = readPreferences()
+    state.lastRate = undefined
+    state.lastVolume = undefined
+    // The clips (and the loop) of the loaded song: the last song may not be loaded (e.g. its file is missing)
+    subscribeToClips(useCurrentTrackStore.getState().currentTrack?.id)
+    useCurrentTrackStore.subscribe(({ currentTrack }) => subscribeToClips(currentTrack?.id))
+    TrackPlayer.getPlaybackState()
+        .then(({ state: playbackState }) => {
+            state.playerState ??= playbackState
+        })
+        .catch(() => {
+            // The player is not set up yet, the state arrives with the next event
+        })
 
-    const loadClipSpeeds = (trackId?: string | null) => {
-        clipSubscription?.unsubscribe();
-        clipsSorted = [];
-        if (!trackId) return;
-        clipSubscription = database
-            .get<Clip>('clips')
-            .query(Q.where('track_id', trackId))
-            .observeWithColumns(['position', 'speed'])
-            .subscribe((clipsResult) => {
-                const sorted = clipsResult.sort((a, b) => a.position - b.position);
-                clipsSorted = sorted.map((clip, index) => ({
-                    start: clip.position,
-                    end: index < sorted.length - 1 ? sorted[index + 1].position : Number.POSITIVE_INFINITY,
-                    speed: clip.speed ?? 1,
-                }));
-            });
-    };
-
-    loadClipSpeeds(getLastTrack());
-
-    // MMKV Listener for settings changes
+    // Several preferences are often changed at once (e.g. the OK of a dialog, selecting a song): they are
+    // applied once afterwards, so no intermediate states (e.g. of the loop) are published or played
+    let changeScheduled = false
     preferences.addOnValueChangedListener(() => {
-        speed = getSpeed();
-        globalSpeedOnly = getGlobalSpeedOnly();
-        leadInDuration = getLeadInDuration();
-        leadInVolume = getLeadInVolume();
-        leadOutDuration = getLeadOutDuration();
-        leadOutVolume = getLeadOutVolume();
-        loopEnd = getLoopEnd();
-        loopStart = getLoopStart();
-        loadClipSpeeds(getLastTrack());
+        if (changeScheduled) return
+        changeScheduled = true
+        queueMicrotask(() => {
+            changeScheduled = false
+            state.prefs = readPreferences()
+            recompute()
+            getProgress()
+                .then(({ position }) => applyIfPlaying(position))
+                .catch(() => {
+                    // The player is not set up yet
+                })
+        })
+    })
 
-        if (playerReady) {
-            TrackPlayer.getProgress().then(loopChecks);
+    TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, async ({ position, duration }) => {
+        updateDuration(duration)
+        // The UI is updated from these events. While hidden only whole seconds (enough for the lock screen,
+        // which also gets the current rate with them), the exact position is refreshed when visible again.
+        const hidden = typeof document !== 'undefined' && document.hidden
+        publishProgress(hidden ? Math.floor(position) : position, duration)
+        await applyIfPlaying(position)
+    })
+
+    TrackPlayer.addEventListener(Event.PlaybackState, async ({ state: playbackState }) => {
+        state.playerState = playbackState
+        // The UI shows Play/Pause from "play when ready". On the web the player does not update it when the
+        // browser pauses (e.g. headphones unplugged), the track ends or a new track is loaded.
+        if (playbackState !== State.Buffering && playbackState !== State.Loading) {
+            syncPlayWhenReady(playbackState === State.Playing)
         }
-    });
-
-    TrackPlayer.addEventListener(Event.PlaybackState, () => {
-        playerReady = true;
-    })
-
-    TrackPlayer.addEventListener(Event.RemotePlay, () => {
-        TrackPlayer.play()
-    })
-
-    TrackPlayer.addEventListener(Event.RemotePause, () => {
-        TrackPlayer.pause()
-    })
-
-    TrackPlayer.addEventListener(Event.RemoteStop, () => {
-        TrackPlayer.stop()
-    })
-
-    TrackPlayer.addEventListener(Event.RemoteNext, async () => {
-        const progress = await TrackPlayer.getProgress();
-        const leadPosition = progress.position + (leadInDuration ?? 0)
-        for (let index = 0; index < clipsSorted.length; index++) {
-            const position = clipsSorted[index].start;
-            const next = clipsSorted[index + 1].start;
-            if (position <= leadPosition && next !== undefined && next > leadPosition) {
-                TrackPlayer.seekTo(Math.max(next - leadInDuration, 0));
-                break;
-            }
+        if (playbackState === State.Error) {
+            // The web player unloaded the song
+            await handlePlayerError()
+            return
+        }
+        refreshProgress()
+        if (playbackState === State.Ended) {
+            await handleTrackEnded()
         }
     })
 
-    TrackPlayer.addEventListener(Event.RemotePrevious, async () => {
-        const progress = await TrackPlayer.getProgress();
-        const leadPosition = progress.position + (leadInDuration ?? 0)
-        for (let index = 0; index < clipsSorted.length; index++) {
-            const position = clipsSorted[index].start;
-            const next = clipsSorted[index + 1].start;
-            if (position <= leadPosition && (next === undefined || next > leadPosition)) {
-                const target = clipsSorted[Math.max(index - 1, 0)].start ?? 0;
-                TrackPlayer.seekTo(Math.max(target - leadInDuration, 0));
-                break;
-            }
-        }
+
+    TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, () => {
+        // A newly loaded track starts with the player defaults
+        state.duration = 0
+        recompute()
+        state.lastRate = undefined
+        state.lastVolume = undefined
+        refreshProgress()
     })
 
-    TrackPlayer.addEventListener(Event.RemoteJumpBackward, async ({ interval }) => {
-        const progress = await TrackPlayer.getProgress();
-        const offset = interval ?? 10;
-        TrackPlayer.seekTo(Math.max(progress.position - offset, 0));
-    })
-
-    TrackPlayer.addEventListener(Event.RemoteJumpForward, async ({ interval }) => {
-        const progress = await TrackPlayer.getProgress();
-        const offset = interval ?? 10;
-        TrackPlayer.seekTo(progress.position + offset);
-    })
-
-    const isLoopActive = () => {
-        return loopStart !== undefined && loopEnd !== undefined && loopStart < loopEnd;
-    }
-
-
-    const checkSpeed = (position: number) => {
-        if (globalSpeedOnly) {
-            setRate(speed);
-            return;
-        }
-        let clipSpeedCurrent = 1;
-        let clipSpeedNext = 1;
-        let positionNext = -1;
-        for (const cs of clipsSorted) {
-            clipSpeedCurrent = clipSpeedNext
-            clipSpeedNext = cs.speed;
-            if (position + SPEED_FADE_DURATION >= cs.start && position + SPEED_FADE_DURATION < cs.end) {
-                positionNext = cs.start;
-                break;
-            }
-        }
-        if (positionNext === -1) {
-            TrackPlayer.setRate(speed * clipSpeedNext);
-            return;
-        }
-        const speedFaded = calcFade({
-            position: position,
-            fadeDuration: SPEED_FADE_DURATION,
-            fadeEnd: positionNext,
-            startValue: clipSpeedCurrent,
-            endValue: clipSpeedNext
-        });
-        TrackPlayer.setRate(speed * speedFaded);
-    }
-
-    const loopChecks = async ({ position }: { position: number }) => {
-        const state = await TrackPlayer.getPlaybackState();
-        if (state.state === State.Playing) {
-            checkSpeed(position);
-            if (isLoopActive()) {
-                checkVolume(position);
-            }
-            if (position > loopEnd! + leadOutDuration ||
-                position < loopStart! - leadInDuration) {
-                TrackPlayer.seekTo(loopStart! - leadInDuration);
-            }
-        }
-    }
-
-    const calcFade = ({
-        position,
-        fadeStart,
-        fadeEnd,
-        fadeDuration,
-        startValue,
-        endValue
-    }: {
-        position: number;
-        fadeStart?: number;
-        fadeEnd?: number;
-        fadeDuration?: number;
-        startValue: number;
-        endValue: number
-    }) => {
-        if (fadeStart != null && fadeEnd != null && fadeDuration == null) {
-            fadeDuration = fadeEnd - fadeStart;
-        } else if (fadeStart != null && fadeDuration != null && fadeEnd == null) {
-            fadeEnd = fadeStart + fadeDuration;
-        } else if (fadeEnd != null && fadeDuration != null && fadeStart == null) {
-            fadeStart = fadeEnd - fadeDuration;
-        }
-
-        if (fadeStart == null || fadeEnd == null || fadeDuration == null) {
-            throw new Error("Fade calc failed, missing value!");
-        }
-
-        if (position <= fadeStart) return startValue;
-        if (position >= fadeEnd) return endValue;
-
-        const progress = (position - fadeStart) / fadeDuration;
-        return startValue + progress * (endValue - startValue);
-    }
-
-    const checkVolume = (position: number) => {
-        let volume = 1.0;
-        if (isLoopActive()) {
-            if (position < loopStart! - leadInDuration + VOLUME_FADE_DURATION / 2) {
-                volume = calcFade({
-                    position: position,
-                    fadeDuration: VOLUME_FADE_DURATION,
-                    fadeEnd: loopStart! - leadInDuration + VOLUME_FADE_DURATION / 2,
-                    startValue: leadOutVolume,
-                    endValue: leadInVolume
-                });
-            } else if (position < loopStart!) {
-                volume = calcFade({
-                    position: position,
-                    fadeEnd: loopStart!,
-                    fadeDuration: VOLUME_FADE_DURATION,
-                    startValue: leadInVolume,
-                    endValue: 1.0
-                });
-            } else if (position < loopEnd! + VOLUME_FADE_DURATION) {
-                volume = calcFade({
-                    position: position,
-                    fadeStart: loopEnd!,
-                    fadeDuration: VOLUME_FADE_DURATION,
-                    startValue: 1.0,
-                    endValue: leadOutVolume
-                });
-            } else {
-                volume = calcFade({
-                    position: position,
-                    fadeStart: loopEnd! + leadOutDuration - VOLUME_FADE_DURATION / 2,
-                    fadeDuration: VOLUME_FADE_DURATION,
-                    startValue: leadOutVolume,
-                    endValue: leadInVolume
-                });
-            }
-        }
-        TrackPlayer.setVolume(volume);
-    }
-
-    TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, loopChecks);
+    TrackPlayer.addEventListener(Event.RemotePlay, () => playCurrentTrack())
+    TrackPlayer.addEventListener(Event.RemotePause, pausePlayback)
+    TrackPlayer.addEventListener(Event.RemoteStop, stopPlayback)
+    TrackPlayer.addEventListener(Event.RemoteNext, skipToNextClip)
+    TrackPlayer.addEventListener(Event.RemotePrevious, skipToPreviousClip)
+    TrackPlayer.addEventListener(Event.RemoteSeek, ({ position }) => seekTo(position))
+    TrackPlayer.addEventListener(Event.RemoteJumpBackward, ({ interval }) => jumpBy(-(interval ?? 10)))
+    TrackPlayer.addEventListener(Event.RemoteJumpForward, ({ interval }) => jumpBy(interval ?? 10))
 }

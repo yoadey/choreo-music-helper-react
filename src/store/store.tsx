@@ -1,22 +1,23 @@
 import TrackWithClips from '@/model/track'
 import { create } from 'zustand'
 
-type CurrentTrack = {
+type CurrentTrackStore = {
 	currentTrack: TrackWithClips | null
-	setCurrentTrack: (track: TrackWithClips) => void
+	setCurrentTrack: (track: TrackWithClips | null) => void
 }
 
-export const useCurrentTrackStore = create<CurrentTrack>()((set) => ({
-	currentTrack: null,
-	setCurrentTrack: (track) => set({ currentTrack: track }),
+type LoopStatusStore = {
+	/** True if A and B are set and form a valid loop, published by the playback service */
+	active: boolean
+	setActive: (active: boolean) => void
+}
+
+export const useLoopStatusStore = create<LoopStatusStore>()((set) => ({
+	active: false,
+	setActive: (active) => set({ active }),
 }))
 
-type AudioFilesStore = {
-	audioFiles: Map<string, string>
-	setAudioFiles: (audioFiles: Map<string, string>) => void
-}
-
-export const useAudioFilesStore = create<AudioFilesStore>()((set) => ({
-	audioFiles: new Map<string, string>(),
-	setAudioFiles: (audioFiles) => set({ audioFiles: audioFiles }),
+export const useCurrentTrackStore = create<CurrentTrackStore>()((set) => ({
+	currentTrack: null,
+	setCurrentTrack: (track) => set({ currentTrack: track }),
 }))

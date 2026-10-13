@@ -1,126 +1,68 @@
 import { DurationVolumeComponent } from '@/components/DurationVolume'
 import { colors } from '@/constants/tokens'
+import { supportsVolumeControl } from '@/helpers/volumeSupport'
+import { t } from '@/i18n'
 import { useLeadInDuration, useLeadInVolume, useLeadOutDuration, useLeadOutVolume } from '@/store/playbackState'
 import { modalStyles } from '@/styles'
-import { useHeaderHeight } from '@react-navigation/elements'
-import { useRouter } from 'expo-router'
-import React, { useEffect, useState } from 'react'
-import { Button, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ModalScreen } from '@/components/ModalScreen'
+import { useCloseModal } from '@/hooks/useCloseModal'
+import React, { useState } from 'react'
+import { Button, Text, View } from 'react-native'
 
-const MIN_SPEED = 0.5
-const MAX_SPEED = 2.0
-const STEP = 0.01
-
-const SpeedModal = () => {
-	const router = useRouter()
-	const headerHeight = useHeaderHeight()
-
+const LoopModal = () => {
 	const [leadInDuration, setLeadInDuration] = useLeadInDuration()
-	const [leadInDurationLocal, setLeadInDurationLocal] = useState(leadInDuration ?? 0)
 	const [leadInVolume, setLeadInVolume] = useLeadInVolume()
-	const [leadInVolumeLocal, setLeadInVolumeLocal] = useState(leadInVolume ?? 1)
 	const [leadOutDuration, setLeadOutDuration] = useLeadOutDuration()
-	const [leadOutDurationLocal, setLeadOutDurationLocal] = useState(leadOutDuration ?? 0)
 	const [leadOutVolume, setLeadOutVolume] = useLeadOutVolume()
+	const [leadInDurationLocal, setLeadInDurationLocal] = useState(leadInDuration ?? 0)
+	const [leadInVolumeLocal, setLeadInVolumeLocal] = useState(leadInVolume ?? 1)
+	const [leadOutDurationLocal, setLeadOutDurationLocal] = useState(leadOutDuration ?? 0)
 	const [leadOutVolumeLocal, setLeadOutVolumeLocal] = useState(leadOutVolume ?? 1)
+	const [volumeSupported] = useState(() => supportsVolumeControl())
 
-	// Always use current speed when modal opens
-	useEffect(() => {
-		setLeadInDurationLocal(leadInDuration ?? 0)
-		setLeadInVolumeLocal(leadInVolume ?? 1)
-		setLeadOutDurationLocal(leadOutDuration ?? 0)
-		setLeadOutVolumeLocal(leadOutVolume ?? 1)
-	}, [leadInDuration, leadInVolume, leadOutDuration, leadOutVolume])
+	const close = useCloseModal()
 
-
-	const handleOk = async () => {
+	const handleOk = () => {
 		setLeadInDuration(leadInDurationLocal)
 		setLeadInVolume(leadInVolumeLocal)
 		setLeadOutDuration(leadOutDurationLocal)
 		setLeadOutVolume(leadOutVolumeLocal)
-		router.dismiss()
-	}
-
-	const handleCancel = () => {
-		router.dismiss()
+		close()
 	}
 
 	return (
-		<View style={[modalStyles.modalContainer, { paddingTop: headerHeight }]}>
-			<Pressable style={modalStyles.backdrop} onPress={handleCancel} />
-
+		<ModalScreen onClose={close}>
 			<View style={modalStyles.modal}>
-				<Text style={modalStyles.title}>Vorbereitungszeit</Text>
+				<Text style={modalStyles.title}>{t.preparationTime}</Text>
 				<DurationVolumeComponent
 					seconds={leadInDurationLocal}
 					onSecondsChange={setLeadInDurationLocal}
 					volume={leadInVolumeLocal}
 					onVolumeChange={setLeadInVolumeLocal}
-					title="Vorlaufzeit"
+					title={t.leadIn}
+					testID="lead-in"
+					volumeSupported={volumeSupported}
 				/>
 				<DurationVolumeComponent
 					seconds={leadOutDurationLocal}
 					onSecondsChange={setLeadOutDurationLocal}
 					volume={leadOutVolumeLocal}
 					onVolumeChange={setLeadOutVolumeLocal}
-					title="Nachlaufzeit"
+					title={t.leadOut}
+					testID="lead-out"
+					volumeSupported={volumeSupported}
 				/>
+				{!volumeSupported && (
+					<Text style={[modalStyles.text, { maxWidth: 320 }]} testID="volume-not-supported">
+						{t.volumeNotSupported}
+					</Text>
+				)}
 				<View style={{ marginTop: 24 }}>
-					<Button title="OK" onPress={handleOk} color={colors.primary} />
+					<Button title={t.ok} onPress={handleOk} color={colors.primary} testID="loop-ok" />
 				</View>
 			</View>
-		</View>
+		</ModalScreen>
 	)
 }
 
-const styles = StyleSheet.create({
-	speedLabelsRow: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		width: '100%',
-		paddingHorizontal: 8,
-		marginBottom: 4,
-	},
-	speedLabel: {
-		fontSize: 14,
-		color: colors.text,
-		width: 40,
-		textAlign: 'center',
-	},
-	slider: {
-		width: '100%',
-		height: 40,
-	},
-	speedButtonsRow: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		width: '100%',
-		marginTop: 12,
-		gap: 8,
-	},
-	speedButton: {
-		flex: 1,
-		backgroundColor: colors.primary,
-		paddingVertical: 10,
-		paddingHorizontal: 10,
-		marginHorizontal: 0,
-		borderRadius: 6,
-		alignItems: 'center',
-		justifyContent: 'center',
-		minWidth: 0, // verhindert, dass Buttons zu breit werden
-	},
-	speedButtonText: {
-		color: colors.text,
-		fontWeight: 'bold',
-		fontSize: 16,
-	},
-	currentSpeedText: {
-		marginBottom: 16,
-		fontSize: 18,
-		fontWeight: '600',
-		textAlign: 'center',
-		color: colors.primary,
-	},
-})
-
-export default SpeedModal
+export default LoopModal

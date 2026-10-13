@@ -34,12 +34,10 @@
     "web": {
       "favicon": "./assets/favicon.png",
       "output": "single",
-      "build": {
-        "serviceWorker": {
-          "register": true,
-          "file": "./public/service-worker.js"
-        }
-      }
+      "name": "Choreo Music Helper",
+      "shortName": "Choreo Music",
+      "themeColor": "#252525",
+      "backgroundColor": "#1c1c1e"
     },
     "plugins": [
       "expo-router",

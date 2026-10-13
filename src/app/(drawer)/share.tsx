@@ -1,31 +1,31 @@
-import { useEffect, useState } from 'react'
-import { useRouter } from 'expo-router'
-import { useCurrentTrack } from '@/hooks/useCurrentTrack'
-import Clip from '@/model/clip'
+import { sortByPosition } from '@/helpers/playback'
 import { shareTrackWithClips } from '@/helpers/share'
+import { useCurrentTrackStore } from '@/store/store'
+import { useCloseModal } from '@/hooks/useCloseModal'
+import { useEffect } from 'react'
 
+/** Shares the current track with its clips as chapters once and returns. */
 const ShareScreen = () => {
-  const router = useRouter()
-  const { currentTrack } = useCurrentTrack()
-  const [clips, setClips] = useState<Clip[]>([])
+  const close = useCloseModal()
 
   useEffect(() => {
-    const sub = currentTrack?.clips
-      .observeWithColumns(['position','speed'])
-      .subscribe((c) => {
-        const sorted = c.sort((a, b) => a.position - b.position)
-        setClips(sorted)
-      })
-    return () => sub?.unsubscribe()
-  }, [currentTrack?.id])
-
-  useEffect(() => {
+    const currentTrack = useCurrentTrackStore.getState().currentTrack
     if (!currentTrack) {
-      router.back()
+      close()
       return
     }
-    shareTrackWithClips(currentTrack, clips).finally(() => router.back())
-  }, [currentTrack, clips, router])
+    let cancelled = false
+    currentTrack.clips
+      .fetch()
+      .then((clips) => (cancelled ? undefined : shareTrackWithClips(currentTrack, sortByPosition(clips))))
+      .catch((error) => console.warn('Sharing failed', error))
+      .finally(() => {
+        if (!cancelled) close()
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [close])
 
   return null
 }

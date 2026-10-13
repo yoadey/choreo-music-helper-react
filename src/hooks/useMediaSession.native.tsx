@@ -1,20 +1,22 @@
-import { useEffect } from 'react';
-import TrackPlayer from 'react-native-track-player';
-import { useCurrentTrack } from './useCurrentTrack';
-import logo from '@/assets/logo192.png';
+import logo from '@/assets/logo192.png'
+import { useEffect } from 'react'
+import { Image } from 'react-native'
+import TrackPlayer from 'react-native-track-player'
+import { useCurrentTrack } from './useCurrentTrack'
 
 export const useMediaSession = () => {
-    const { currentTrack } = useCurrentTrack();
+    const { currentTrack } = useCurrentTrack()
+    const title = currentTrack?.title
 
     useEffect(() => {
-        if (!currentTrack) return;
+        if (!title) return
         TrackPlayer.updateMetadataForTrack(0, {
-            title: currentTrack.title,
-            artwork: logo as any,
+            title,
+            artwork: Image.resolveAssetSource(logo).uri,
         }).catch(() => {
-            // ignore
-        });
-    }, [currentTrack]);
-};
+            // No track loaded yet
+        })
+    }, [title])
+}
 
-export default useMediaSession;
+export default useMediaSession

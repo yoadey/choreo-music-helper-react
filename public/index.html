@@ -1,51 +1,76 @@
 <!DOCTYPE html>
-<html lang="%LANG_ISO_CODE%">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#252525" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="Choreo Music" />
+    <meta name="description" content="Rehearse choreographies: split songs into clips, loop and slow them down. Works offline, all data stays on your device." />
     <title>%WEB_TITLE%</title>
+    <!-- The build makes these links absolute with the base path (EXPO_BASE_URL, which a sub directory like
+         a GitHub Pages project site needs anyway), so they also work in 404.html for deep links of any depth.
+         See scripts/postbuild-web.mjs -->
+    <link rel="manifest" href="manifest.json" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
     <style id="expo-reset">
-      /* These styles make the body full-height */
       html,
       body {
         height: 100%;
       }
-      /* These styles disable body scrolling if you are using <ScrollView> */
       body {
         overflow: hidden;
+        overscroll-behavior: none;
+        background-color: #1c1c1e;
+        /* App-like behavior: long press opens the clip menu instead of the text selection / link preview */
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
       }
-      /* These styles make the root element full-height */
+      input,
+      textarea {
+        -webkit-user-select: text;
+        user-select: text;
+      }
       #root {
         display: flex;
         height: 100%;
         flex: 1;
       }
     </style>
-    <link rel="manifest" href="/manifest.json" />
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
+          const hadController = !!navigator.serviceWorker.controller
+          let updateRequested = false
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            // Only the tab that activated the new version while starting reloads, other open tabs
+            // (e.g. one that is playing) keep running and use the new version on their next start
+            if (updateRequested) window.location.reload()
+          })
           navigator.serviceWorker
-            .register('/sw.js')
-            .then(registration => {
-              console.log('Service Worker registered with scope:', registration.scope);
+            .register('sw.js', { scope: './' })
+            .then((registration) => {
+              // Updates are only activated while starting the app, never during playback
+              if (registration.waiting && hadController) {
+                updateRequested = true
+                registration.waiting.postMessage('SKIP_WAITING')
+              }
+              // Lets the end-to-end tests wait until the start of the app is done
+              document.documentElement.dataset.serviceWorkerStarted = 'true'
             })
-            .catch(error => {
-              console.error('Service Worker registration failed:', error);
-            });
-        });
+            .catch((error) => console.error('Service worker registration failed:', error))
+        })
       }
-    </script>    
+    </script>
   </head>
 
   <body>
-    <!-- Use static rendering with Expo Router to support running without JavaScript. -->
-    <noscript>
-      You need to enable JavaScript to run this app.
-    </noscript>
-    <!-- The root element for your Expo app. -->
+    <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
   </body>
 </html>

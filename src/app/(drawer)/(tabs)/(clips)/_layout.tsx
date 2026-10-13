@@ -8,7 +8,7 @@ const ClipsScreenLayout = () => {
 		<View style={defaultStyles.container}>
 			<Stack>
 				<Stack.Screen
-					name="index"
+					name="clips"
 					options={{
 						...StackScreen,
 					}}

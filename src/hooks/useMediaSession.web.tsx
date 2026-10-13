@@ -1,106 +1,92 @@
-import logo from '@/assets/logo192.png';
-import Clip from '@/model/clip';
-import { useLeadInDuration } from '@/store/playbackState';
-import { useEffect, useState } from 'react';
-import TrackPlayer, { useIsPlaying } from 'react-native-track-player';
-import { useCurrentTrack } from './useCurrentTrack';
+import logo from '@/assets/logo192.png'
+import { jumpBy, pausePlayback, seekTo, skipToNextClip, skipToPreviousClip, stopPlayback } from '@/constants/playbackService'
+import { trackDisplayTitle } from '@/helpers/miscellaneous'
+import { playCurrentTrack } from '@/helpers/player'
+import { useEffect } from 'react'
+import { usePlayerProgressStore } from '@/store/progress'
+import TrackPlayer, { useIsPlaying } from 'react-native-track-player'
+import { useCurrentTrack } from './useCurrentTrack'
 
-const SKIP_TO_PREVIOUS_SECONDS = 0.5
+type Handler = MediaSessionActionHandler | null
 
+const setHandler = (action: MediaSessionAction, handler: Handler) => {
+    try {
+        navigator.mediaSession.setActionHandler(action, handler)
+    } catch {
+        // The browser does not support this action
+    }
+}
+
+const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
+    ['play', () => playCurrentTrack()],
+    ['pause', () => pausePlayback()],
+    ['stop', () => stopPlayback()],
+    ['previoustrack', () => skipToPreviousClip()],
+    ['nexttrack', () => skipToNextClip()],
+    ['seekbackward', (details) => jumpBy(-(details.seekOffset ?? 10))],
+    ['seekforward', (details) => jumpBy(details.seekOffset ?? 10)],
+    ['seekto', (details) => details.seekTime != null && seekTo(details.seekTime)],
+]
+
+/** Lock screen / hardware media key integration of the browser. */
 export const useMediaSession = () => {
-    const { currentTrack } = useCurrentTrack();
-    const [clips, setClips] = useState<Clip[]>([]);
-    const [leadInDuration] = useLeadInDuration();
-    const { playing } = useIsPlaying();
+    const { currentTrack } = useCurrentTrack()
+    const { playing } = useIsPlaying()
+    // Whole seconds suffice, the OS extrapolates the position in between
+    const position = usePlayerProgressStore((progress) => Math.floor(progress.position))
+    const duration = usePlayerProgressStore((progress) => progress.duration)
+    // A song with a cleared title is still a song (shown with a fallback title)
+    const title = currentTrack ? trackDisplayTitle(currentTrack.title) : undefined
+    const supported = typeof navigator !== 'undefined' && 'mediaSession' in navigator
 
     useEffect(() => {
-        if (!currentTrack) {
-            setClips([]);
-            return;
-        }
-        const subscription = currentTrack.clips
-            .observeWithColumns(['position'])
-            .subscribe((c) => {
-                const sorted = c.sort((a, b) => a.position - b.position);
-                setClips(sorted);
-            });
-        return () => subscription.unsubscribe();
-    }, [currentTrack]);
+        if (!supported) return
+        handlers.forEach(([action, handler]) => setHandler(action, handler))
+        return () => handlers.forEach(([action]) => setHandler(action, null))
+    }, [supported])
 
     useEffect(() => {
-        if (!('mediaSession' in navigator)) return;
-        if (currentTrack) {
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: currentTrack.title,
-                artwork: [
-                    {
-                        src: (logo as unknown as string),
-                        sizes: '192x192',
-                        type: 'image/png',
-                    },
-                ],
-            });
+        if (!supported) return
+        if (!title || typeof MediaMetadata === 'undefined') {
+            // No (more) song, e.g. after deleting the current one
+            navigator.mediaSession.metadata = null
+            return
         }
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title,
+            artwork: [{ src: logo as unknown as string, sizes: '192x192', type: 'image/png' }],
+        })
+    }, [supported, title])
 
-        const handlePlay = () => TrackPlayer.play();
-        const handlePause = () => TrackPlayer.pause();
-        const handlePrevious = async () => {
-            const progress = await TrackPlayer.getProgress();
-            const leadPosition = progress.position + (leadInDuration ?? 0)
-            for (let index = 0; index < clips.length; index++) {
-                const clip = clips[index];
-                const nextClip = clips[index + 1];
-                if (clip.position <= leadPosition && (!nextClip || nextClip.position > leadPosition)) {
-                    const target = clips[Math.max(index - 1, 0)]?.position ?? 0;
-                    TrackPlayer.seekTo(Math.max(target - (leadInDuration ?? 0), 0));
-                    break;
-                }
-            }
-        };
-        const handleNext = async () => {
-            const progress = await TrackPlayer.getProgress();
-            const leadPosition = progress.position + (leadInDuration ?? 0)
-            for (let index = 0; index < clips.length; index++) {
-                const clip = clips[index];
-                const nextClip = clips[index + 1];
-                if (clip.position <= leadPosition && nextClip && nextClip.position > leadPosition) {
-                    TrackPlayer.seekTo(Math.max(nextClip.position - (leadInDuration ?? 0), 0));
-                    break;
-                }
-            }
-        };
-        const handleSeekBackward = async (details?: MediaSessionActionDetails) => {
-            const progress = await TrackPlayer.getProgress();
-            const offset = details?.seekOffset ?? 10;
-            TrackPlayer.seekTo(Math.max(progress.position - offset, 0));
-        };
-        const handleSeekForward = async (details?: MediaSessionActionDetails) => {
-            const progress = await TrackPlayer.getProgress();
-            const offset = details?.seekOffset ?? 10;
-            TrackPlayer.seekTo(progress.position + offset);
-        };
+    useEffect(() => {
+        if (!supported) return
+        navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'
+    }, [supported, playing])
 
-        navigator.mediaSession.setActionHandler('play', handlePlay);
-        navigator.mediaSession.setActionHandler('pause', handlePause);
-        navigator.mediaSession.setActionHandler('previoustrack', handlePrevious);
-        navigator.mediaSession.setActionHandler('nexttrack', handleNext);
-        navigator.mediaSession.setActionHandler('seekbackward', handleSeekBackward);
-        navigator.mediaSession.setActionHandler('seekforward', handleSeekForward);
-
+    useEffect(() => {
+        if (!supported || !navigator.mediaSession.setPositionState) return
+        if (!title || !(duration > 0)) {
+            navigator.mediaSession.setPositionState()
+            return
+        }
+        let active = true
+        // The rate lets the OS extrapolate the position correctly at other speeds than 1x
+        TrackPlayer.getRate()
+            .then((playbackRate) => {
+                if (!active) return
+                navigator.mediaSession.setPositionState({
+                    duration,
+                    position: Math.min(position, duration),
+                    playbackRate: playbackRate > 0 ? playbackRate : 1,
+                })
+            })
+            .catch(() => {
+                // Invalid state while a track is loading
+            })
         return () => {
-            navigator.mediaSession.setActionHandler('play', null);
-            navigator.mediaSession.setActionHandler('pause', null);
-            navigator.mediaSession.setActionHandler('previoustrack', null);
-            navigator.mediaSession.setActionHandler('nexttrack', null);
-            navigator.mediaSession.setActionHandler('seekbackward', null);
-            navigator.mediaSession.setActionHandler('seekforward', null);
-        };
-    }, [currentTrack, clips, leadInDuration]);
+            active = false
+        }
+    }, [supported, title, position, duration])
+}
 
-    useEffect(() => {
-        if (!('mediaSession' in navigator)) return;
-        navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
-    }, [playing]);
-};
-
-export default useMediaSession;
+export default useMediaSession

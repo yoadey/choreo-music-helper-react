@@ -1,114 +1,84 @@
 import { colors } from '@/constants/tokens'
+import { clampSpeed, MAX_SPEED, sliderToSpeed, speedToSlider, stepSpeed } from '@/helpers/speed'
+import { t } from '@/i18n'
 import { useGlobalSpeedOnly, useSpeed } from '@/store/playbackState'
 import { modalStyles } from '@/styles'
 import Slider from '@react-native-community/slider'
-import { useHeaderHeight } from '@react-navigation/elements'
-import { useRouter } from 'expo-router'
-import React, { useEffect, useState } from 'react'
-import { Button, Platform, Pressable, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native'
-
-const MIN_SPEED = 0.5
-const MAX_SPEED = 2.0
-const STEP = 0.01
+import { ModalScreen } from '@/components/ModalScreen'
+import { useCloseModal } from '@/hooks/useCloseModal'
+import React, { useState } from 'react'
+import { Button, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native'
 
 const SpeedModal = () => {
-	const router = useRouter()
-	const headerHeight = useHeaderHeight()
-
 	const [speed, setSpeed] = useSpeed()
 	const [globalOnly, setGlobalOnly] = useGlobalSpeedOnly()
 	const [speedLocal, setSpeedLocal] = useState(speed ?? 1.0)
 	const [globalOnlyLocal, setGlobalOnlyLocal] = useState(globalOnly ?? false)
 
-	// Always use current speed when modal opens
-	useEffect(() => {
-		setSpeedLocal(speed ?? 1.0)
-		setGlobalOnlyLocal(globalOnly ?? false)
-	}, [speed, globalOnly])
+	const close = useCloseModal()
 
-	const setAndApplySpeedLocal = (newSpeed: number) => {
-		const clamped = Math.max(MIN_SPEED, Math.min(MAX_SPEED, newSpeed))
-		setSpeedLocal(clamped)
-	}
-
-	const handleSpeedButton = (delta: number) => {
-		setAndApplySpeedLocal(Number((speedLocal + delta).toFixed(2)))
-	}
-
-	const handleSliderChange = (value: number) => {
-		setAndApplySpeedLocal(Number(value.toFixed(2)))
-	}
-
-	const handleOk = async () => {
-		setSpeed(speedLocal)
+	const handleOk = () => {
+		setSpeed(clampSpeed(speedLocal))
 		setGlobalOnly(globalOnlyLocal)
-		router.dismiss()
-	}
-
-	const handleCancel = () => {
-		router.dismiss()
+		close()
 	}
 
 	return (
-		<View style={[modalStyles.modalContainer, { paddingTop: headerHeight }]}>
-			<Pressable style={modalStyles.backdrop} onPress={handleCancel} />
-
+		<ModalScreen onClose={close}>
 			<View style={modalStyles.modal}>
-				<Text style={modalStyles.title}>Geschwindigkeit</Text>
-				<Text style={styles.currentSpeedText}>{speedLocal.toFixed(2)}x</Text>
+				<Text style={modalStyles.title}>{t.speed}</Text>
+				<Text style={styles.currentSpeedText} testID="speed-value">
+					{speedLocal.toFixed(2)}x
+				</Text>
 				<View style={styles.speedLabelsRow}>
 					<Text style={styles.speedLabel}>0.50</Text>
 					<Text style={styles.speedLabel}>1.00</Text>
 					<Text style={styles.speedLabel}>2.00</Text>
 				</View>
-				{/* value && onValueChange: Adjust for better UX, since slider values are 0-1, we map them to 0.5-2.0 */}
+				{/* The left half of the slider covers 0.5–1.0, the right half 1.0–2.0 */}
 				<Slider
 					style={styles.slider}
 					minimumValue={0}
 					maximumValue={MAX_SPEED}
-					step={STEP}
-					value={speedLocal > 1 ? speedLocal : (speedLocal - MIN_SPEED) * 2}
-					onValueChange={(speed) => handleSliderChange(speedLocal > 1 ? speed : (speed) / 2 + MIN_SPEED)}
+					step={0.01}
+					value={speedToSlider(speedLocal)}
+					onValueChange={(value) => setSpeedLocal(sliderToSpeed(value))}
 					minimumTrackTintColor={colors.minimumTrackTintColor}
 					maximumTrackTintColor={colors.maximumTrackTintColor}
 					thumbTintColor={colors.primary}
 				/>
 				<View style={styles.buttonsRow}>
-					<TouchableOpacity style={styles.button} onPress={() => handleSpeedButton(-0.10)}>
-						<Text style={styles.buttonText}>-10</Text>
-					</TouchableOpacity>
-					<TouchableOpacity style={styles.button} onPress={() => handleSpeedButton(-0.01)}>
-						<Text style={styles.buttonText}>-1</Text>
-					</TouchableOpacity>
-					<TouchableOpacity style={styles.button} onPress={() => setAndApplySpeedLocal(1.0)}>
-						<Text style={styles.buttonText}>1.00</Text>
-					</TouchableOpacity>
-					<TouchableOpacity style={styles.button} onPress={() => handleSpeedButton(0.01)}>
-						<Text style={styles.buttonText}>+1</Text>
-					</TouchableOpacity>
-					<TouchableOpacity style={styles.button} onPress={() => handleSpeedButton(0.10)}>
-						<Text style={styles.buttonText}>+10</Text>
-					</TouchableOpacity>
+					{[
+						['-10', -0.1],
+						['-1', -0.01],
+						['1.00', 0],
+						['+1', 0.01],
+						['+10', 0.1],
+					].map(([label, delta]) => (
+						<TouchableOpacity
+							key={label}
+							style={styles.button}
+							onPress={() => setSpeedLocal(delta === 0 ? 1 : stepSpeed(speedLocal, delta as number))}
+							accessibilityLabel={`Speed ${label}`}
+						>
+							<Text style={styles.buttonText}>{label}</Text>
+						</TouchableOpacity>
+					))}
 				</View>
 				<View style={styles.globalRow}>
-					<Switch value={globalOnlyLocal}
+					<Switch
+						value={globalOnlyLocal}
 						onValueChange={setGlobalOnlyLocal}
-						{
-						...
-						Platform.select({
-							web: {
-								activeThumbColor: colors.primary
-							}
-						})}
 						thumbColor={globalOnlyLocal ? colors.primary : colors.disabled}
-						trackColor={{ true: colors.disabled, false: 'rgb(147, 147, 147)' }} />
-					<Text style={styles.globalLabel}>Überschreibe Clipgeschwindigkeit</Text>
+						trackColor={{ true: colors.disabled, false: 'rgb(147, 147, 147)' }}
+					/>
+					<Text style={styles.globalLabel}>{t.overrideClipSpeed}</Text>
 				</View>
 				<View style={{ marginTop: 24 }}>
-					<Button title="OK" onPress={handleOk} color={colors.primary} />
+					<Button title={t.ok} onPress={handleOk} color={colors.primary} testID="speed-ok" />
 				</View>
 			</View>
-		</View>
+		</ModalScreen>
 	)
 }
 
@@ -140,9 +110,7 @@ const styles = StyleSheet.create({
 	button: {
 		flex: 1,
 		backgroundColor: colors.primary,
-		paddingVertical: 10,
-		paddingHorizontal: 10,
-		marginHorizontal: 0,
+		padding: 10,
 		borderRadius: 6,
 		alignItems: 'center',
 		justifyContent: 'center',

@@ -1,45 +1,14 @@
-import { useEffect, useRef } from 'react'
-import TrackPlayer, { Capability, RatingType, RepeatMode } from 'react-native-track-player'
+import { ensurePlayerSetup } from '@/helpers/playerSetup'
+import { useEffect } from 'react'
 
-const setupPlayer = async () => {
-	await TrackPlayer.setupPlayer({
-		maxCacheSize: 1024 * 10,
-	})
-
-	await TrackPlayer.updateOptions({
-		ratingType: RatingType.Heart,
-		capabilities: [
-			Capability.Play,
-			Capability.Pause,
-			Capability.SkipToNext,
-			Capability.SkipToPrevious,
-			Capability.JumpForward,
-			Capability.JumpBackward,
-			Capability.Stop,
-		],
-		forwardJumpInterval: 10,
-		backwardJumpInterval: 10,
-		progressUpdateEventInterval: 0.05, // 50ms
-	})
-
-	await TrackPlayer.setVolume(0.3) // not too loud
-	await TrackPlayer.setRepeatMode(RepeatMode.Queue)
-}
-
-export const useSetupTrackPlayer = ({ onLoad }: { onLoad?: () => void }) => {
-	const isInitialized = useRef(false)
-
+/** Sets up the player once. onLoad is called after the setup, also if it failed. */
+export const useSetupTrackPlayer = ({ onLoad }: { onLoad?: (success: boolean) => void }) => {
 	useEffect(() => {
-		if (isInitialized.current) return
-
-		setupPlayer()
-			.then(() => {
-				isInitialized.current = true
-				onLoad?.()
-			})
+		ensurePlayerSetup()
+			.then(() => onLoad?.(true))
 			.catch((error) => {
-				isInitialized.current = false
-				console.error(error)
+				console.error('Could not set up the player', error)
+				onLoad?.(false)
 			})
 	}, [onLoad])
 }

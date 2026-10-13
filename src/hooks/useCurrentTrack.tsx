@@ -1,60 +1,22 @@
-import { database } from '@/model/index.web'
-import TrackWithClips from '@/model/track'
-import { setLastTrack, useLoopEnd, useLoopStart } from '@/store/playbackState'
 import { useCurrentTrackStore } from '@/store/store'
-import { get } from 'idb-keyval'
-import { useEffect } from 'react'
-import { Platform } from 'react-native'
-import TrackPlayer, { useActiveTrack } from 'react-native-track-player'
+import { useEffect, useReducer } from 'react'
 
+/**
+ * The current track. Re-renders when the track record changes (e.g. title or color edited).
+ * Use selectTrack / unloadCurrentTrack from '@/helpers/player' to change it.
+ */
 export const useCurrentTrack = () => {
-    const activeTrack = useActiveTrack()
-    const { currentTrack, setCurrentTrack } = useCurrentTrackStore()
-    const [loopStart, setLoopStart] = useLoopStart()
-    const [loopEnd, setLoopEnd] = useLoopEnd()
+    const currentTrack = useCurrentTrackStore((state) => state.currentTrack)
+    const [, forceUpdate] = useReducer((version: number) => version + 1, 0)
 
     useEffect(() => {
-        if (!activeTrack || activeTrack.headers?.id == currentTrack?.id) {
-            return
-        }
+        if (!currentTrack) return
+        const subscription = currentTrack.observe().subscribe({
+            next: forceUpdate,
+            error: () => undefined,
+        })
+        return () => subscription.unsubscribe()
+    }, [currentTrack])
 
-        database.get<TrackWithClips>('tracks').find(activeTrack.id).then(setCurrentTrack)
-    }, [activeTrack])
-
-    const setCurrentTrackIntern = (track: TrackWithClips) => {
-        setCurrentTrack(track)
-        setLastTrack(track.id)
-        setLoopStart(undefined)
-        setLoopEnd(undefined)
-        const id = track.id
-        const url = track.uri
-        const title = track.title
-
-        const setEverything = async () => {
-            let uri = url
-            if (Platform.OS === 'web') {
-                try {
-                    const blob = await get(url)
-                    const blobUrl = URL.createObjectURL(blob)
-                    uri = blobUrl
-                } catch (error) {
-                    console.log('File not found locally: ' + url)
-                    return
-                }
-            }
-            await TrackPlayer.reset()
-            await TrackPlayer.load({
-                headers: {
-                    id: id,
-                },
-                url: uri,
-                title: title,
-            })
-        }
-        setEverything()
-    }
-    return {
-        currentTrack,
-        setCurrentTrack: setCurrentTrackIntern,
-    }
+    return { currentTrack }
 }

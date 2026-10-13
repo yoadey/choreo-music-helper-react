@@ -1,120 +1,119 @@
-import { colors } from '@/constants/tokens'
-import { database } from '@/model/index.web'
+import { colors, TRANSPARENT } from '@/constants/tokens'
+import { confirmAction, showMessage } from '@/helpers/dialogs'
+import { trackDisplayTitle } from '@/helpers/miscellaneous'
+import { removeTrack } from '@/helpers/tracks'
+import { t } from '@/i18n'
 import TrackWithClips from '@/model/track'
 import { defaultStyles } from '@/styles'
 import { useActionSheet } from '@expo/react-native-action-sheet'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { del } from 'idb-keyval'
+import { memo } from 'react'
 import { ActivityIndicator, StyleSheet, Text, TouchableHighlight, View } from 'react-native'
-import { useActiveTrack, useIsPlaying } from 'react-native-track-player'
 
 export type TracksListItemProps = {
     track: TrackWithClips
+    // The record is mutated in place on updates, so the displayed values are passed explicitly
+    title: string
+    color: string
     index: number
+    isActive: boolean
+    /** Only relevant for the active track */
+    isPlaying: boolean
     onTrackSelect: (track: TrackWithClips) => void
 }
 
-export const TracksListItem = ({
+export const TracksListItem = memo(function TracksListItem({
     track,
+    title,
+    color,
     index,
-    onTrackSelect: handleTrackSelect,
-}: TracksListItemProps) => {
-    const { playing } = useIsPlaying()
-    const { showActionSheetWithOptions } = useActionSheet();
-    const router = useRouter();
+    isActive,
+    isPlaying,
+    onTrackSelect,
+}: TracksListItemProps) {
+    const { showActionSheetWithOptions } = useActionSheet()
+    const router = useRouter()
+    const displayTitle = trackDisplayTitle(title)
+    const backgroundColor = color || TRANSPARENT
 
-    const isActiveTrack = useActiveTrack()?.url === track.uri
+    const handleDelete = async () => {
+        if (!(await confirmAction(t.confirmDeleteTrack(displayTitle)))) return
+        try {
+            await removeTrack(track)
+        } catch (error) {
+            console.warn('Could not delete the track', error)
+            showMessage(t.deleteFailed)
+        }
+    }
 
-    const handleClipLongPress = (track: TrackWithClips) => {
-        const options = ['Delete', 'Edit', 'Cancel'];
-        const destructiveButtonIndex = 0;
-        const cancelButtonIndex = 2;
-
-        showActionSheetWithOptions({
-            options,
-            cancelButtonIndex,
-            destructiveButtonIndex,
-            containerStyle: {
-                backgroundColor: colors.backgroundHighlighted,
+    const handleLongPress = () => {
+        showActionSheetWithOptions(
+            {
+                options: [t.delete, t.edit, t.cancel],
+                cancelButtonIndex: 2,
+                destructiveButtonIndex: 0,
+                containerStyle: { backgroundColor: colors.backgroundHighlighted },
+                textStyle: { color: colors.text },
             },
-            textStyle: {
-                color: colors.text,
+            (selectedIndex) => {
+                if (selectedIndex === 1) {
+                    router.push(`/(modals)/edit-track?trackId=${track.id}`)
+                } else if (selectedIndex === 0) {
+                    handleDelete()
+                }
             },
-        }, (selectedIndex) => {
-            switch (selectedIndex) {
-                case 1:
-                    router.push(`/(modals)/edit-track?trackId=${track.id}`);
-                    break;
-
-                case destructiveButtonIndex:
-                    database.write(async () => {
-                        await database.get<TrackWithClips>('tracks')
-                            .find(track.id)
-                            .then(track => {
-                                del(track.uri);
-                                track?.destroyPermanently();
-                            });
-                    });
-                    break;
-
-                case cancelButtonIndex:
-            }
-        });
+        )
     }
 
     return (
         <TouchableHighlight
             activeOpacity={0.8}
-            onPress={() => handleTrackSelect(track)}
-            onLongPress={() => handleClipLongPress(track)}
-            style={{ backgroundColor: track.color || '#00000000' }}>
-            <View style={[styles.trackItemContainer, { backgroundColor: track.color || '#00000000' }]}>
-                <View
-                    style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        width: '100%',
-                        paddingLeft: 10,
-                        paddingRight: 10,
-                        paddingTop: 5,
-                        paddingBottom: 5,
-                    }}
-                >
-                    
+            onPress={() => onTrackSelect(track)}
+            onLongPress={handleLongPress}
+            style={{ backgroundColor }}
+            testID={`track-${index}`}
+        >
+            <View style={[styles.trackItemContainer, { backgroundColor }]}>
+                <View style={styles.row}>
                     <Text numberOfLines={1} style={styles.trackIndexText}>
                         {index + 1}
                     </Text>
-                    <View style={{ flex: 1, width: "100%" }}>
+                    <View style={{ flex: 1 }}>
                         <Text numberOfLines={1} style={styles.trackTitleText}>
-                            {track.title || 'Untitled Track'}
+                            {displayTitle}
                         </Text>
                     </View>
-                    {isActiveTrack &&
-                        (playing ? (
-                            <ActivityIndicator size="small" color={colors.icon} />
+                    {isActive &&
+                        (isPlaying ? (
+                            <ActivityIndicator size="small" color={colors.icon} testID="active-track-playing" />
                         ) : (
-                            <Ionicons name="play" size={24} color={colors.icon} />
+                            <Ionicons name="play" size={24} color={colors.icon} testID="active-track" />
                         ))}
                 </View>
             </View>
         </TouchableHighlight>
     )
-}
+})
 
 const styles = StyleSheet.create({
     trackItemContainer: {
-        columnGap: 14,
         alignItems: 'flex-start',
         width: '100%',
+    },
+    row: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        width: '100%',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
     },
     trackIndexText: {
         ...defaultStyles.text,
         textAlign: 'center',
         fontSize: 32,
         fontWeight: '600',
-        maxWidth: '100%',
         minWidth: 40,
         paddingRight: 10,
     },
@@ -122,6 +121,5 @@ const styles = StyleSheet.create({
         ...defaultStyles.text,
         fontSize: 17,
         fontWeight: '600',
-        maxWidth: '80%',
     },
 })

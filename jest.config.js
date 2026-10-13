@@ -1,8 +1,9 @@
 module.exports = {
-  moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1',
-  },
-  transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest',
-  },
+	preset: 'jest-expo/web',
+	moduleNameMapper: {
+		'^@/assets/(.*)$': '<rootDir>/assets/$1',
+		'^@/(.*)$': '<rootDir>/src/$1',
+	},
+	testPathIgnorePatterns: ['/node_modules/', '/e2e/', '/dist/'],
+	setupFiles: ['<rootDir>/jest.setup.js'],
 }

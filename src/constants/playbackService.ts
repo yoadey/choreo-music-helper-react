@@ -124,12 +124,15 @@ const seekAndPublish = async (position: number) => {
  * which happens lazily on the web) they do nothing, and they never reject.
  */
 const control =
-    <A extends unknown[]>(action: (...args: A) => Promise<void>) =>
+    <A extends unknown[]>(action: (...args: A) => Promise<void>, { needsSong = true } = {}) =>
     async (...args: A) => {
         if (!useCurrentTrackStore.getState().currentTrack) return
         try {
-            // After an error the player dropped the song: it is loaded again first
-            if (isTrackDropped() && !(await ensureTrackLoaded())) return
+            // After an error the player dropped the song: it is loaded again first (if the control needs it)
+            if (isTrackDropped()) {
+                if (!needsSong) return
+                if (!(await ensureTrackLoaded())) return
+            }
             await action(...args)
         } catch (error) {
             console.warn('The player control failed', error)
@@ -188,7 +191,8 @@ const applyIfPlaying = async (position: number) => {
     }
 }
 
-export const pausePlayback = control(() => TrackPlayer.pause())
+// A dropped song does not play: nothing to pause
+export const pausePlayback = control(() => TrackPlayer.pause(), { needsSong: false })
 
 /** Stops the playback without unloading the track, so it can be played again directly. */
 export const stopPlayback = control(async () => {

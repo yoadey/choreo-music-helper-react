@@ -1,8 +1,9 @@
 import { releaseTrack } from '@/helpers/player'
-import { database, flushDatabase } from '@/model/index.web'
+import { database, flushDatabase, markSaveFailureReported, withOwnSaveFailureReport } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { deleteTrack } from '@/model/trackRepository'
-import { del } from 'idb-keyval'
+import { clearLastTrack, clearLoop, getLastTrack } from '@/store/playbackState'
+import { del, keys } from 'idb-keyval'
 import { Platform } from 'react-native'
 
 const removeStoredFile = async (key: string) => {
@@ -10,10 +11,72 @@ const removeStoredFile = async (key: string) => {
 }
 
 /**
- * Deletes the song. It is only released from the player (stopped, unloaded, its loop removed) once it is
- * actually deleted; a load of it that finishes meanwhile is released as well.
+ * Deletes the song. It is released from the player first (also a load of it that is in progress), so no
+ * action can use the deleted record. The file is only removed once the delete is written; if that fails, the
+ * file stays and is cleaned up at a later start if the song is gone (see removeOrphanedAudioFiles).
  */
-export const removeTrack = async (track: TrackWithClips) => {
-    await deleteTrack(database, track, removeStoredFile, flushDatabase)
-    await releaseTrack(track.id)
+export const removeTrack = (track: TrackWithClips) =>
+    // A failed save is reported as failed delete, not additionally by the background save
+    withOwnSaveFailureReport(async () => {
+        await releaseTrack(track.id)
+        try {
+            await deleteTrack(database, track, removeStoredFile, flushDatabase)
+        } catch (error) {
+            markSaveFailureReported()
+            throw error
+        }
+        // E.g. the remembered song could not be loaded at the start, its loop markers refer to its clips
+        if (getLastTrack() === track.id) {
+            clearLastTrack()
+            clearLoop()
+        }
+    })
+
+/** Timestamp in the name of a stored audio file (see makeUniqueAudioKey), NaN if there is none. */
+const keyTimestamp = (key: string) => Number(/_(\d+)(?:\.[\w-]+)?$/.exec(decodeURIComponent(key))?.[1])
+
+/**
+ * Removes stored audio files that no song refers to (e.g. the save of a delete failed after the song was
+ * removed). Only files stored before the app started: a running import stores its file before the song.
+ */
+export const removeOrphanedAudioFiles = async ({
+    keys,
+    trackUris,
+    removeFile,
+    startedAt,
+}: {
+    keys: () => Promise<IDBValidKey[]>
+    trackUris: () => Promise<string[]>
+    removeFile: (key: string) => Promise<void>
+    startedAt: number
+}) => {
+    const [stored, used] = await Promise.all([keys(), trackUris()])
+    const referenced = new Set(used)
+    const orphans = stored.filter(
+        (key): key is string =>
+            typeof key === 'string' &&
+            key.startsWith('/audio/') &&
+            !referenced.has(key) &&
+            keyTimestamp(key) < startedAt,
+    )
+    for (const key of orphans) await removeFile(key)
+}
+
+// Files stored after this (by an import of this session) are never cleaned up as orphans
+const appStartedAt = Date.now()
+
+/** Cleans up orphaned audio files once at the start of the app (web only). Never rejects. */
+export const cleanUpStoredAudio = async () => {
+    if (Platform.OS !== 'web') return
+    try {
+        await removeOrphanedAudioFiles({
+            keys: () => keys(),
+            trackUris: async () =>
+                (await database.get<TrackWithClips>('tracks').query().fetch()).map((track) => track.uri),
+            removeFile: (key) => del(key),
+            startedAt: appStartedAt,
+        })
+    } catch (error) {
+        console.warn('Could not clean up the stored audio files', error)
+    }
 }

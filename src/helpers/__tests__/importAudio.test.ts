@@ -88,7 +88,12 @@ describe('importAudioFile when the database cannot be saved', () => {
         await expect(importing).rejects.toMatchObject({ name: 'QuotaExceededError' })
         // The import reports it, the background save does not report it again
         expect((require('@/model/index.web') as { markSaveFailureReported: jest.Mock }).markSaveFailureReported).toHaveBeenCalled()
-        expect(repository.deleteTrack).toHaveBeenCalledWith(expect.anything(), { id: 'new-track' }, expect.any(Function))
+        expect(repository.deleteTrack).toHaveBeenCalledWith(
+            expect.anything(),
+            { id: 'new-track' },
+            expect.any(Function),
+            expect.any(Function),
+        )
         expect(player.selectTrack).not.toHaveBeenCalled()
     })
 })

@@ -248,6 +248,18 @@ describe('createTrackLoader', () => {
         expect(env.deps.load).toHaveBeenCalledWith({ id: '9', url: 'file:///song.mp3', title: 'Song' })
     })
 
+    it('does not unload a newer selection that took over the player meanwhile', async () => {
+        const loader = createTrackLoader(env.deps)
+        await loader.load(track('1'))
+        const owner = loader.owner()
+        await loader.load(track('2'))
+        env.deps.reset.mockClear()
+        await expect(loader.unload({ ifOwner: owner })).resolves.toBe(false)
+        expect(env.deps.reset).not.toHaveBeenCalled()
+        await expect(loader.unload({ ifOwner: loader.owner() })).resolves.toBe(true)
+        expect(env.deps.reset).toHaveBeenCalled()
+    })
+
     it('can unload the current track and release its URL', async () => {
         const loader = createTrackLoader(env.deps)
         await loader.load(track('1'))

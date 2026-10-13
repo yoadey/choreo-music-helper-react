@@ -261,6 +261,37 @@ describe('restoreLastTrack', () => {
 })
 
 describe('after the player dropped the song (error)', () => {
+    it('continues at the position of the error when the song is selected again in the list', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(120)
+        await m.player.selectTrack(track('1'))
+        expect(m.trackPlayer.default.seekTo).toHaveBeenLastCalledWith(120)
+    })
+
+    it('shows the position after loading the song again (not 0:00 of the reloaded player)', async () => {
+        const { usePlayerProgressStore } = require('@/store/progress') as typeof import('@/store/progress')
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(90)
+        usePlayerProgressStore.setState({ position: 0, duration: 0 })
+        m.trackPlayer.playerState.duration = 200
+        await m.player.ensureTrackLoaded()
+        expect(usePlayerProgressStore.getState().position).toBe(90)
+    })
+
+    it('does not unload a song selected while the deleted song is being released', async () => {
+        await m.player.selectTrack(track('1'))
+        let releasePause: () => void = () => undefined
+        ;(m.trackPlayer.default.pause as unknown as jest.Mock).mockImplementationOnce(
+            () => new Promise<undefined>((resolve) => (releasePause = () => resolve(undefined))),
+        )
+        const releasing = m.player.releaseTrack('1')
+        await m.player.selectTrack(track('2'))
+        releasePause()
+        await releasing
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('2'))
+        expect(m.trackPlayer.playerState.activeTrack?.id).toBe('2')
+    })
+
     it('reloads the song when it is selected again', async () => {
         await m.player.selectTrack(track('1'))
         m.player.markPlayerFailed(10)

@@ -46,8 +46,10 @@ const loadAndSelect = async (track: TrackWithClips, silent: boolean): Promise<Lo
     // Decided right away, so the last selection always wins.
     // (Not after the player dropped it because of an error.)
     const current = useCurrentTrackStore.getState().currentTrack
-    if (droppedAt === undefined && current?.id === track.id && !trackLoader.isLoading()) {
-        return 'loaded'
+    if (current?.id === track.id && !trackLoader.isLoading()) {
+        if (droppedAt === undefined) return 'loaded'
+        // The player dropped it after an error: loaded again at the position of the error
+        return reloadDropped(current, droppedAt)
     }
     const result = await trackLoader.load(track)
     // The player holds the new song or nothing
@@ -124,10 +126,23 @@ export const ensureTrackLoaded = async () => {
     const current = useCurrentTrackStore.getState().currentTrack
     if (!current) return false
     if (droppedAt === undefined) return true
-    const position = droppedAt
-    if ((await loadAndSelect(current, false)) !== 'loaded') return false
+    return (await reloadDropped(current, droppedAt)) === 'loaded'
+}
+
+const reloadDropped = async (track: TrackWithClips, position: number): Promise<LoadResult> => {
+    const result = await trackLoader.load(track)
+    if (result === 'loaded' || result === 'failed') droppedAt = undefined
+    if (result === 'failed') {
+        useCurrentTrackStore.getState().setCurrentTrack(null)
+        showMessage(t.loadFailed)
+    } else if (result === 'missing' || result === 'unreadable') {
+        showMessage(result === 'missing' ? t.fileMissing : t.loadFailed)
+    }
+    if (result !== 'loaded') return result
     if (position > 0) await TrackPlayer.seekTo(position)
-    return true
+    // The reload published 0:00
+    await refreshProgress()
+    return result
 }
 
 /**
@@ -184,13 +199,17 @@ export const restoreLastTrack = async (database: Database) => {
     if (result === 'missing') clearLastTrack()
 }
 
-/** Unloads the current track, e.g. after it was deleted. */
+/** Unloads the current track, e.g. after it was deleted (not a song selected meanwhile). */
 export const unloadCurrentTrack = async () => {
+    const owner = trackLoader.owner()
+    const current = useCurrentTrackStore.getState().currentTrack
     // Unloading does not pause the audio element, without it the player would still report "playing"
     await TrackPlayer.pause().catch(() => {
         // The player is not set up, nothing plays
     })
-    await trackLoader.unload()
+    // A song selected meanwhile owns the player now: it stays
+    if (!(await trackLoader.unload({ ifOwner: owner }))) return
+    if (useCurrentTrackStore.getState().currentTrack !== current) return
     clearLoop()
     clearCurrentTrack()
     refreshProgress()

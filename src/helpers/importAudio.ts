@@ -37,7 +37,9 @@ const createAndSave = async (audio: Awaited<ReturnType<typeof analyzeAudio>>) =>
 	} catch (error) {
 		// Reported as failed import; saving the clean up below may fail as well
 		markSaveFailureReported()
-		await deleteTrack(database, track, del).catch((cleanupError) => {
+		// The file is only removed once the clean up is written (otherwise the song could return without it,
+		// e.g. if the background save stored the song); else it is cleaned up at a later start
+		await deleteTrack(database, track, del, flushDatabase).catch((cleanupError) => {
 			console.warn('Could not remove the import that was not saved', cleanupError)
 		})
 		throw error

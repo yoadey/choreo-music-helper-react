@@ -1,6 +1,7 @@
 import { playbackService } from '@/constants/playbackService'
 import { colors } from '@/constants/tokens'
 import { restoreLastTrack } from '@/helpers/player'
+import { cleanUpStoredAudio } from '@/helpers/tracks'
 import { useMediaSession } from '@/hooks/useMediaSession'
 import { useSetupTrackPlayer } from '@/hooks/useSetupTrackPlayer'
 import { t } from '@/i18n'
@@ -30,6 +31,7 @@ const App = () => {
         if (success) {
             restoreLastTrack(database)
         }
+        cleanUpStoredAudio()
     }, [])
 
     useSetupTrackPlayer({ onLoad: handleTrackPlayerLoaded })

@@ -314,6 +314,15 @@ describe('player errors (state)', () => {
 })
 
 describe('pause', () => {
+    it('does not load a dropped song again only to pause it', async () => {
+        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
+        await startService()
+        helpers.markPlayerFailed(5)
+        const ensure = jest.spyOn(helpers, 'ensureTrackLoaded')
+        await m.service.pausePlayback()
+        expect(ensure).not.toHaveBeenCalled()
+    })
+
     it('never rejects, e.g. before the player is set up', async () => {
         await startService()
         ;(TrackPlayer().pause as unknown as jest.Mock).mockImplementationOnce(async () => {

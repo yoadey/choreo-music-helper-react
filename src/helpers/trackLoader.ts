@@ -163,10 +163,21 @@ export const createTrackLoader = (deps: TrackLoaderDeps) => {
             return playerOwner !== 0 && inFlight.has(playerOwner)
         },
 
-        async unload() {
+        /** The load that currently owns the player (0: none). */
+        owner(): number {
+            return playerOwner
+        },
+
+        /**
+         * Unloads the track in the player. With ifOwner only if that load still owns the player (a newer
+         * selection that took over meanwhile is kept). Returns whether it unloaded.
+         */
+        async unload({ ifOwner }: { ifOwner?: number } = {}): Promise<boolean> {
+            if (ifOwner !== undefined && playerOwner !== ifOwner) return false
             playerOwner = 0
             await deps.reset()
             releaseCurrentUrl()
+            return true
         },
     }
 }

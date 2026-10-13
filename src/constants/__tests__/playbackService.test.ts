@@ -336,6 +336,20 @@ describe('player errors (state)', () => {
         expect(move).toHaveBeenCalledWith(0)
     })
 
+    it('the controls move the position of a dropped song without loading it', async () => {
+        const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
+        await startService()
+        helpers.markPlayerFailed(50)
+        await m.service.jumpBy(10)
+        expect(helpers.getDroppedPosition()).toBe(60)
+        await m.service.seekToClip(20)
+        expect(helpers.getDroppedPosition()).toBe(20)
+        await m.service.skipToPreviousClip()
+        expect(helpers.getDroppedPosition()).toBeLessThan(20)
+        expect(TrackPlayer().reset).not.toHaveBeenCalled()
+        expect(TrackPlayer().seekTo).not.toHaveBeenCalled()
+    })
+
     it('Stop still pauses the playing song while another song is loading', async () => {
         const helpers = require('@/helpers/player') as typeof import('@/helpers/player')
         await startService()

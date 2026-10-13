@@ -4,6 +4,7 @@ import { selectTrack } from '@/helpers/player'
 import { t } from '@/i18n'
 import { database, flushDatabase, markSaveFailureReported, withOwnSaveFailureReport } from '@/model/index.web'
 import { isQuotaError } from '@/model/saveErrors'
+import { addPendingFile, removePendingFile } from '@/store/pendingFiles'
 import { createTrackWithClips, deleteTrack } from '@/model/trackRepository'
 import * as DocumentPicker from 'expo-document-picker'
 import { del, set } from 'idb-keyval'
@@ -17,6 +18,9 @@ const importWebFile = async (asset: DocumentPicker.DocumentPickerAsset) => {
 		decode: decodeAudio,
 		untitledChapter: t.numberedClip,
 	})
+	// Pending until the song is saved: if that fails or the app is closed before, the file is cleaned up at a
+	// later start (see removeOrphanedAudioFiles)
+	addPendingFile(audio.key)
 	await set(audio.key, blob)
 	// A failed save is reported as failed import, not additionally by the background save
 	return withOwnSaveFailureReport(() => createAndSave(audio))
@@ -28,7 +32,7 @@ const createAndSave = async (audio: Awaited<ReturnType<typeof analyzeAudio>>) =>
 		track = await createTrackWithClips(database, audio)
 	} catch (error) {
 		// Do not leave an orphaned file behind
-		await del(audio.key)
+		await removeFile(audio.key)
 		throw error
 	}
 	try {
@@ -39,14 +43,20 @@ const createAndSave = async (audio: Awaited<ReturnType<typeof analyzeAudio>>) =>
 		markSaveFailureReported()
 		// The file is only removed once the clean up is written (otherwise the song could return without it,
 		// e.g. if the background save stored the song); else it is cleaned up at a later start
-		await deleteTrack(database, track, del, flushDatabase).catch((cleanupError) => {
+		await deleteTrack(database, track, removeFile, flushDatabase).catch((cleanupError) => {
 			console.warn('Could not remove the import that was not saved', cleanupError)
 		})
 		throw error
 	}
+	removePendingFile(audio.key)
 	// Not awaited: some browsers ask the user and may never answer
 	requestPersistentStorage().catch(() => undefined)
 	return track
+}
+
+const removeFile = async (key: string) => {
+	await del(key)
+	removePendingFile(key)
 }
 
 const importNativeFile = (asset: DocumentPicker.DocumentPickerAsset) =>

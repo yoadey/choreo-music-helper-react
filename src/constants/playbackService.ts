@@ -16,7 +16,7 @@ import {
 } from '@/helpers/playback'
 import {
     cancelPendingPlay,
-    ensureTrackLoaded,
+    getDroppedPosition,
     isTrackDropped,
     isTrackLoading,
     markPlayerFailed,
@@ -115,8 +115,23 @@ const getProgress = async () => {
     return progress
 }
 
+/**
+ * Position for the controls: after an error the player dropped the song and reports 0, then the position of
+ * the dropped song is used (and moved by the controls, see seekAndPublish).
+ */
+const getControlProgress = async () => {
+    const droppedPosition = getDroppedPosition()
+    if (droppedPosition === undefined) return getProgress()
+    return { position: droppedPosition, duration: state.duration }
+}
+
 /** Seeks and publishes the new position right away (no progress polling while paused). */
 const seekAndPublish = async (position: number) => {
+    if (isTrackDropped()) {
+        // The song is loaded again at this position (Play, selecting it)
+        moveDroppedPosition(position)
+        return
+    }
     await TrackPlayer.seekTo(position)
     await refreshProgress()
 }
@@ -130,14 +145,8 @@ const control =
     async (...args: A) => {
         if (!useCurrentTrackStore.getState().currentTrack) return
         try {
-            // After an error the player dropped the song: it is loaded again first (if the control needs it)
-            if (isTrackDropped()) {
-                if (!needsSong) return
-                if (!(await ensureTrackLoaded())) return
-            } else if (needsSong && isTrackLoading()) {
-                // Another song is loading: the clips and positions are still those of the old song
-                return
-            }
+            // Another song is loading: the clips and positions are still those of the old song
+            if (needsSong && isTrackLoading()) return
             await action(...args)
         } catch (error) {
             console.warn('The player control failed', error)
@@ -196,8 +205,13 @@ const applyIfPlaying = async (position: number) => {
     }
 }
 
-// A dropped song does not play: nothing to pause
-const pausePlayer = control(() => TrackPlayer.pause(), { needsSong: false })
+const pausePlayer = control(
+    async () => {
+        // A dropped song does not play
+        if (!isTrackDropped()) await TrackPlayer.pause()
+    },
+    { needsSong: false },
+)
 
 /** Pauses, also a start that still waits for a song to load. */
 export const pausePlayback = async () => {
@@ -206,8 +220,10 @@ export const pausePlayback = async () => {
 }
 
 const stopPlayer = control(async () => {
-    await TrackPlayer.pause()
-    await getProgress()
+    if (!isTrackDropped()) {
+        await TrackPlayer.pause()
+        await getProgress()
+    }
     await seekAndPublish(getStopTarget(getActiveLoop(), state.prefs.leadIn))
 })
 
@@ -217,21 +233,14 @@ const stopPlayer = control(async () => {
  */
 export const stopPlayback = async () => {
     cancelPendingPlay()
-    if (isTrackLoading()) {
-        await pausePlayer()
-    } else if (isTrackDropped()) {
-        // Nothing plays: the dropped song continues at the stop position when it is loaded again
-        moveDroppedPosition(getStopTarget(getActiveLoop(), state.prefs.leadIn))
-    } else {
-        await stopPlayer()
-    }
+    await (isTrackLoading() ? pausePlayer() : stopPlayer())
 }
 
 /** Clip start positions, sorted (the ranges are sorted when they are computed) */
 const clipStarts = () => state.ranges.map((range) => range.start)
 
 export const skipToNextClip = control(async () => {
-    const { position } = await getProgress()
+    const { position } = await getControlProgress()
     const target = getNextClipTarget(position, clipStarts(), state.prefs.leadIn)
     if (target !== null) {
         await seekAndPublish(target)
@@ -239,7 +248,7 @@ export const skipToNextClip = control(async () => {
 })
 
 export const skipToPreviousClip = control(async () => {
-    const { position } = await getProgress()
+    const { position } = await getControlProgress()
     await seekAndPublish(getPreviousClipTarget(position, clipStarts(), state.prefs.leadIn))
 })
 
@@ -249,7 +258,7 @@ export const seekToClip = control(async (clipPosition: number) => {
 })
 
 export const jumpBy = control(async (seconds: number) => {
-    const { position, duration } = await getProgress()
+    const { position, duration } = await getControlProgress()
     const target = Math.max(position + seconds, 0)
     await seekAndPublish(duration > 0 ? Math.min(target, duration) : target)
 })

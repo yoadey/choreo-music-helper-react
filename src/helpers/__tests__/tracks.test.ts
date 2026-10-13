@@ -71,38 +71,56 @@ describe('removeTrack', () => {
     })
 })
 
-describe('removeOrphanedAudioFiles without songs', () => {
-    it('removes nothing when the database has no songs but files exist (it may have been reset)', async () => {
+describe('removeOrphanedAudioFiles', () => {
+    const minute = 60_000
+    const startedAt = 100 * minute
+
+    it('removes pending files whose song does not exist (a failed save), only those', async () => {
         const removeFiles = jest.fn(async (_keys: string[]) => undefined)
+        const forget = jest.fn()
         await removeOrphanedAudioFiles({
-            keys: async () => ['/audio/song_1.mp3'],
+            pending: [`/audio/orphan_${10 * minute}.mp3`, `/audio/kept_${10 * minute}.mp3`],
+            trackUris: async () => [`/audio/kept_${10 * minute}.mp3`],
+            removeFiles,
+            forget,
+            startedAt,
+        })
+        expect(removeFiles).toHaveBeenCalledWith([`/audio/orphan_${10 * minute}.mp3`])
+        // Both are done: the song of the kept one exists
+        expect(forget).toHaveBeenCalledWith([`/audio/orphan_${10 * minute}.mp3`, `/audio/kept_${10 * minute}.mp3`])
+    })
+
+    it('keeps recent pending files (an import may be running in another tab)', async () => {
+        const removeFiles = jest.fn(async (_keys: string[]) => undefined)
+        const forget = jest.fn()
+        await removeOrphanedAudioFiles({
+            pending: [`/audio/recent_${95 * minute}.mp3`],
             trackUris: async () => [],
             removeFiles,
-            startedAt: Date.now(),
+            forget,
+            startedAt,
         })
+        expect(removeFiles).not.toHaveBeenCalled()
+        expect(forget).not.toHaveBeenCalled()
+    })
+
+    it('never touches files that are not pending (e.g. after the database was reset)', async () => {
+        const removeFiles = jest.fn(async (_keys: string[]) => undefined)
+        await removeOrphanedAudioFiles({ pending: [], trackUris: async () => [], removeFiles, forget: jest.fn(), startedAt })
         expect(removeFiles).not.toHaveBeenCalled()
     })
 })
 
-describe('removeOrphanedAudioFiles', () => {
-    it('removes stored files no song refers to, but not recent files (an import may be running, also in another tab)', async () => {
-        const minute = 60_000
-        const startedAt = 100 * minute
-        const removeFiles = jest.fn(async (_keys: string[]) => undefined)
-        await removeOrphanedAudioFiles({
-            keys: async () => [
-                `/audio/kept_${10 * minute}.mp3`,
-                `/audio/orphan_${10 * minute}.mp3`,
-                `/audio/recent_${95 * minute}.mp3`,
-                `/audio/new_${200 * minute}.mp3`,
-                'other',
-            ],
-            trackUris: async () => [`/audio/kept_${10 * minute}.mp3`],
-            removeFiles,
-            startedAt,
+describe('removeTrack and pending files', () => {
+    it('marks the file as pending until it is removed', async () => {
+        const { getPendingFiles } = require('@/store/pendingFiles') as typeof import('@/store/pendingFiles')
+        let pendingDuringDelete: string[] = []
+        repository().deleteTrack.mockImplementationOnce(async (...args: unknown[]) => {
+            pendingDuringDelete = getPendingFiles()
+            await (args[2] as (key: string) => Promise<void>)('/audio/t1.mp3')
         })
-        // In one transaction
-        expect(removeFiles).toHaveBeenCalledTimes(1)
-        expect(removeFiles).toHaveBeenCalledWith([`/audio/orphan_${10 * minute}.mp3`])
+        await removeTrack(track)
+        expect(pendingDuringDelete).toEqual(['/audio/t1.mp3'])
+        expect(getPendingFiles()).toEqual([])
     })
 })

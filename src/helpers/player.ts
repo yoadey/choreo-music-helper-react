@@ -5,7 +5,7 @@ import { t } from '@/i18n'
 import TrackWithClips from '@/model/track'
 import { Q, type Database } from '@nozbe/watermelondb'
 import { clearLastTrack, clearLoop, getLastTrack, setLastTrack } from '@/store/playbackState'
-import { refreshProgress } from '@/store/progress'
+import { publishProgress, refreshProgress, usePlayerProgressStore } from '@/store/progress'
 import { useCurrentTrackStore } from '@/store/store'
 import { get } from 'idb-keyval'
 import { Platform } from 'react-native'
@@ -49,15 +49,8 @@ const load = (track: TrackWithClips) => {
     return trackLoader.load(track)
 }
 
-/**
- * Tells the user why a song could not be loaded and updates the current song. viaReload: the reload of the
- * dropped song, which forgets the error position only after jumping back to it.
- */
-const handleLoadResult = (result: LoadResult, silent: boolean, trackId: string, viaReload = false) => {
-    // The player holds another song, or nothing
-    if (result === 'failed' || (result === 'loaded' && (dropped?.trackId !== trackId || !viaReload))) {
-        dropped = undefined
-    }
+/** Tells the user why a song could not be loaded and updates the current song. */
+const handleLoadResult = (result: LoadResult, silent: boolean) => {
     switch (result) {
         case 'missing':
         case 'unreadable':
@@ -67,10 +60,20 @@ const handleLoadResult = (result: LoadResult, silent: boolean, trackId: string, 
         case 'failed':
             // The player was reset, nothing is loaded anymore. The last song is kept (with its loop), as no
             // other song was loaded
+            dropped = undefined
             useCurrentTrackStore.getState().setCurrentTrack(null)
             if (!silent) showMessage(t.loadFailed)
             break
     }
+}
+
+/** Makes the loaded song the current one. */
+const applySelection = (track: TrackWithClips) => {
+    if (getLastTrack() !== track.id) {
+        clearLoop()
+    }
+    setLastTrack(track.id)
+    useCurrentTrackStore.getState().setCurrentTrack(track)
 }
 
 const loadAndSelect = async (track: TrackWithClips, silent: boolean): Promise<LoadResult> => {
@@ -78,21 +81,17 @@ const loadAndSelect = async (track: TrackWithClips, silent: boolean): Promise<Lo
     // Selecting the loaded song again keeps it playing (unless another song is loading, which it replaces).
     // Decided right away, so the last selection always wins.
     const current = useCurrentTrackStore.getState().currentTrack
-    if (current?.id === track.id) {
-        // The player dropped it after an error: loaded again at the position of the error (a running
-        // reload is used while it is the latest load)
-        if (currentDropReload() || dropped?.trackId === track.id) return reloadDropped(current)
-        if (!trackLoader.isLoading()) return 'loaded'
-    }
+    if (current?.id === track.id && !trackLoader.isLoading() && dropped?.trackId !== track.id)
+        return 'loaded'
+    // The player dropped it after an error: loaded again at the position of the error
+    if (dropped?.trackId === track.id || (current?.id === track.id && currentDropReload()))
+        return reloadDropped(track)
     const result = await load(track)
-    handleLoadResult(result, silent, track.id)
+    handleLoadResult(result, silent)
     if (result !== 'loaded') return result
-
-    if (getLastTrack() !== track.id) {
-        clearLoop()
-    }
-    setLastTrack(track.id)
-    useCurrentTrackStore.getState().setCurrentTrack(track)
+    // The player holds another song now
+    if (dropped?.trackId !== track.id) dropped = undefined
+    applySelection(track)
     return result
 }
 
@@ -105,8 +104,12 @@ export const addClipAtCurrentPosition = async (
     create: (track: TrackWithClips, position: number) => Promise<unknown>,
 ) => {
     try {
-        // After an error the player reports position 0: the song is loaded again at the position of the error
-        if (isTrackDropped() && !(await ensureTrackLoaded())) return
+        // After an error the player reports position 0: the position of the error is used
+        const droppedPosition = droppedPositionOf(track.id)
+        if (droppedPosition !== undefined) {
+            await create(track, droppedPosition)
+            return
+        }
         const activeTrack = await TrackPlayer.getActiveTrack()
         if (activeTrack?.id !== track.id) return
         const { position } = await TrackPlayer.getProgress()
@@ -124,43 +127,60 @@ export const isTrackLoading = () => trackLoader.isLoading()
 export const whenTrackIdle = () => trackLoader.whenIdle()
 
 // The web player unloads the song on errors (e.g. a decode error during playback) but still reports it as
-// active track, at position 0. The dropped song with the position of the error: it is loaded again (at that
-// position) before it is used.
+// active track, at position 0. The dropped song with its position: the controls move this position (see
+// the playback service), Play and selecting the song load it again there.
 let dropped: { trackId: string; position: number } | undefined
-// The running reload of the dropped song, shared by all actions that need the song while it is the latest
-// load (request: its number in loadRequests)
+// Increased by every error, so a reload notices an error that happened meanwhile
+let errors = 0
+// The running reload of the dropped song, shared while it is the latest load (request: its number in
+// loadRequests)
 let dropReload: { promise: Promise<LoadResult>; request: number } | undefined
 let loadRequests = 0
 
-const currentDropReload = () => (dropReload && dropReload.request === loadRequests ? dropReload.promise : undefined)
+const currentDropReload = () =>
+    dropReload && dropReload.request === loadRequests ? dropReload.promise : undefined
+
+const droppedPositionOf = (trackId: string) =>
+    dropped?.trackId === trackId ? dropped.position : undefined
 
 /**
  * Called when the player reported an error, with the position the song was at. A further error of the
  * emptied player (at 0) keeps the first position.
  */
 export const markPlayerFailed = (position: number) => {
+    errors++
     const current = useCurrentTrackStore.getState().currentTrack
     if (!current || dropped?.trackId === current.id) return
     dropped = { trackId: current.id, position }
 }
 
-/** Moves the position the dropped song continues at (e.g. Stop), without loading it. */
-export const moveDroppedPosition = (position: number) => {
-    if (dropped) dropped = { ...dropped, position }
+/** True if the player dropped the current song after an error (until it is loaded again and in position). */
+export const isTrackDropped = () => {
+    const current = useCurrentTrackStore.getState().currentTrack
+    return !!current && dropped?.trackId === current.id
 }
 
-/** True if the player dropped the current song after an error (until it is loaded again and in position). */
-export const isTrackDropped = () =>
-    dropped?.trackId === useCurrentTrackStore.getState().currentTrack?.id || currentDropReload() !== undefined
+/** Position of the dropped current song, undefined if it is not dropped. */
+export const getDroppedPosition = () => {
+    const current = useCurrentTrackStore.getState().currentTrack
+    return current ? droppedPositionOf(current.id) : undefined
+}
+
+/** Moves the position the dropped song continues at (e.g. Stop or a seek), without loading it. */
+export const moveDroppedPosition = (position: number) => {
+    if (!dropped) return
+    dropped = { ...dropped, position }
+    publishProgress(position, usePlayerProgressStore.getState().duration)
+}
 
 /**
- * Loads the current song again if the player dropped it, at the position of the error. Returns false if
- * there is no usable song, also while another song is loading (it replaces the dropped one). Never rejects.
+ * Loads the current song again if the player dropped it, at its position. Returns false if there is no
+ * usable song, also while another song is loading (it replaces the dropped one). Never rejects.
  */
 export const ensureTrackLoaded = async () => {
     const current = useCurrentTrackStore.getState().currentTrack
     if (!current) return false
-    if (!isTrackDropped()) return true
+    if (!isTrackDropped() && !currentDropReload()) return true
     if (!currentDropReload() && trackLoader.isLoading()) return false
     return (await reloadDropped(current)) === 'loaded'
 }
@@ -168,19 +188,23 @@ export const ensureTrackLoaded = async () => {
 const reloadDropped = (track: TrackWithClips): Promise<LoadResult> => {
     const running = currentDropReload()
     if (running) return running
-    const position = dropped?.trackId === track.id ? dropped.position : 0
     const promise = (async () => {
         const result = await load(track)
-        handleLoadResult(result, false, track.id, true)
+        handleLoadResult(result, false)
         if (result !== 'loaded') return result
+        applySelection(track)
+        const errorsBefore = errors
         try {
+            // Read now: the position may have been moved meanwhile (e.g. Stop)
+            const position = droppedPositionOf(track.id) ?? 0
             if (position > 0) await TrackPlayer.seekTo(position)
             // The reload published 0:00
             await refreshProgress()
         } catch (error) {
             console.warn('Could not return to the position of the error', error)
         }
-        if (dropped?.trackId === track.id) dropped = undefined
+        // Loaded again, unless the player failed again meanwhile
+        if (errors === errorsBefore && dropped?.trackId === track.id) dropped = undefined
         return result
     })().finally(() => {
         if (dropReload?.promise === promise) dropReload = undefined
@@ -214,9 +238,10 @@ export const playCurrentTrack = async ({ unlessLoading = false } = {}) => {
         }
         if (!useCurrentTrackStore.getState().currentTrack) return
         // (Only awaited when needed: otherwise play() is called synchronously)
-        if (isTrackDropped() && !(await ensureTrackLoaded())) return
-        // Paused (or started again) while waiting
-        if (request !== playRequests) return
+        if ((isTrackDropped() || currentDropReload()) && !(await ensureTrackLoaded())) return
+        // Paused (or started again) while waiting, or another song is loading meanwhile (selecting a song
+        // never starts it)
+        if (request !== playRequests || trackLoader.isLoading()) return
         await TrackPlayer.play()
         // The web player only logs a refused start (it resolves anyway) but keeps "play when ready"
         const { state } = await TrackPlayer.getPlaybackState()

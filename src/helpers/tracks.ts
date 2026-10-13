@@ -3,23 +3,27 @@ import { database, flushDatabase, markSaveFailureReported, withOwnSaveFailureRep
 import TrackWithClips from '@/model/track'
 import { deleteTrack } from '@/model/trackRepository'
 import { clearLastTrack, clearLoop, getLastTrack } from '@/store/playbackState'
-import { del, delMany, keys } from 'idb-keyval'
+import { addPendingFile, getPendingFiles, removePendingFile, removePendingFiles } from '@/store/pendingFiles'
+import { del, delMany } from 'idb-keyval'
 import { Platform } from 'react-native'
 
 const removeStoredFile = async (key: string) => {
     if (Platform.OS === 'web') await del(key)
+    removePendingFile(key)
 }
 
 /**
  * Deletes the song. It is released from the player first (also a load of it that is in progress), so no
- * action can use the deleted record. The file is only removed once the delete is written; if that fails, the
- * file stays and is cleaned up at a later start if the song is gone (see removeOrphanedAudioFiles).
+ * action can use the deleted record. The file is only removed once the delete is written; until then it is
+ * pending and cleaned up at a later start if the song is gone (see removeOrphanedAudioFiles).
  */
 export const removeTrack = (track: TrackWithClips) =>
     // A failed save is reported as failed delete, not additionally by the background save
     withOwnSaveFailureReport(async () => {
         // The loop and the last song are only removed once the song is deleted (below)
         await releaseTrack(track.id, { keepPreferences: true })
+        // Until the file is removed (if saving the delete fails, it is cleaned up at a later start)
+        if (Platform.OS === 'web') addPendingFile(track.uri)
         await deleteTrack(database, track, removeStoredFile, async () => {
             try {
                 await flushDatabase()
@@ -40,36 +44,32 @@ export const removeTrack = (track: TrackWithClips) =>
 const keyTimestamp = (key: string) => Number(/_(\d+)(?:\.[\w-]+)?$/.exec(decodeURIComponent(key))?.[1])
 
 // A running import stores its file shortly before its song (also in another tab, whose song may not be in
-// the database this tab read at its start): only files that are clearly older are cleaned up
+// the database this tab read at its start): only clearly older pending files are cleaned up
 const IMPORT_MARGIN = 10 * 60 * 1000
 
 /**
- * Removes stored audio files that no song refers to (e.g. the save of a delete failed after the song was
- * removed). Only files stored well before the app started (see IMPORT_MARGIN).
+ * Removes pending audio files (see pendingFiles) that no song refers to, e.g. because saving an import or a
+ * delete failed. Files that are not pending are never touched.
  */
 export const removeOrphanedAudioFiles = async ({
-    keys,
+    pending,
     trackUris,
     removeFiles,
+    forget,
     startedAt,
 }: {
-    keys: () => Promise<IDBValidKey[]>
+    pending: string[]
     trackUris: () => Promise<string[]>
     removeFiles: (keys: string[]) => Promise<void>
+    forget: (keys: string[]) => void
     startedAt: number
 }) => {
-    const [stored, used] = await Promise.all([keys(), trackUris()])
-    // No songs but stored files: the database may have been reset, the files are the only copy left
-    if (used.length === 0) return
-    const referenced = new Set(used)
-    const orphans = stored.filter(
-        (key): key is string =>
-            typeof key === 'string' &&
-            key.startsWith('/audio/') &&
-            !referenced.has(key) &&
-            keyTimestamp(key) < startedAt - IMPORT_MARGIN,
-    )
+    const settled = pending.filter((key) => keyTimestamp(key) < startedAt - IMPORT_MARGIN)
+    if (settled.length === 0) return
+    const referenced = new Set(await trackUris())
+    const orphans = settled.filter((key) => !referenced.has(key))
     if (orphans.length > 0) await removeFiles(orphans)
+    forget(settled)
 }
 
 // Files stored after this (by an import of this session) are never cleaned up as orphans
@@ -80,10 +80,11 @@ export const cleanUpStoredAudio = async () => {
     if (Platform.OS !== 'web') return
     try {
         await removeOrphanedAudioFiles({
-            keys: () => keys(),
+            pending: getPendingFiles(),
             trackUris: async () =>
                 (await database.get<TrackWithClips>('tracks').query().fetch()).map((track) => track.uri),
             removeFiles: (orphans) => delMany(orphans),
+            forget: removePendingFiles,
             startedAt: appStartedAt,
         })
     } catch (error) {

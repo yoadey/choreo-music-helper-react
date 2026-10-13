@@ -331,7 +331,75 @@ describe('after the player dropped the song (error)', () => {
         releaseBlob()
         await expect(selecting).resolves.toBe(true)
         expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('2'))
-        expect(create).not.toHaveBeenCalled()
+        // The clip was added to the shown (dropped) song at its position, without loading it
+        expect(create).toHaveBeenCalledWith(track('1'), 30)
+    })
+
+    it('makes the dropped song current again when it is selected while another song loads', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(30)
+        let releaseLoad: () => void = () => undefined
+        ;(m.trackPlayer.default.load as unknown as jest.Mock).mockImplementationOnce(
+            () => new Promise<undefined>((resolve) => (releaseLoad = () => resolve(undefined))),
+        )
+        const other = m.player.selectTrack(track('2'))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        const again = m.player.selectTrack(track('1'))
+        releaseLoad()
+        await Promise.all([other, again])
+        expect(m.store.useCurrentTrackStore.getState().currentTrack).toEqual(track('1'))
+        expect(m.trackPlayer.playerState.activeTrack?.id).toBe('1')
+    })
+
+    it('stays dropped when the player fails again while the song is loaded again', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(150)
+        ;(m.trackPlayer.default.seekTo as unknown as jest.Mock).mockImplementationOnce(async () => {
+            m.player.markPlayerFailed(0)
+        })
+        await m.player.ensureTrackLoaded()
+        expect(m.player.isTrackDropped()).toBe(true)
+    })
+
+    it('continues at a position that was moved while the song was loaded again (e.g. Stop)', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(150)
+        const reloading = m.player.ensureTrackLoaded()
+        m.player.moveDroppedPosition(5)
+        await reloading
+        expect(m.trackPlayer.default.seekTo).toHaveBeenLastCalledWith(5)
+    })
+
+    it('publishes a moved position of the dropped song', async () => {
+        const { usePlayerProgressStore } = require('@/store/progress') as typeof import('@/store/progress')
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(150)
+        m.player.moveDroppedPosition(5)
+        expect(usePlayerProgressStore.getState().position).toBe(5)
+    })
+
+    it('does not start the song when another song was selected while it was loaded again', async () => {
+        await m.player.selectTrack(track('1'))
+        m.player.markPlayerFailed(150)
+        let releaseSeek: () => void = () => undefined
+        ;(m.trackPlayer.default.seekTo as unknown as jest.Mock).mockImplementationOnce(
+            () => new Promise<undefined>((resolve) => (releaseSeek = () => resolve(undefined))),
+        )
+        const { get } = require('idb-keyval') as { get: jest.Mock }
+        let releaseBlob: () => void = () => undefined
+        const playing = m.player.playCurrentTrack()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        get.mockImplementationOnce(() => new Promise((resolve) => (releaseBlob = () => resolve(new Blob(['audio'])))))
+        const other = m.player.selectTrack(track('2'))
+        releaseSeek()
+        await playing
+        releaseBlob()
+        await other
+        expect(m.trackPlayer.default.play).not.toHaveBeenCalled()
+    })
+
+    it('is not dropped without a current song', async () => {
+        expect(m.player.isTrackDropped()).toBe(false)
     })
 
     it('waits for the jump back to the position of the error before using the song', async () => {

@@ -74,6 +74,22 @@ describe('importAudioFile', () => {
     })
 })
 
+describe('importAudioFile and pending files', () => {
+    it('marks the stored file as pending until the song is saved', async () => {
+        const { getPendingFiles } = require('@/store/pendingFiles') as typeof import('@/store/pendingFiles')
+        const { set } = require('idb-keyval') as { set: jest.Mock }
+        let pendingWhileStoring: string[] = []
+        set.mockImplementationOnce(async () => {
+            pendingWhileStoring = getPendingFiles()
+        })
+        const importing = importAudioFile()
+        mockResolvePick({ canceled: false, assets: [{ name: 'song.mp3', uri: 'blob:picked', file: pickedFile() }] })
+        await importing
+        expect(pendingWhileStoring).toHaveLength(1)
+        expect(getPendingFiles()).toEqual([])
+    })
+})
+
 describe('importAudioFile when the database cannot be saved', () => {
     it('removes the song and its file again and reports the error (the song would be gone after a reload)', async () => {
         const model = require('@/model/index.web') as { flushDatabase: jest.Mock }

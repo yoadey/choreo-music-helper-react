@@ -3,7 +3,13 @@ import { database, flushDatabase, markSaveFailureReported, withOwnSaveFailureRep
 import TrackWithClips from '@/model/track'
 import { deleteTrack } from '@/model/trackRepository'
 import { clearLastTrack, clearLoop, getLastTrack } from '@/store/playbackState'
-import { addPendingFile, getPendingFiles, removePendingFiles, removeStoredFile } from '@/store/pendingFiles'
+import {
+    addPendingFile,
+    getPendingFiles,
+    removePendingFiles,
+    removeStoredFile,
+    whenPendingFilesUnused,
+} from '@/store/pendingFiles'
 import { delMany } from 'idb-keyval'
 import { Platform } from 'react-native'
 
@@ -78,14 +84,18 @@ const appStartedAt = Date.now()
 export const cleanUpStoredAudio = async () => {
     if (Platform.OS !== 'web') return
     try {
-        await removeOrphanedAudioFiles({
-            pending: getPendingFiles(),
-            trackUris: async () =>
-                (await database.get<TrackWithClips>('tracks').query().fetch()).map((track) => track.uri),
-            removeFiles: (orphans) => delMany(orphans),
-            forget: removePendingFiles,
-            startedAt: appStartedAt,
-        })
+        // Not while another tab restores a backup, whose files are pending for a long time
+        await whenPendingFilesUnused(() =>
+            removeOrphanedAudioFiles({
+                // Read inside the lock: the restore of another tab may just have finished
+                pending: getPendingFiles(),
+                trackUris: async () =>
+                    (await database.get<TrackWithClips>('tracks').query().fetch()).map((track) => track.uri),
+                removeFiles: (orphans) => delMany(orphans),
+                forget: removePendingFiles,
+                startedAt: appStartedAt,
+            }),
+        )
     } catch (error) {
         console.warn('Could not clean up the stored audio files', error)
     }

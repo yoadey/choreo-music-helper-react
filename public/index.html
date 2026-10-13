@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, viewport-fit=cover, initial-scale=1" />
     <meta name="theme-color" content="#252525" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -43,6 +43,18 @@
       }
     </style>
     <script>
+      // The install prompt (Chrome, Edge, Android) can be fired before the app is loaded, it is kept for the
+      // install button in the settings. Not prevented: the browser still offers the installation itself.
+      // See src/helpers/pwa.ts
+      window.addEventListener('beforeinstallprompt', (event) => {
+        window.deferredInstallPrompt = event
+        window.dispatchEvent(new Event('installpromptchange'))
+      })
+      window.addEventListener('appinstalled', () => {
+        window.deferredInstallPrompt = undefined
+        window.appInstalled = true
+        window.dispatchEvent(new Event('installpromptchange'))
+      })
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           const hadController = !!navigator.serviceWorker.controller

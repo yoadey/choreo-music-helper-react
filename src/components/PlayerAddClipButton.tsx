@@ -6,11 +6,11 @@ import { database } from '@/model/index.web'
 import { createClip } from '@/model/trackRepository'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { ComponentProps } from 'react'
-import { TouchableOpacity } from 'react-native'
+import { TouchableOpacity, ViewStyle } from 'react-native'
 
-type IconProps = Omit<ComponentProps<typeof MaterialCommunityIcons>, 'name'>
+type IconProps = Omit<ComponentProps<typeof MaterialCommunityIcons>, 'name'> & { buttonStyle: ViewStyle }
 
-export const PlayerAddClipButton = ({ ...iconProps }: IconProps) => {
+export const PlayerAddClipButton = ({ buttonStyle, ...iconProps }: IconProps) => {
     const { currentTrack } = useCurrentTrack()
 
     const addClipToTrack = async () => {
@@ -26,7 +26,7 @@ export const PlayerAddClipButton = ({ ...iconProps }: IconProps) => {
             disabled={!currentTrack}
             accessibilityRole="button"
             accessibilityLabel="Add clip"
-            style={{ padding: 10, opacity: currentTrack ? 1 : 0.4 }}
+            style={[buttonStyle, { opacity: currentTrack ? 1 : 0.4 }]}
         >
             <MaterialCommunityIcons name="playlist-plus" color={colors.icon} {...iconProps} />
         </TouchableOpacity>

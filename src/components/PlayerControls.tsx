@@ -2,6 +2,7 @@ import { colors } from '@/constants/tokens'
 import { pausePlayback, skipToNextClip, skipToPreviousClip, stopPlayback } from '@/constants/playbackService'
 import { playCurrentTrack } from '@/helpers/player'
 import { useGlobalSpeedOnly, useLeadInDuration, useLeadOutDuration, useSpeed } from '@/store/playbackState'
+import { usePlayerLayout } from '@/store/settings'
 import { useLoopStatusStore } from '@/store/store'
 import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
@@ -16,63 +17,87 @@ type PlayerControlsProps = {
 
 type PlayerButtonProps = {
 	style?: ViewStyle
+	buttonStyle?: ViewStyle
 	iconSize?: number
 }
 
 export const PlayerControls = ({ style }: PlayerControlsProps) => {
+	const [layout] = usePlayerLayout()
+	const compact = layout === 'compact'
+	// Compact: one row of smaller buttons for small screens
+	const iconSize = compact ? 24 : 30
+	const buttonStyle = compact ? styles.compactButton : styles.button
+	const transport = (
+		<>
+			<TouchableOpacity
+				activeOpacity={0.7}
+				onPress={skipToPreviousClip}
+				style={buttonStyle}
+				accessibilityRole="button"
+				accessibilityLabel="Previous clip"
+			>
+				<FontAwesome6 name="backward" size={iconSize} color={colors.text} />
+			</TouchableOpacity>
+
+			<TouchableOpacity
+				activeOpacity={0.7}
+				onPress={stopPlayback}
+				style={buttonStyle}
+				accessibilityRole="button"
+				accessibilityLabel="Stop"
+			>
+				<FontAwesome6 name="stop" size={iconSize} color={colors.text} />
+			</TouchableOpacity>
+
+			<PlayPauseButton iconSize={compact ? 38 : 48} buttonStyle={buttonStyle} />
+
+			<TouchableOpacity
+				activeOpacity={0.7}
+				onPress={skipToNextClip}
+				style={buttonStyle}
+				accessibilityRole="button"
+				accessibilityLabel="Next clip"
+			>
+				<FontAwesome6 name="forward" size={iconSize} color={colors.text} />
+			</TouchableOpacity>
+		</>
+	)
+
+	if (compact) {
+		return (
+			<View style={[styles.container, style]} testID="player-compact">
+				<PlayerProgressBar style={{ marginTop: 6, paddingHorizontal: 10 }} />
+				<View style={styles.row}>
+					<LoopButton iconSize={26} buttonStyle={buttonStyle} />
+					{transport}
+					<PlayerAddClipButton size={28} buttonStyle={buttonStyle} />
+					<SpeedButton iconSize={26} buttonStyle={buttonStyle} />
+				</View>
+			</View>
+		)
+	}
+
 	return (
 		<View style={[styles.container, style]}>
 			<View style={styles.row}>
 				<LoopButton />
-				<PlayerAddClipButton size={32} />
+				<PlayerAddClipButton size={32} buttonStyle={styles.button} />
 				<SpeedButton />
 			</View>
 			<PlayerProgressBar style={{ marginTop: 10, paddingHorizontal: 10 }} />
-			<View style={styles.row}>
-				<TouchableOpacity
-					activeOpacity={0.7}
-					onPress={skipToPreviousClip}
-					style={styles.button}
-					accessibilityRole="button"
-					accessibilityLabel="Previous clip"
-				>
-					<FontAwesome6 name="backward" size={30} color={colors.text} />
-				</TouchableOpacity>
-
-				<TouchableOpacity
-					activeOpacity={0.7}
-					onPress={stopPlayback}
-					style={styles.button}
-					accessibilityRole="button"
-					accessibilityLabel="Stop"
-				>
-					<FontAwesome6 name="stop" size={30} color={colors.text} />
-				</TouchableOpacity>
-
-				<PlayPauseButton />
-
-				<TouchableOpacity
-					activeOpacity={0.7}
-					onPress={skipToNextClip}
-					style={styles.button}
-					accessibilityRole="button"
-					accessibilityLabel="Next clip"
-				>
-					<FontAwesome6 name="forward" size={30} color={colors.text} />
-				</TouchableOpacity>
-			</View>
+			<View style={styles.row}>{transport}</View>
 		</View>
 	)
 }
 
-export const PlayPauseButton = ({ style, iconSize = 48 }: PlayerButtonProps) => {
+export const PlayPauseButton = ({ style, buttonStyle = styles.button, iconSize = 48 }: PlayerButtonProps) => {
 	const { playing } = useIsPlaying()
 
 	return (
 		<View style={style}>
 			<TouchableOpacity
 				activeOpacity={0.85}
-				style={styles.button}
+				style={buttonStyle}
 				onPress={() => (playing ? pausePlayback() : playCurrentTrack())}
 				accessibilityRole="button"
 				accessibilityLabel={playing ? 'Pause' : 'Play'}
@@ -83,7 +108,7 @@ export const PlayPauseButton = ({ style, iconSize = 48 }: PlayerButtonProps) => 
 	)
 }
 
-export const LoopButton = ({ iconSize = 30 }: PlayerButtonProps) => {
+export const LoopButton = ({ buttonStyle = styles.button, iconSize = 30 }: PlayerButtonProps) => {
 	const router = useRouter()
 	const [leadInDuration] = useLeadInDuration()
 	const [leadOutDuration] = useLeadOutDuration()
@@ -94,7 +119,7 @@ export const LoopButton = ({ iconSize = 30 }: PlayerButtonProps) => {
 		<TouchableOpacity
 			activeOpacity={0.7}
 			onPress={() => router.push('/(modals)/loop')}
-			style={styles.button}
+			style={buttonStyle}
 			accessibilityRole="button"
 			accessibilityLabel="Preparation time"
 		>
@@ -107,7 +132,7 @@ export const LoopButton = ({ iconSize = 30 }: PlayerButtonProps) => {
 	)
 }
 
-export const SpeedButton = ({ iconSize = 30 }: PlayerButtonProps) => {
+export const SpeedButton = ({ buttonStyle = styles.button, iconSize = 30 }: PlayerButtonProps) => {
 	const router = useRouter()
 	const [speed] = useSpeed()
 	const [globalOnly] = useGlobalSpeedOnly()
@@ -117,7 +142,7 @@ export const SpeedButton = ({ iconSize = 30 }: PlayerButtonProps) => {
 		<TouchableOpacity
 			activeOpacity={0.7}
 			onPress={() => router.push('/(modals)/speed')}
-			style={styles.button}
+			style={buttonStyle}
 			accessibilityRole="button"
 			accessibilityLabel="Speed"
 		>
@@ -139,6 +164,12 @@ const styles = StyleSheet.create({
 	},
 	button: {
 		padding: 10,
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	compactButton: {
+		paddingVertical: 6,
+		paddingHorizontal: 4,
 		alignItems: 'center',
 		justifyContent: 'center',
 	},

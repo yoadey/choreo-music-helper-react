@@ -547,4 +547,32 @@ describe('clip navigation', () => {
         await m.service.seekToClip(20)
         expect(TrackPlayer().seekTo).toHaveBeenLastCalledWith(18)
     })
+
+    describe('restart clip', () => {
+        beforeEach(() => {
+            m.store.preferences.set('backButton', 'restart')
+            m.store.preferences.set(m.store.KEY_LEAD_IN_DURATION, 4)
+        })
+
+        it('restarts the clip after jumping to the lead in of the next one', async () => {
+            await startService()
+            m.player.playerState.position = 5
+            await m.service.skipToNextClip()
+            expect(TrackPlayer().seekTo).toHaveBeenLastCalledWith(6)
+            await progress(8.5)
+            await m.service.skipToPreviousClip()
+            expect(TrackPlayer().seekTo).toHaveBeenLastCalledWith(6)
+        })
+
+        it('restarts the played clip in the lead in of the next one, also when an earlier jump went there', async () => {
+            await startService()
+            m.player.playerState.position = 5
+            await m.service.skipToNextClip()
+            // The track is played again from the start, into the lead in of the second clip
+            await progress(0.5)
+            await progress(8.5)
+            await m.service.skipToPreviousClip()
+            expect(TrackPlayer().seekTo).toHaveBeenLastCalledWith(0)
+        })
+    })
 })

@@ -2,6 +2,7 @@ import { playbackService } from '@/constants/playbackService'
 import { colors } from '@/constants/tokens'
 import { restoreLastTrack } from '@/helpers/player'
 import { cleanUpStoredAudio } from '@/helpers/tracks'
+import { useKeepAwake } from '@/hooks/useKeepAwake'
 import { useMediaSession } from '@/hooks/useMediaSession'
 import { useSetupTrackPlayer } from '@/hooks/useSetupTrackPlayer'
 import { t } from '@/i18n'
@@ -10,6 +11,7 @@ import { ActionSheetProvider } from '@expo/react-native-action-sheet'
 import { SplashScreen, Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { refreshProgress } from '@/store/progress'
+import { applyUiScale } from '@/store/settings'
 import { useCallback, useEffect } from 'react'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -17,11 +19,20 @@ import TrackPlayer from 'react-native-track-player'
 
 SplashScreen.preventAutoHideAsync()
 
+// Before the first render, so the layout does not jump
+applyUiScale()
+
 TrackPlayer.registerPlaybackService(() => playbackService)
 
 /** Separate component, so the frequent progress updates of the media session do not re-render the app. */
 const MediaSession = () => {
     useMediaSession()
+    return null
+}
+
+/** Separate component, so the playing state does not re-render the app. */
+const KeepAwake = () => {
+    useKeepAwake()
     return null
 }
 
@@ -52,6 +63,7 @@ const App = () => {
                     <RootNavigation />
                 </ActionSheetProvider>
                 <MediaSession />
+                <KeepAwake />
                 <StatusBar style="light" />
             </GestureHandlerRootView>
         </SafeAreaProvider>

@@ -47,6 +47,15 @@ const DrawerNavigator = () => {
                 }
             />
             <Drawer.Screen
+                name="settings"
+                options={{
+                    ...drawerStyleOptions,
+                    title: t.settings,
+                    headerShown: true,
+                    drawerIcon: ({ color, size }) => <FontAwesome6 name="gear" size={size} color={color} />,
+                }}
+            />
+            <Drawer.Screen
                 name="info"
                 options={{
                     ...drawerStyleOptions,

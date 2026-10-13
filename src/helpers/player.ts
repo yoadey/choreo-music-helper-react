@@ -211,14 +211,21 @@ export const unloadCurrentTrack = async ({ keepPreferences = false } = {}): Prom
 /**
  * Releases the track before it is deleted: cancels a pending load of it and unloads it if it is the
  * current track (or a pending load of it already replaced the current track in the player).
+ * Returns whether the track was loading, the current track or neither.
  */
-export const releaseTrack = async (trackId: string, { keepPreferences = false } = {}) => {
+export const releaseTrack = async (
+    trackId: string,
+    { keepPreferences = false } = {},
+): Promise<'loading' | 'current' | 'none'> => {
     const stage = trackLoader.cancel(trackId)
-    if (stage !== 'player' && useCurrentTrackStore.getState().currentTrack?.id !== trackId) return
+    const wasCurrent = useCurrentTrackStore.getState().currentTrack?.id === trackId
+    const result = stage !== 'none' ? 'loading' : wasCurrent ? 'current' : 'none'
+    if (stage !== 'player' && !wasCurrent) return result
     if (trackLoader.isPlayerOwnedByLoad()) {
         // A newer selection is already replacing the track in the player, only the UI state has to go
         clearCurrentTrack({ keepPreferences })
     } else {
         await unloadCurrentTrack({ keepPreferences })
     }
+    return result
 }

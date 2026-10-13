@@ -4,7 +4,7 @@ import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs'
 import Clip from '../clip'
 import schema from '../schema'
 import TrackWithClips from '../track'
-import { createClip, createTrackWithClips, deleteClip, deleteTrack } from '../trackRepository'
+import { createClip, createTrackWithClips, deleteClip, deleteTrack, readAllTracks, removeTracksById, restoreTracks } from '../trackRepository'
 
 const createTestDatabase = () =>
     new Database({
@@ -91,5 +91,57 @@ describe('trackRepository', () => {
         const clips = await track.clips.fetch()
         const clip = clips.find((c) => c.title === 'Neu')!
         expect([clip.position, clip.speed, clip.color]).toEqual([20.5, 1, '#00000000'])
+    })
+
+    describe('backup', () => {
+        it('restores deleted songs with the same ids', async () => {
+            const track = await createTrackWithClips(database, imported)
+            const backup = await readAllTracks(database)
+            await deleteTrack(database, track, async () => undefined)
+
+            await restoreTracks(database, backup)
+            expect(await readAllTracks(database)).toEqual(backup)
+        })
+
+        it('replaces existing songs and their clips, other songs stay', async () => {
+            const track = await createTrackWithClips(database, imported)
+            const other = await createTrackWithClips(database, { ...imported, key: '/audio/other_2.mp3', title: 'Other' })
+            const [backup] = (await readAllTracks(database)).filter((t) => t.id === track.id)
+            const [intro, refrain] = [...backup.clips].sort((a, b) => a.position - b.position)
+
+            // Changed after the backup: renamed, a clip added and one deleted, another file
+            await database.write(async () => {
+                await track.update((t) => {
+                    t.title = 'Renamed'
+                    t.uri = '/audio/song_3.mp3'
+                })
+            })
+            await createClip(database, track, { title: 'New', position: 20 })
+            await deleteClip(database, (await track.clips.fetch()).find((c) => c.id === refrain.id)!)
+
+            await restoreTracks(database, [backup])
+            const restored = (await readAllTracks(database)).find((t) => t.id === track.id)!
+            expect(restored.title).toBe('Song')
+            expect(restored.uri).toBe('/audio/song_1.mp3')
+            expect(restored.clips.map((c) => c.id).sort()).toEqual([intro.id, refrain.id].sort())
+            expect((await readAllTracks(database)).find((t) => t.id === other.id)?.title).toBe('Other')
+        })
+
+        it('undoes a restore: the previous songs come back, new ones are removed', async () => {
+            const track = await createTrackWithClips(database, imported)
+            const before = await readAllTracks(database)
+            const backup = [
+                { ...before[0], title: 'From backup', clips: [] },
+                { ...before[0], id: 'new-song', uri: '/audio/new_9.mp3', clips: [{ id: 'new-clip', title: 'A', position: 1, color: '#00000000', speed: 1 }] },
+            ]
+            await restoreTracks(database, backup)
+            expect((await readAllTracks(database)).map((t) => t.title).sort()).toEqual(['From backup', 'Song'])
+
+            await restoreTracks(database, before)
+            await removeTracksById(database, ['new-song'])
+            expect(await readAllTracks(database)).toEqual(before)
+            expect(await database.get('clips').query().fetchCount()).toBe(before[0].clips.length)
+            expect(track.title).toBe('Song')
+        })
     })
 })

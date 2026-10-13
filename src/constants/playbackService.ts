@@ -8,6 +8,7 @@ import {
     getLoopSeekTarget,
     getNextClipTarget,
     getPreviousClipTarget,
+    getRestartClipTarget,
     getStopTarget,
     leadInStart,
     LoopRange,
@@ -35,6 +36,7 @@ import {
     preferences,
 } from '@/store/playbackState'
 import { publishProgress, refreshProgress } from '@/store/progress'
+import { getBackButtonMode } from '@/store/settings'
 import { useCurrentTrackStore, useLoopStatusStore } from '@/store/store'
 import { Q } from '@nozbe/watermelondb'
 import TrackPlayer, { Event, State } from 'react-native-track-player'
@@ -66,6 +68,8 @@ const state = {
     subscription: undefined as Subscription | undefined,
     lastRate: undefined as number | undefined,
     lastVolume: undefined as number | undefined,
+    // Target of the last seek (see getRestartClipTarget)
+    lastSeek: undefined as number | undefined,
 }
 
 const recompute = () => {
@@ -84,6 +88,7 @@ const subscribeToClips = (trackId: string | undefined) => {
     state.subscription?.unsubscribe()
     state.subscription = undefined
     state.trackId = trackId
+    state.lastSeek = undefined
     state.clips = []
     state.clipsPending = !!trackId
     recompute()
@@ -114,6 +119,8 @@ const getProgress = async () => {
 
 /** Seeks and publishes the new position right away (no progress polling while paused). */
 const seekAndPublish = async (position: number) => {
+    // "Restart clip" needs to know whether the player jumped to the lead in of a clip
+    state.lastSeek = position
     await TrackPlayer.seekTo(position)
     await refreshProgress()
 }
@@ -164,6 +171,9 @@ const setVolume = async (volume: number) => {
 /** Applies speed, volume and loop for the current position. */
 export const applyPlaybackRules = async (position: number) => {
     const { prefs, ranges } = state
+    // The position moved back without a seek of the service (e.g. the track was played again from the start):
+    // the last jump no longer tells where the player is (see getRestartClipTarget)
+    if (state.lastSeek !== undefined && position < state.lastSeek - 0.5) state.lastSeek = undefined
     const rate = prefs.globalSpeedOnly
         ? prefs.speed
         : prefs.speed *
@@ -223,7 +233,13 @@ export const skipToNextClip = control(async () => {
 
 export const skipToPreviousClip = control(async () => {
     const { position } = await getProgress()
-    await seekAndPublish(getPreviousClipTarget(position, clipStarts(), state.prefs.leadIn))
+    const starts = clipStarts()
+    const { leadIn } = state.prefs
+    await seekAndPublish(
+        getBackButtonMode() === 'restart'
+            ? getRestartClipTarget(position, starts, leadIn, state.lastSeek)
+            : getPreviousClipTarget(position, starts, leadIn),
+    )
 })
 
 /** Seeks to the start of a clip, including the lead in. */

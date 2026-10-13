@@ -44,9 +44,9 @@
     </style>
     <script>
       // The install prompt (Chrome, Edge, Android) can be fired before the app is loaded, it is kept for the
-      // install button in the settings. See src/helpers/pwa.ts
+      // install button in the settings. Not prevented: the browser still offers the installation itself.
+      // See src/helpers/pwa.ts
       window.addEventListener('beforeinstallprompt', (event) => {
-        event.preventDefault()
         window.deferredInstallPrompt = event
         window.dispatchEvent(new Event('installpromptchange'))
       })

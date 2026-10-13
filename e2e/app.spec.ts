@@ -32,9 +32,35 @@ const importFile = async (page: Page, name: string) => {
 
 const openTab = (page: Page, name: 'Songs' | 'Clips') => page.getByRole('tab', { name }).click()
 
+const openMenuItem = async (page: Page, name: string) => {
+    await page.getByRole('button', { name: /Show navigation menu|Navigationsmenü/ }).click()
+    // The drawer item (the header of the open screen may have the same text)
+    await page.getByRole('button', { name: new RegExp(`${name}$`) }).click()
+}
+
 const play = (page: Page) => page.getByRole('button', { name: 'Play', exact: true }).click()
 
 test.beforeEach(async ({ page }) => {
+    // Records the screen wake locks (headless Chromium does not grant them)
+    await page.addInitScript(() => {
+        const locks: { released: boolean; release: () => Promise<void>; addEventListener: () => void }[] = []
+        Object.assign(window, { wakeLocks: locks })
+        Object.defineProperty(navigator, 'wakeLock', {
+            value: {
+                request: async () => {
+                    const lock = {
+                        released: false,
+                        release: async () => {
+                            lock.released = true
+                        },
+                        addEventListener: () => {},
+                    }
+                    locks.push(lock)
+                    return lock
+                },
+            },
+        })
+    })
     // Confirm dialogs (delete) are accepted, messages are collected
     page.on('dialog', (dialog) => dialog.accept())
     await page.goto('./')
@@ -153,6 +179,52 @@ test.describe('playback', () => {
         expect((await audio(page)).time).toBeCloseTo(8, 1)
         await page.getByRole('button', { name: 'Previous clip' }).click()
         await waitForAudio(page, 'Math.abs(a.currentTime - 4) < 0.05')
+    })
+
+    test('the back button can restart the current clip', async ({ page }) => {
+        await openMenuItem(page, 'Einstellungen')
+        await page.getByTestId('back-button-restart').click()
+        await openMenuItem(page, 'Musik')
+        await page.getByRole('button', { name: 'Next clip' }).click()
+        await waitForAudio(page, 'Math.abs(a.currentTime - 4) < 0.05')
+        await play(page)
+        await waitForAudio(page, 'a.currentTime > 6.5')
+        await page.getByRole('button', { name: 'Pause' }).click()
+        // Restarts the current clip, pressed again right at its start it goes to the previous clip
+        await page.getByRole('button', { name: 'Previous clip' }).click()
+        await waitForAudio(page, 'Math.abs(a.currentTime - 4) < 0.05')
+        await page.getByRole('button', { name: 'Previous clip' }).click()
+        await waitForAudio(page, 'a.currentTime < 0.05')
+    })
+
+    test('the compact controls show the times on top of the waveform, which can still be dragged there', async ({
+        page,
+    }) => {
+        await openMenuItem(page, 'Einstellungen')
+        await page.getByTestId('player-layout-compact').click()
+        await openMenuItem(page, 'Musik')
+        await expect(page.getByTestId('player-compact')).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Speed' })).toBeVisible()
+        // Dragged from the remaining time to the left
+        const time = (await page.getByTestId('remaining-time').boundingBox())!
+        const waveform = (await page.getByTestId('waveform').boundingBox())!
+        expect(time.x).toBeGreaterThan(waveform.x)
+        expect(time.y).toBeGreaterThan(waveform.y)
+        expect(time.y + time.height).toBeLessThan(waveform.y + waveform.height)
+        await page.mouse.move(time.x + time.width / 2, time.y + time.height / 2)
+        await page.mouse.down()
+        await page.mouse.move(time.x + time.width / 2 - 40, time.y + time.height / 2, { steps: 5 })
+        await page.mouse.up()
+        await waitForAudio(page, 'a.currentTime > 0.1')
+    })
+
+    test('keeps the screen on while playing, unless disabled', async ({ page }) => {
+        const locks = () => page.evaluate(() => (window as unknown as { wakeLocks: { released: boolean }[] }).wakeLocks)
+        await play(page)
+        await expect.poll(async () => (await locks()).filter((lock) => !lock.released).length).toBe(1)
+        await openMenuItem(page, 'Einstellungen')
+        await page.getByTestId('keep-awake').click()
+        await expect.poll(async () => (await locks()).filter((lock) => !lock.released).length).toBe(0)
     })
 
     test('loops between A and B', async ({ page }) => {
@@ -467,6 +539,64 @@ test.describe('settings', () => {
         await page.getByTestId('install-app').click()
         await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')))
         await expect(page.getByTestId('install-state')).toHaveText('Die App ist installiert.')
+    })
+})
+
+test.describe('backup', () => {
+    const dialogMessages = (page: Page) => {
+        const messages: string[] = []
+        page.on('dialog', (dialog) => {
+            messages.push(dialog.message())
+        })
+        return messages
+    }
+
+    test('restores songs with clips, audio and settings from a backup', async ({ page }) => {
+        const messages = dialogMessages(page)
+        await importFile(page, 'chapters.mp3')
+        await expect(page.getByTestId('track-0')).toContainText('Testsong')
+        await openMenuItem(page, 'Einstellungen')
+        await page.getByTestId('player-layout-compact').click()
+
+        const download = page.waitForEvent('download')
+        await page.getByTestId('create-backup').click()
+        const file = await (await download).path()
+        expect((await download).suggestedFilename()).toMatch(/^choreo-music-helper-\d{4}-\d{2}-\d{2}\.choreobackup$/)
+        await expect.poll(() => messages).toContain('Die Sicherung mit 1 Song wurde heruntergeladen.')
+
+        // Everything is lost (deleted song, reset setting)
+        await page.getByTestId('player-layout-large').click()
+        await openMenuItem(page, 'Musik')
+        await page.getByTestId('track-0').click({ delay: 900 })
+        await page.getByText('Löschen', { exact: true }).click()
+        await expect(page.getByTestId('track-0')).toHaveCount(0)
+
+        await openMenuItem(page, 'Einstellungen')
+        const chooser = page.waitForEvent('filechooser')
+        await page.getByTestId('restore-backup').click()
+        await (await chooser).setFiles(file)
+        await expect.poll(() => messages).toContain('1 Song wurde wiederhergestellt.')
+
+        await openMenuItem(page, 'Musik')
+        // The setting of the backup is restored
+        await expect(page.getByTestId('player-compact')).toBeVisible()
+        await expect(page.getByTestId('track-0')).toContainText('Testsong')
+        await page.getByTestId('track-0').click()
+        await waitForAudio(page, 'a.readyState > 0 && a.duration > 10')
+        await openTab(page, 'Clips')
+        await expect(page.getByTestId('clip-2')).toContainText('Refrain')
+        await expect(page.getByTestId('clip-2')).toContainText('0:08.0')
+    })
+
+    test('rejects files that are no backup', async ({ page }) => {
+        const messages = dialogMessages(page)
+        await openMenuItem(page, 'Einstellungen')
+        const chooser = page.waitForEvent('filechooser')
+        await page.getByTestId('restore-backup').click()
+        await (await chooser).setFiles(fixture('plain.mp3'))
+        await expect
+            .poll(() => messages)
+            .toContain('Die Datei ist keine gültige Sicherung des Choreo Music Helpers.')
     })
 })
 

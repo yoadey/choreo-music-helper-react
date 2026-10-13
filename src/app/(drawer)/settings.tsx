@@ -1,10 +1,20 @@
 import { colors, fontSize } from '@/constants/tokens'
+import { createBackup, isBackupSupported, pickBackupFile, restoreBackup, restoreErrorMessage } from '@/helpers/backup'
+import { confirmAction, showMessage } from '@/helpers/dialogs'
 import { getInstallPlatform, promptInstall, useInstallState } from '@/helpers/pwa'
 import { t } from '@/i18n'
-import { isUiScaleSupported, setUiScale, UI_SCALES, useUiScale } from '@/store/settings'
+import {
+    isUiScaleSupported,
+    setUiScale,
+    UI_SCALES,
+    useBackButtonMode,
+    useKeepAwakeSetting,
+    usePlayerLayout,
+    useUiScale,
+} from '@/store/settings'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
-import React, { ReactNode } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import React, { ReactNode, useState } from 'react'
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 
 const Section = ({ title, children }: { title: string; children: ReactNode }) => (
     <View style={styles.card}>
@@ -13,32 +23,146 @@ const Section = ({ title, children }: { title: string; children: ReactNode }) =>
     </View>
 )
 
-const DisplaySize = () => {
+type SegmentedProps<T extends string | number> = {
+    options: readonly { value: T; label: string }[]
+    value: T
+    onChange: (value: T) => void
+    testID: string
+}
+
+const Segmented = <T extends string | number>({ options, value, onChange, testID }: SegmentedProps<T>) => (
+    <View style={styles.segments} accessibilityRole="radiogroup">
+        {options.map((option) => {
+            const selected = option.value === value
+            return (
+                <Pressable
+                    key={option.value}
+                    testID={`${testID}-${option.value}`}
+                    style={[styles.segment, selected && styles.segmentSelected]}
+                    onPress={() => onChange(option.value)}
+                    accessibilityRole="radio"
+                    aria-checked={selected}
+                >
+                    <Text style={[styles.segmentText, selected && styles.segmentTextSelected]}>{option.label}</Text>
+                </Pressable>
+            )
+        })}
+    </View>
+)
+
+const scaleOptions = UI_SCALES.map((value) => ({ value, label: `${Math.round(value * 100)} %` }))
+
+const Display = () => {
     const scale = useUiScale()
+    const [layout, setLayout] = usePlayerLayout()
     return (
         <>
-            <Text style={styles.label}>{t.displaySize}</Text>
-            <View style={styles.segments} accessibilityRole="radiogroup">
-                {UI_SCALES.map((value) => {
-                    const selected = value === scale
-                    return (
-                        <Pressable
-                            key={value}
-                            testID={`ui-scale-${value}`}
-                            style={[styles.segment, selected && styles.segmentSelected]}
-                            onPress={() => setUiScale(value)}
-                            accessibilityRole="radio"
-                            accessibilityState={{ checked: selected }}
-                        >
-                            <Text style={[styles.segmentText, selected && styles.segmentTextSelected]}>
-                                {Math.round(value * 100)} %
-                            </Text>
-                        </Pressable>
-                    )
-                })}
+            {isUiScaleSupported && (
+                <>
+                    <Text style={styles.label}>{t.displaySize}</Text>
+                    <Segmented options={scaleOptions} value={scale} onChange={setUiScale} testID="ui-scale" />
+                    <Text style={styles.hint}>{t.displaySizeHint}</Text>
+                    {getInstallPlatform() === 'desktop' && <Text style={styles.hint}>{t.displaySizeDesktopHint}</Text>}
+                </>
+            )}
+            <Text style={styles.label}>{t.playerLayout}</Text>
+            <Segmented
+                options={[
+                    { value: 'large', label: t.playerLayoutLarge },
+                    { value: 'compact', label: t.playerLayoutCompact },
+                ]}
+                value={layout}
+                onChange={setLayout}
+                testID="player-layout"
+            />
+        </>
+    )
+}
+
+const Playback = () => {
+    const [keepAwake, setKeepAwake] = useKeepAwakeSetting()
+    const [backButton, setBackButton] = useBackButtonMode()
+    return (
+        <>
+            <View style={styles.row}>
+                <Text style={[styles.label, styles.flex]}>{t.keepAwake}</Text>
+                <Switch
+                    testID="keep-awake"
+                    value={keepAwake}
+                    onValueChange={setKeepAwake}
+                    trackColor={{ true: colors.primary, false: colors.maximumTrackTintColor }}
+                    thumbColor={colors.text}
+                    // react-native-web colors the thumb of an enabled switch with its own prop
+                    {...({ activeThumbColor: colors.text } as object)}
+                    accessibilityLabel={t.keepAwake}
+                />
             </View>
-            <Text style={styles.hint}>{t.displaySizeHint}</Text>
-            {getInstallPlatform() === 'desktop' && <Text style={styles.hint}>{t.displaySizeDesktopHint}</Text>}
+            <Text style={styles.hint}>{t.keepAwakeHint}</Text>
+            <Text style={styles.label}>{t.backButton}</Text>
+            <Segmented
+                options={[
+                    { value: 'previous', label: t.backButtonPrevious },
+                    { value: 'restart', label: t.backButtonRestart },
+                ]}
+                value={backButton}
+                onChange={setBackButton}
+                testID="back-button"
+            />
+            <Text style={styles.hint}>{backButton === 'restart' ? t.backButtonRestartHint : t.backButtonPreviousHint}</Text>
+        </>
+    )
+}
+
+const Backup = () => {
+    const [busy, setBusy] = useState(false)
+    const run = async (action: () => Promise<void>) => {
+        setBusy(true)
+        try {
+            await action()
+        } finally {
+            setBusy(false)
+        }
+    }
+    const create = () =>
+        run(async () => {
+            try {
+                showMessage(t.backupCreated(await createBackup()))
+            } catch (error) {
+                console.warn('Could not create the backup', error)
+                showMessage(t.backupFailed)
+            }
+        })
+    const restore = () =>
+        run(async () => {
+            const file = await pickBackupFile()
+            if (!file || !(await confirmAction(t.confirmRestore))) return
+            try {
+                showMessage(t.restored(await restoreBackup(file)))
+            } catch (error) {
+                console.warn('Could not restore the backup', error)
+                showMessage(restoreErrorMessage(error))
+            }
+        })
+    return (
+        <>
+            <Text style={styles.hint}>{t.backupHint}</Text>
+            <View style={styles.buttons}>
+                <Pressable style={styles.button} onPress={create} disabled={busy} accessibilityRole="button" testID="create-backup">
+                    <MaterialCommunityIcons name="content-save-outline" size={20} color={colors.text} />
+                    <Text style={styles.buttonText}>{t.createBackup}</Text>
+                </Pressable>
+                <Pressable
+                    style={[styles.button, styles.secondaryButton]}
+                    onPress={restore}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    testID="restore-backup"
+                >
+                    <MaterialCommunityIcons name="backup-restore" size={20} color={colors.text} />
+                    <Text style={styles.buttonText}>{t.restoreBackup}</Text>
+                </Pressable>
+                {busy && <ActivityIndicator color={colors.text} />}
+            </View>
         </>
     )
 }
@@ -88,9 +212,15 @@ export default function SettingsScreen() {
     const installState = useInstallState()
     return (
         <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-            {isUiScaleSupported && (
-                <Section title={t.display}>
-                    <DisplaySize />
+            <Section title={t.playback}>
+                <Playback />
+            </Section>
+            <Section title={t.display}>
+                <Display />
+            </Section>
+            {isBackupSupported && (
+                <Section title={t.backup}>
+                    <Backup />
                 </Section>
             )}
             {installState !== 'unsupported' && (
@@ -167,6 +297,15 @@ const styles = StyleSheet.create({
     segmentTextSelected: {
         color: colors.text,
         fontWeight: '600',
+    },
+    buttons: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 10,
+    },
+    secondaryButton: {
+        backgroundColor: colors.modal,
     },
     button: {
         flexDirection: 'row',

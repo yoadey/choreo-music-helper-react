@@ -247,3 +247,17 @@ export const getPreviousClipTarget = (position: number, starts: readonly number[
     if (index <= 0) return leadInStart(index === 0 ? starts[0] : 0, leadIn)
     return leadInStart(starts[index - 1], leadIn)
 }
+
+/** Seconds after the start of a clip in which "restart clip" jumps to the previous clip instead. */
+export const RESTART_THRESHOLD = 2
+
+/**
+ * Target position for "restart clip" (clip starts sorted ascending): the start of the current clip (including
+ * the lead in), or the previous clip if the position is right at that start (pressed twice).
+ */
+export const getRestartClipTarget = (position: number, starts: readonly number[], leadIn: number): number => {
+    const index = findClipIndex(position + leadIn, starts)
+    const currentStart = leadInStart(index < 0 ? 0 : starts[index], leadIn)
+    if (position - currentStart > RESTART_THRESHOLD) return currentStart
+    return getPreviousClipTarget(position, starts, leadIn)
+}

@@ -8,6 +8,7 @@ import {
     getLoopSeekTarget,
     getNextClipTarget,
     getPreviousClipTarget,
+    getRestartClipTarget,
     getStopTarget,
     resolveLoop,
     sortByPosition,
@@ -365,5 +366,19 @@ describe('clip navigation', () => {
         expect(getPreviousClipTarget(1, [5, 10], 0)).toBe(0)
         expect(getNextClipTarget(1, [], 0)).toBeNull()
         expect(getPreviousClipTarget(1, [], 0)).toBe(0)
+    })
+
+    it('restarts the current clip, right at its start it jumps to the previous clip', () => {
+        expect(getRestartClipTarget(15, starts, 0)).toBe(10)
+        expect(getRestartClipTarget(11, starts, 0)).toBe(0)
+        // The lead in counts as part of the clip
+        expect(getRestartClipTarget(25, starts, 2)).toBe(18)
+        expect(getRestartClipTarget(19, starts, 2)).toBe(8)
+    })
+
+    it('restarts the first clip and handles empty clip lists', () => {
+        expect(getRestartClipTarget(1, starts, 0)).toBe(0)
+        expect(getRestartClipTarget(7, [], 0)).toBe(0)
+        expect(getRestartClipTarget(3, [5, 10], 0)).toBe(0)
     })
 })

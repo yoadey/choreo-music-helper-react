@@ -8,6 +8,7 @@ import {
     getLoopSeekTarget,
     getNextClipTarget,
     getPreviousClipTarget,
+    getRestartClipTarget,
     getStopTarget,
     leadInStart,
     LoopRange,
@@ -35,6 +36,7 @@ import {
     preferences,
 } from '@/store/playbackState'
 import { publishProgress, refreshProgress } from '@/store/progress'
+import { getBackButtonMode } from '@/store/settings'
 import { useCurrentTrackStore, useLoopStatusStore } from '@/store/store'
 import { Q } from '@nozbe/watermelondb'
 import TrackPlayer, { Event, State } from 'react-native-track-player'
@@ -223,7 +225,8 @@ export const skipToNextClip = control(async () => {
 
 export const skipToPreviousClip = control(async () => {
     const { position } = await getProgress()
-    await seekAndPublish(getPreviousClipTarget(position, clipStarts(), state.prefs.leadIn))
+    const getTarget = getBackButtonMode() === 'restart' ? getRestartClipTarget : getPreviousClipTarget
+    await seekAndPublish(getTarget(position, clipStarts(), state.prefs.leadIn))
 })
 
 /** Seeks to the start of a clip, including the lead in. */

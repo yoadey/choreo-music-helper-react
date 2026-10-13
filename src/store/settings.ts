@@ -1,4 +1,4 @@
-import { useMMKVNumber } from 'react-native-mmkv'
+import { useMMKVBoolean, useMMKVNumber, useMMKVString } from 'react-native-mmkv'
 import { Platform } from 'react-native'
 import { preferences } from './playbackState'
 
@@ -40,3 +40,39 @@ export const applyUiScale = () => {
     const meta = document.querySelector('meta[name="viewport"]')
     meta?.setAttribute('content', `${VIEWPORT}, initial-scale=${getUiScale()}`)
 }
+
+/**
+ * Keeps the screen on while playing and shortly after (see useKeepAwake). On by default.
+ */
+export const KEY_KEEP_AWAKE = 'keepAwake'
+export const useKeepAwakeSetting = () => {
+    const [keepAwake, setKeepAwake] = useMMKVBoolean(KEY_KEEP_AWAKE, preferences)
+    return [keepAwake ?? true, setKeepAwake] as const
+}
+
+/**
+ * What the "previous" button does:
+ * - previous: always jumps to the previous clip
+ * - restart: jumps to the start of the current clip, to the previous one when pressed right at the start
+ */
+export type BackButtonMode = 'previous' | 'restart'
+export const KEY_BACK_BUTTON = 'backButton'
+const toBackButtonMode = (value: string | undefined): BackButtonMode => (value === 'restart' ? 'restart' : 'previous')
+export const useBackButtonMode = () => {
+    const [mode, setMode] = useMMKVString(KEY_BACK_BUTTON, preferences)
+    return [toBackButtonMode(mode), (value: BackButtonMode) => setMode(value)] as const
+}
+export const getBackButtonMode = () => toBackButtonMode(preferences.getString(KEY_BACK_BUTTON))
+
+/**
+ * Layout of the player controls: large (two rows of buttons) or compact (one row, for small screens).
+ */
+export type PlayerLayout = 'large' | 'compact'
+export const KEY_PLAYER_LAYOUT = 'playerLayout'
+export const usePlayerLayout = () => {
+    const [layout, setLayout] = useMMKVString(KEY_PLAYER_LAYOUT, preferences)
+    return [layout === 'compact' ? 'compact' : 'large', (value: PlayerLayout) => setLayout(value)] as const
+}
+
+/** Settings that are included in a backup. */
+export const SETTINGS_KEYS = [KEY_UI_SCALE, KEY_KEEP_AWAKE, KEY_BACK_BUTTON, KEY_PLAYER_LAYOUT] as const

@@ -1,6 +1,6 @@
 import type { AnalyzedAudio } from '@/helpers/audioImport'
 import { TRANSPARENT } from '@/constants/tokens'
-import type { Database } from '@nozbe/watermelondb'
+import { Q, type Database, type Model } from '@nozbe/watermelondb'
 import Clip from './clip'
 import TrackWithClips from './track'
 
@@ -73,3 +73,111 @@ export const deleteClip = async (database: Database, clip: Clip) => {
         await clip.destroyPermanently()
     })
 }
+
+/** A song with its clips as stored in a backup. */
+export type TrackData = {
+    id: string
+    title: string
+    uri: string
+    length: number
+    waveform: string | null
+    color: string
+    clips: { id: string; title: string; position: number; color: string; speed: number }[]
+}
+
+/** All songs with their clips, e.g. for a backup. */
+export const readAllTracks = async (database: Database): Promise<TrackData[]> => {
+    const tracks = await database.get<TrackWithClips>('tracks').query().fetch()
+    return Promise.all(
+        tracks.map(async (track) => ({
+            id: track.id,
+            title: track.title,
+            uri: track.uri,
+            length: track.length,
+            waveform: track.waveform,
+            color: track.color,
+            clips: (await track.clips.fetch())
+                .map((clip) => ({
+                    id: clip.id,
+                    title: clip.title,
+                    position: clip.position,
+                    color: clip.color,
+                    speed: clip.speed ?? 1,
+                }))
+                .sort((a, b) => a.position - b.position),
+        })),
+    )
+}
+
+/**
+ * Restores songs from a backup in one batch. Songs that exist (same id) are replaced including their clips,
+ * all other songs stay. The ids are kept, so the loop markers of the restored clips stay valid.
+ * Returns the replaced audio file keys that are no longer used.
+ */
+export const restoreTracks = async (database: Database, data: readonly TrackData[]) =>
+    database.write(async () => {
+        const tracks = database.get<TrackWithClips>('tracks')
+        const clips = database.get<Clip>('clips')
+        const existingTracks = new Map(
+            (await tracks.query(Q.where('id', Q.oneOf(data.map((t) => t.id)))).fetch()).map((t) => [t.id, t]),
+        )
+        // Clip ids that are used by any song (a clip id of another song must not be reused)
+        const existingClips = new Map((await clips.query().fetch()).map((c) => [c.id, c]))
+        const unusedFiles: string[] = []
+        const operations: Model[] = []
+
+        for (const item of data) {
+            const setFields = (t: TrackWithClips) => {
+                t.title = item.title
+                t.uri = item.uri
+                t.length = item.length
+                t.waveform = item.waveform
+                t.color = item.color
+            }
+            const existing = existingTracks.get(item.id)
+            let track: TrackWithClips
+            if (existing) {
+                if (existing.uri !== item.uri) unusedFiles.push(existing.uri)
+                track = existing.prepareUpdate(setFields)
+            } else {
+                track = tracks.prepareCreate((t) => {
+                    t._raw.id = item.id
+                    setFields(t)
+                })
+            }
+            operations.push(track)
+
+            const keep = new Set<string>()
+            for (const c of item.clips) {
+                const setClip = (clip: Clip) => {
+                    clip.title = c.title
+                    clip.position = c.position
+                    clip.color = c.color
+                    clip.speed = c.speed
+                }
+                const existingClip = existingClips.get(c.id)
+                if (existingClip && existingClip.track.id === item.id) {
+                    keep.add(c.id)
+                    operations.push(existingClip.prepareUpdate(setClip))
+                } else {
+                    operations.push(
+                        clips.prepareCreate((clip) => {
+                            // A clip id of another song gets a new id
+                            if (!existingClip) clip._raw.id = c.id
+                            clip.track.set(track)
+                            setClip(clip)
+                        }),
+                    )
+                }
+            }
+            if (existing) {
+                for (const clip of existingClips.values()) {
+                    if (clip.track.id === item.id && !keep.has(clip.id)) {
+                        operations.push(clip.prepareDestroyPermanently())
+                    }
+                }
+            }
+        }
+        await database.batch(...operations)
+        return unusedFiles
+    })

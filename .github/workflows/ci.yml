@@ -46,3 +46,21 @@ jobs:
           path: |
             playwright-report
             test-results
+
+  # Static files for an own web server, served from the root of the domain (EXPO_BASE_URL empty).
+  # Relative paths are not possible: Expo references the scripts absolutely and the router needs the base path
+  # to match routes. Unzip the artifact into the web root of the server.
+  web-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build:web
+      - uses: actions/upload-artifact@v7
+        with:
+          name: web-${{ github.sha }}
+          path: dist

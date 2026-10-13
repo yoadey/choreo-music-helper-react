@@ -45,6 +45,19 @@ Pushing a tag `v*` builds the app and deploys it to GitHub Pages (`.github/workf
 The base path is taken from the GitHub Pages configuration automatically.
 
 For an own web server, every CI run (`.github/workflows/ci.yml`, job `web-artifact`) uploads the build as the
-artifact `web-<commit>`. It is built for the root of the domain (absolute paths like `/_expo/...`), unzip it
-into the web root. Deep links like `/info` need `404.html` as fallback after a reload, e.g.
+artifact `web-<commit>` once the tests pass. It is built for the root of the domain (absolute paths like
+`/_expo/...`), unzip it into the web root. Deep links like `/info` need `404.html` as fallback after a reload, e.g.
 `ErrorDocument 404 /404.html` (Apache) or `try_files $uri $uri/ /index.html;` (nginx).
+
+`scripts/deploy.sh` installs it without any configuration: copy the script and the downloaded artifact
+(`web-<commit>.zip`) into the web root on the server and run it there (needs `unzip`):
+
+```bash
+./deploy.sh                  # install the newest *.zip in the directory (or: ./deploy.sh web-<commit>.zip)
+./deploy.sh list             # list the backups
+./deploy.sh restore [backup] # restore a backup (default: the newest one)
+```
+
+The files of the installed version are moved into a backup in `.deploy-backups` first (the newest 5 are kept),
+other files in the directory (e.g. `.htaccess`) are not touched. A restore also saves the current version as a
+backup, so it can be undone with another restore.

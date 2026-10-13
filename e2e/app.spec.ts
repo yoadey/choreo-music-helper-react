@@ -38,6 +38,31 @@ const openMenuItem = async (page: Page, name: string) => {
     await page.getByRole('button', { name: new RegExp(`${name}$`) }).click()
 }
 
+/**
+ * Whether the database of the app (LokiJS, saved every 500 ms) was written to IndexedDB. A tab started before
+ * finds an empty database and sets it up again, which deletes it and so reloads the other tabs of the app.
+ */
+const databaseSaved = (page: Page) =>
+    page.evaluate(async () => {
+        // Only opened if it exists: opening creates it otherwise (without the object store of LokiJS)
+        if (!(await indexedDB.databases()).some((database) => database.name === 'loki.db')) return false
+        return new Promise<boolean>((resolve) => {
+            const request = indexedDB.open('loki.db')
+            request.onerror = () => resolve(false)
+            request.onsuccess = () => {
+                const database = request.result
+                const done = (saved: boolean) => {
+                    database.close()
+                    resolve(saved)
+                }
+                if (!database.objectStoreNames.contains('LokiIncrementalData')) return done(false)
+                const key = database.transaction('LokiIncrementalData').objectStore('LokiIncrementalData').getKey('loki')
+                key.onsuccess = () => done(key.result !== undefined)
+                key.onerror = () => done(false)
+            }
+        })
+    })
+
 const play = (page: Page) => page.getByRole('button', { name: 'Play', exact: true }).click()
 
 test.beforeEach(async ({ page }) => {
@@ -413,6 +438,7 @@ test.describe('hosting', () => {
             await expect.poll(() => waitingWorker(page)).toBe(true)
 
             // Starting the app in a second tab must not activate it: the first tab still needs the old files
+            await expect.poll(() => databaseSaved(page)).toBe(true)
             const second = await context.newPage()
             await second.goto(page.url())
             await expect(second.getByTestId('open-file')).toBeVisible()

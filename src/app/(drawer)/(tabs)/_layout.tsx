@@ -26,6 +26,8 @@ const TabsNavigation = () => {
 		>
 			<View style={styles.lists}>
 				<Tabs
+					// The container already keeps clear of the sides
+					safeAreaInsets={{ left: 0, right: 0 }}
 					screenOptions={{
 						tabBarActiveTintColor: colors.primary,
 						tabBarInactiveTintColor: colors.textMuted,

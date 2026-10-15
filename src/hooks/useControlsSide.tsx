@@ -1,4 +1,4 @@
-import { useControlsSideSetting } from '@/store/settings'
+import { isLandscapeLayoutSupported, useControlsSideSetting } from '@/store/settings'
 import { useSyncExternalStore } from 'react'
 import { Dimensions } from 'react-native'
 
@@ -33,5 +33,5 @@ export const useControlsSide = () => {
 	// Only re-renders when the orientation changes, not on every resize
 	const landscape = useSyncExternalStore(subscribe, isLandscape)
 	const [side] = useControlsSideSetting()
-	return landscape ? side : null
+	return isLandscapeLayoutSupported && landscape ? side : null
 }

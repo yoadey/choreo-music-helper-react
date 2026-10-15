@@ -1,4 +1,4 @@
-import { useAllowRotation } from '@/store/settings'
+import { isRotationSupported, useAllowRotation } from '@/store/settings'
 import { useEffect } from 'react'
 
 type LockableOrientation = { lock?: (orientation: 'any') => Promise<void>; unlock?: () => void }
@@ -12,7 +12,7 @@ type LockableOrientation = { lock?: (orientation: 'any') => Promise<void>; unloc
 export const useOrientationLock = () => {
     const [allowRotation] = useAllowRotation()
     useEffect(() => {
-        if (typeof screen === 'undefined' || !screen.orientation || typeof document === 'undefined') return undefined
+        if (!isRotationSupported) return undefined
         const orientation = screen.orientation as unknown as LockableOrientation
         const apply = () => {
             try {

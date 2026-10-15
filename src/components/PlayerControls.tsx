@@ -2,7 +2,7 @@ import { colors } from '@/constants/tokens'
 import { pausePlayback, skipToNextClip, skipToPreviousClip, stopPlayback } from '@/constants/playbackService'
 import { playCurrentTrack } from '@/helpers/player'
 import { useGlobalSpeedOnly, useLeadInDuration, useLeadOutDuration, useSpeed } from '@/store/playbackState'
-import { usePlayerLayout } from '@/store/settings'
+import { ControlsSide, usePlayerLayout } from '@/store/settings'
 import { useLoopStatusStore } from '@/store/store'
 import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
@@ -14,7 +14,7 @@ import { PlayerProgressBar } from './PlayerProgressbar'
 type PlayerControlsProps = {
 	style?: ViewStyle
 	/** Landscape format: side of the screen on which the controls are shown next to the lists */
-	side?: 'left' | 'right' | null
+	side?: ControlsSide | null
 }
 
 type PlayerButtonProps = {

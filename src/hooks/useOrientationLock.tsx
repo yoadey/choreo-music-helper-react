@@ -12,13 +12,22 @@ type LockableOrientation = { lock?: (orientation: 'any') => Promise<void>; unloc
 export const useOrientationLock = () => {
     const [allowRotation] = useAllowRotation()
     useEffect(() => {
-        if (typeof screen === 'undefined' || !screen.orientation) return
+        if (typeof screen === 'undefined' || !screen.orientation || typeof document === 'undefined') return undefined
         const orientation = screen.orientation as unknown as LockableOrientation
-        try {
-            if (allowRotation) orientation.lock?.('any')?.catch(() => {})
-            else orientation.unlock?.()
-        } catch {
-            // Not supported (e.g. desktop browsers)
+        const apply = () => {
+            try {
+                if (allowRotation) orientation.lock?.('any')?.catch(() => {})
+                else orientation.unlock?.()
+            } catch {
+                // Not supported (e.g. desktop browsers)
+            }
         }
+        apply()
+        // The browser may release the lock while the app is in the background
+        const onVisibilityChange = () => {
+            if (!document.hidden) apply()
+        }
+        document.addEventListener('visibilitychange', onVisibilityChange)
+        return () => document.removeEventListener('visibilitychange', onVisibilityChange)
     }, [allowRotation])
 }

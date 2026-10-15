@@ -1,4 +1,4 @@
-import { expect, Page, Route, test } from '@playwright/test'
+import { expect, Locator, Page, Route, test } from '@playwright/test'
 import path from 'node:path'
 
 const fixture = (name: string) => path.join(__dirname, 'fixtures', name)
@@ -570,45 +570,23 @@ test.describe('settings', () => {
     test('shows the controls next to the lists in a wide window, on the selected side', async ({ page }) => {
         const tabs = page.getByRole('tab', { name: 'Songs' })
         const side = page.getByTestId('player-side')
+        const x = async (locator: Locator) => (await locator.boundingBox())?.x ?? NaN
         await expect(side).toBeVisible()
-        expect((await side.boundingBox())!.x).toBeGreaterThan((await tabs.boundingBox())!.x)
+        await expect.poll(async () => (await x(side)) > (await x(tabs))).toBe(true)
 
         await openSettings(page)
+        // A computer cannot lock the orientation
+        await expect(page.getByTestId('allow-rotation')).toHaveCount(0)
         await page.getByTestId('controls-side-left').click()
         await openMenuItem(page, 'Musik')
-        expect((await side.boundingBox())!.x).toBeLessThan((await tabs.boundingBox())!.x)
+        await expect.poll(async () => (await x(side)) < (await x(tabs))).toBe(true)
 
         // Portrait format: below the lists
         await page.setViewportSize({ width: 400, height: 800 })
         await expect(side).toHaveCount(0)
         const play = page.getByRole('button', { name: 'Play', exact: true })
-        expect((await play.boundingBox())!.y).toBeGreaterThan((await tabs.boundingBox())!.y + 100)
-    })
-
-    test('lets the app rotate only once landscape format is allowed', async ({ page }) => {
-        // Records the calls, headless Chromium does not support locking
-        await page.addInitScript(() => {
-            const calls: string[] = []
-            Object.assign(window, { orientationCalls: calls })
-            Object.assign(ScreenOrientation.prototype, {
-                lock: async (orientation: string) => {
-                    calls.push(`lock ${orientation}`)
-                },
-                unlock: () => {
-                    calls.push('unlock')
-                },
-            })
-        })
-        await page.reload()
-        const calls = () => page.evaluate(() => (window as unknown as { orientationCalls: string[] }).orientationCalls)
-        // Not allowed: the portrait format of the manifest applies
-        await expect.poll(calls).toEqual(['unlock'])
-
-        await openSettings(page)
-        await page.getByTestId('allow-rotation').click()
-        await expect.poll(calls).toEqual(['unlock', 'lock any'])
-        await page.reload()
-        await expect.poll(calls).toEqual(['lock any'])
+        const y = async (locator: Locator) => (await locator.boundingBox())?.y ?? NaN
+        await expect.poll(async () => (await y(play)) > (await y(tabs)) + 100).toBe(true)
     })
 })
 
@@ -725,5 +703,32 @@ test.describe('settings on a phone', () => {
 
         await page.getByTestId('ui-scale-1').tap()
         await expect.poll(layoutWidth).toBe(360)
+    })
+
+    test('lets the app rotate only once landscape format is allowed', async ({ page }) => {
+        // Records the calls, headless Chromium does not support locking
+        await page.addInitScript(() => {
+            const calls: string[] = []
+            Object.assign(window, { orientationCalls: calls })
+            Object.assign(ScreenOrientation.prototype, {
+                lock: async (orientation: string) => {
+                    calls.push(`lock ${orientation}`)
+                },
+                unlock: () => {
+                    calls.push('unlock')
+                },
+            })
+        })
+        await page.reload()
+        const calls = () => page.evaluate(() => (window as unknown as { orientationCalls: string[] }).orientationCalls)
+        // Not allowed: the portrait format of the manifest applies
+        await expect.poll(calls).toEqual(['unlock'])
+
+        await page.getByRole('button', { name: /Show navigation menu|Navigationsmenü/ }).tap()
+        await page.getByText('Einstellungen', { exact: true }).tap()
+        await page.getByTestId('allow-rotation').tap()
+        await expect.poll(calls).toEqual(['unlock', 'lock any'])
+        await page.reload()
+        await expect.poll(calls).toEqual(['lock any'])
     })
 })

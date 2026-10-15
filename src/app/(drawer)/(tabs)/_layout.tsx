@@ -70,6 +70,8 @@ const TabsNavigation = () => {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
+		// Also below the safe area padding
+		backgroundColor: colors.background,
 	},
 	row: {
 		flexDirection: 'row',

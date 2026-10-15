@@ -87,19 +87,27 @@ export const usePlayerLayout = () => {
 
 /**
  * Allows the device to turn the app into landscape format, off by default (the installed app stays in portrait format
- * as set in the manifest, see useOrientationLock). Only on the web, the native app is fixed to portrait format
- * (app.json). The layout does not depend on it, it follows the size of the window (see useControlsSide).
+ * as set in the manifest, see useOrientationLock). The layout does not depend on it, it follows the size of the window
+ * (see useControlsSide). Only offered where the browser can lock the orientation at all (touch devices with the
+ * Screen Orientation API), the native app is fixed to portrait format (app.json).
  */
 export const KEY_ALLOW_ROTATION = 'allowRotation'
-export const isRotationSupported = Platform.OS === 'web'
+export const isRotationSupported =
+    Platform.OS === 'web' &&
+    typeof screen !== 'undefined' &&
+    typeof (screen.orientation as { lock?: unknown } | undefined)?.lock === 'function' &&
+    typeof navigator !== 'undefined' &&
+    navigator.maxTouchPoints > 0
 export const useAllowRotation = () => {
     const [allow, setAllow] = useMMKVBoolean(KEY_ALLOW_ROTATION, preferences)
     return [isRotationSupported && (allow ?? false), setAllow] as const
 }
 
 /**
- * Side of the screen on which the player controls are shown next to the songs / clips in landscape format.
+ * Side of the screen on which the player controls are shown next to the songs / clips in landscape format. Only on
+ * the web, the native app is fixed to portrait format (app.json).
  */
+export const isLandscapeLayoutSupported = Platform.OS === 'web'
 export type ControlsSide = 'right' | 'left'
 export const KEY_CONTROLS_SIDE = 'controlsSide'
 export const useControlsSideSetting = () => {

@@ -567,29 +567,47 @@ test.describe('settings', () => {
         await expect(page.getByTestId('install-state')).toHaveText('Die App ist installiert.')
     })
 
-    test('shows the controls next to the lists in landscape format once allowed', async ({ page }) => {
-        // Not allowed by default: the controls stay below the lists, also in a wide window
-        await expect(page.getByTestId('player-side')).toHaveCount(0)
+    test('shows the controls next to the lists in a wide window, on the selected side', async ({ page }) => {
         const tabs = page.getByRole('tab', { name: 'Songs' })
-        const play = page.getByRole('button', { name: 'Play', exact: true })
-        expect((await play.boundingBox())!.y).toBeGreaterThan((await tabs.boundingBox())!.y + 100)
-
-        await openSettings(page)
-        await expect(page.getByTestId('controls-side-right')).toHaveCount(0)
-        await page.getByTestId('allow-rotation').click()
-        await openMenuItem(page, 'Musik')
         const side = page.getByTestId('player-side')
         await expect(side).toBeVisible()
         expect((await side.boundingBox())!.x).toBeGreaterThan((await tabs.boundingBox())!.x)
 
-        await openMenuItem(page, 'Einstellungen')
+        await openSettings(page)
         await page.getByTestId('controls-side-left').click()
         await openMenuItem(page, 'Musik')
         expect((await side.boundingBox())!.x).toBeLessThan((await tabs.boundingBox())!.x)
 
-        // Portrait format: below the lists again
+        // Portrait format: below the lists
         await page.setViewportSize({ width: 400, height: 800 })
         await expect(side).toHaveCount(0)
+        const play = page.getByRole('button', { name: 'Play', exact: true })
+        expect((await play.boundingBox())!.y).toBeGreaterThan((await tabs.boundingBox())!.y + 100)
+    })
+
+    test('locks the orientation to portrait format unless landscape format is allowed', async ({ page }) => {
+        // Records the calls, headless Chromium does not support locking
+        await page.addInitScript(() => {
+            const calls: string[] = []
+            Object.assign(window, { orientationCalls: calls })
+            Object.assign(ScreenOrientation.prototype, {
+                lock: async (orientation: string) => {
+                    calls.push(`lock ${orientation}`)
+                },
+                unlock: () => {
+                    calls.push('unlock')
+                },
+            })
+        })
+        await page.reload()
+        const calls = () => page.evaluate(() => (window as unknown as { orientationCalls: string[] }).orientationCalls)
+        await expect.poll(calls).toEqual(['lock portrait'])
+
+        await openSettings(page)
+        await page.getByTestId('allow-rotation').click()
+        await expect.poll(calls).toEqual(['lock portrait', 'unlock'])
+        await page.reload()
+        await expect.poll(calls).toEqual(['unlock'])
     })
 })
 

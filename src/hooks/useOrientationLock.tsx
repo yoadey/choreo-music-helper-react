@@ -6,7 +6,7 @@ type LockableOrientation = { lock?: (orientation: 'portrait') => Promise<void>; 
 /**
  * Keeps the app in portrait format unless landscape format is allowed in the settings. The manifest allows any
  * orientation, so the setting decides. Browsers only lock the orientation in an installed app or in full screen,
- * otherwise the page rotates anyway and the lists stay below the controls (see useControlsSide).
+ * otherwise the page rotates anyway and the landscape layout is used (see useControlsSide).
  */
 export const useOrientationLock = () => {
     const [allowRotation] = useAllowRotation()

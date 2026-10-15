@@ -81,6 +81,17 @@ const Display = () => {
                 onChange={setLayout}
                 testID="player-layout"
             />
+            <Text style={styles.label}>{t.controlsSide}</Text>
+            <Segmented
+                options={[
+                    { value: 'left', label: t.controlsSideLeft },
+                    { value: 'right', label: t.controlsSideRight },
+                ]}
+                value={controlsSide}
+                onChange={setControlsSide}
+                testID="controls-side"
+            />
+            <Text style={styles.hint}>{t.controlsSideHint}</Text>
             {isRotationSupported && (
                 <>
                     <View style={styles.row}>
@@ -96,20 +107,6 @@ const Display = () => {
                         />
                     </View>
                     <Text style={styles.hint}>{t.allowRotationHint}</Text>
-                    {allowRotation && (
-                        <>
-                            <Text style={styles.label}>{t.controlsSide}</Text>
-                            <Segmented
-                                options={[
-                                    { value: 'left', label: t.controlsSideLeft },
-                                    { value: 'right', label: t.controlsSideRight },
-                                ]}
-                                value={controlsSide}
-                                onChange={setControlsSide}
-                                testID="controls-side"
-                            />
-                        </>
-                    )}
                 </>
             )}
         </>

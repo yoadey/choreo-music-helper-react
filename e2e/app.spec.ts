@@ -1,4 +1,4 @@
-import { expect, Page, Route, test } from '@playwright/test'
+import { expect, Locator, Page, Route, test } from '@playwright/test'
 import path from 'node:path'
 
 const fixture = (name: string) => path.join(__dirname, 'fixtures', name)
@@ -37,6 +37,31 @@ const openMenuItem = async (page: Page, name: string) => {
     // The drawer item (the header of the open screen may have the same text)
     await page.getByRole('button', { name: new RegExp(`${name}$`) }).click()
 }
+
+/**
+ * Whether the database of the app (LokiJS, saved every 500 ms) was written to IndexedDB. A tab started before
+ * finds an empty database and sets it up again, which deletes it and so reloads the other tabs of the app.
+ */
+const databaseSaved = (page: Page) =>
+    page.evaluate(async () => {
+        // Only opened if it exists: opening creates it otherwise (without the object store of LokiJS)
+        if (!(await indexedDB.databases()).some((database) => database.name === 'loki.db')) return false
+        return new Promise<boolean>((resolve) => {
+            const request = indexedDB.open('loki.db')
+            request.onerror = () => resolve(false)
+            request.onsuccess = () => {
+                const database = request.result
+                const done = (saved: boolean) => {
+                    database.close()
+                    resolve(saved)
+                }
+                if (!database.objectStoreNames.contains('LokiIncrementalData')) return done(false)
+                const key = database.transaction('LokiIncrementalData').objectStore('LokiIncrementalData').getKey('loki')
+                key.onsuccess = () => done(key.result !== undefined)
+                key.onerror = () => done(false)
+            }
+        })
+    })
 
 const play = (page: Page) => page.getByRole('button', { name: 'Play', exact: true }).click()
 
@@ -413,6 +438,7 @@ test.describe('hosting', () => {
             await expect.poll(() => waitingWorker(page)).toBe(true)
 
             // Starting the app in a second tab must not activate it: the first tab still needs the old files
+            await expect.poll(() => databaseSaved(page)).toBe(true)
             const second = await context.newPage()
             await second.goto(page.url())
             await expect(second.getByTestId('open-file')).toBeVisible()
@@ -540,6 +566,28 @@ test.describe('settings', () => {
         await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')))
         await expect(page.getByTestId('install-state')).toHaveText('Die App ist installiert.')
     })
+
+    test('shows the controls next to the lists in a wide window, on the selected side', async ({ page }) => {
+        const tabs = page.getByRole('tab', { name: 'Songs' })
+        const side = page.getByTestId('player-side')
+        const x = async (locator: Locator) => (await locator.boundingBox())?.x ?? NaN
+        await expect(side).toBeVisible()
+        await expect.poll(async () => (await x(side)) > (await x(tabs))).toBe(true)
+
+        await openSettings(page)
+        // A computer cannot lock the orientation
+        await expect(page.getByTestId('allow-rotation')).toHaveCount(0)
+        await page.getByTestId('controls-side-left').click()
+        await openMenuItem(page, 'Musik')
+        await expect.poll(async () => (await x(side)) < (await x(tabs))).toBe(true)
+
+        // Portrait format: below the lists
+        await page.setViewportSize({ width: 400, height: 800 })
+        await expect(side).toHaveCount(0)
+        const play = page.getByRole('button', { name: 'Play', exact: true })
+        const y = async (locator: Locator) => (await locator.boundingBox())?.y ?? NaN
+        await expect.poll(async () => (await y(play)) > (await y(tabs)) + 100).toBe(true)
+    })
 })
 
 test.describe('backup', () => {
@@ -655,5 +703,32 @@ test.describe('settings on a phone', () => {
 
         await page.getByTestId('ui-scale-1').tap()
         await expect.poll(layoutWidth).toBe(360)
+    })
+
+    test('lets the app rotate only once landscape format is allowed', async ({ page }) => {
+        // Records the calls, headless Chromium does not support locking
+        await page.addInitScript(() => {
+            const calls: string[] = []
+            Object.assign(window, { orientationCalls: calls })
+            Object.assign(ScreenOrientation.prototype, {
+                lock: async (orientation: string) => {
+                    calls.push(`lock ${orientation}`)
+                },
+                unlock: () => {
+                    calls.push('unlock')
+                },
+            })
+        })
+        await page.reload()
+        const calls = () => page.evaluate(() => (window as unknown as { orientationCalls: string[] }).orientationCalls)
+        // Not allowed: the portrait format of the manifest applies
+        await expect.poll(calls).toEqual(['unlock'])
+
+        await page.getByRole('button', { name: /Show navigation menu|Navigationsmenü/ }).tap()
+        await page.getByText('Einstellungen', { exact: true }).tap()
+        await page.getByTestId('allow-rotation').tap()
+        await expect.poll(calls).toEqual(['unlock', 'lock any'])
+        await page.reload()
+        await expect.poll(calls).toEqual(['lock any'])
     })
 })

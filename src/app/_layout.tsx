@@ -4,6 +4,7 @@ import { restoreLastTrack } from '@/helpers/player'
 import { cleanUpStoredAudio } from '@/helpers/tracks'
 import { useKeepAwake } from '@/hooks/useKeepAwake'
 import { useMediaSession } from '@/hooks/useMediaSession'
+import { useOrientationLock } from '@/hooks/useOrientationLock'
 import { useSetupTrackPlayer } from '@/hooks/useSetupTrackPlayer'
 import { t } from '@/i18n'
 import { database } from '@/model/index.web'
@@ -36,6 +37,12 @@ const KeepAwake = () => {
     return null
 }
 
+/** Separate component, so changing the setting does not re-render the app. */
+const OrientationLock = () => {
+    useOrientationLock()
+    return null
+}
+
 const App = () => {
     const handleTrackPlayerLoaded = useCallback((success: boolean) => {
         SplashScreen.hideAsync()
@@ -64,6 +71,7 @@ const App = () => {
                 </ActionSheetProvider>
                 <MediaSession />
                 <KeepAwake />
+                <OrientationLock />
                 <StatusBar style="light" />
             </GestureHandlerRootView>
         </SafeAreaProvider>

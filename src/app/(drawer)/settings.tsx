@@ -5,10 +5,14 @@ import { getInstallPlatform, promptInstall, useInstallState } from '@/helpers/pw
 import { isKeepAwakeSupported } from '@/hooks/useKeepAwake'
 import { t } from '@/i18n'
 import {
+    isLandscapeLayoutSupported,
+    isRotationSupported,
     isUiScaleSupported,
     setUiScale,
     UI_SCALES,
+    useAllowRotation,
     useBackButtonMode,
+    useControlsSideSetting,
     useKeepAwakeSetting,
     usePlayerLayout,
     useUiScale,
@@ -51,11 +55,40 @@ const Segmented = <T extends string | number>({ options, value, onChange, testID
     </View>
 )
 
+type SwitchRowProps = {
+    label: string
+    hint: string
+    value: boolean
+    onChange: (value: boolean) => void
+    testID: string
+}
+
+const SwitchRow = ({ label, hint, value, onChange, testID }: SwitchRowProps) => (
+    <>
+        <View style={styles.row}>
+            <Text style={[styles.label, styles.flex]}>{label}</Text>
+            <Switch
+                testID={testID}
+                value={value}
+                onValueChange={onChange}
+                trackColor={{ true: colors.primary, false: colors.maximumTrackTintColor }}
+                thumbColor={colors.text}
+                // react-native-web colors the thumb of an enabled switch with its own prop
+                {...({ activeThumbColor: colors.text } as object)}
+                accessibilityLabel={label}
+            />
+        </View>
+        <Text style={styles.hint}>{hint}</Text>
+    </>
+)
+
 const scaleOptions = UI_SCALES.map((value) => ({ value, label: `${Math.round(value * 100)} %` }))
 
 const Display = () => {
     const scale = useUiScale()
     const [layout, setLayout] = usePlayerLayout()
+    const [allowRotation, setAllowRotation] = useAllowRotation()
+    const [controlsSide, setControlsSide] = useControlsSideSetting()
     return (
         <>
             {isUiScaleSupported && (
@@ -76,6 +109,30 @@ const Display = () => {
                 onChange={setLayout}
                 testID="player-layout"
             />
+            {isLandscapeLayoutSupported && (
+                <>
+                    <Text style={styles.label}>{t.controlsSide}</Text>
+                    <Segmented
+                        options={[
+                            { value: 'left', label: t.controlsSideLeft },
+                            { value: 'right', label: t.controlsSideRight },
+                        ]}
+                        value={controlsSide}
+                        onChange={setControlsSide}
+                        testID="controls-side"
+                    />
+                    <Text style={styles.hint}>{t.controlsSideHint}</Text>
+                </>
+            )}
+            {isRotationSupported && (
+                <SwitchRow
+                    label={t.allowRotation}
+                    hint={t.allowRotationHint}
+                    value={allowRotation}
+                    onChange={setAllowRotation}
+                    testID="allow-rotation"
+                />
+            )}
         </>
     )
 }
@@ -86,22 +143,13 @@ const Playback = () => {
     return (
         <>
             {isKeepAwakeSupported() && (
-                <>
-                    <View style={styles.row}>
-                        <Text style={[styles.label, styles.flex]}>{t.keepAwake}</Text>
-                        <Switch
-                            testID="keep-awake"
-                            value={keepAwake}
-                            onValueChange={setKeepAwake}
-                            trackColor={{ true: colors.primary, false: colors.maximumTrackTintColor }}
-                            thumbColor={colors.text}
-                            // react-native-web colors the thumb of an enabled switch with its own prop
-                            {...({ activeThumbColor: colors.text } as object)}
-                            accessibilityLabel={t.keepAwake}
-                        />
-                    </View>
-                    <Text style={styles.hint}>{t.keepAwakeHint}</Text>
-                </>
+                <SwitchRow
+                    label={t.keepAwake}
+                    hint={t.keepAwakeHint}
+                    value={keepAwake}
+                    onChange={setKeepAwake}
+                    testID="keep-awake"
+                />
             )}
             <Text style={styles.label}>{t.backButton}</Text>
             <Segmented

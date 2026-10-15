@@ -585,7 +585,7 @@ test.describe('settings', () => {
         expect((await play.boundingBox())!.y).toBeGreaterThan((await tabs.boundingBox())!.y + 100)
     })
 
-    test('locks the orientation to portrait format unless landscape format is allowed', async ({ page }) => {
+    test('lets the app rotate only once landscape format is allowed', async ({ page }) => {
         // Records the calls, headless Chromium does not support locking
         await page.addInitScript(() => {
             const calls: string[] = []
@@ -601,13 +601,14 @@ test.describe('settings', () => {
         })
         await page.reload()
         const calls = () => page.evaluate(() => (window as unknown as { orientationCalls: string[] }).orientationCalls)
-        await expect.poll(calls).toEqual(['lock portrait'])
+        // Not allowed: the portrait format of the manifest applies
+        await expect.poll(calls).toEqual(['unlock'])
 
         await openSettings(page)
         await page.getByTestId('allow-rotation').click()
-        await expect.poll(calls).toEqual(['lock portrait', 'unlock'])
+        await expect.poll(calls).toEqual(['unlock', 'lock any'])
         await page.reload()
-        await expect.poll(calls).toEqual(['unlock'])
+        await expect.poll(calls).toEqual(['lock any'])
     })
 })
 

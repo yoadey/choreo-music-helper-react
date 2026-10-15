@@ -5,12 +5,12 @@ import { getInstallPlatform, promptInstall, useInstallState } from '@/helpers/pw
 import { isKeepAwakeSupported } from '@/hooks/useKeepAwake'
 import { t } from '@/i18n'
 import {
+    isRotationSupported,
     isUiScaleSupported,
     setUiScale,
     UI_SCALES,
-    useBackButtonMode,
-    isRotationSupported,
     useAllowRotation,
+    useBackButtonMode,
     useControlsSideSetting,
     useKeepAwakeSetting,
     usePlayerLayout,

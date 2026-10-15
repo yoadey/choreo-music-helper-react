@@ -86,9 +86,9 @@ export const usePlayerLayout = () => {
 }
 
 /**
- * Allows the device to turn the app into landscape format, off by default (locked to portrait format where the
- * browser allows it, see useOrientationLock). Only on the web, the native app is fixed to portrait format (app.json).
- * The layout does not depend on it, it follows the size of the window (see useControlsSide).
+ * Allows the device to turn the app into landscape format, off by default (the installed app stays in portrait format
+ * as set in the manifest, see useOrientationLock). Only on the web, the native app is fixed to portrait format
+ * (app.json). The layout does not depend on it, it follows the size of the window (see useControlsSide).
  */
 export const KEY_ALLOW_ROTATION = 'allowRotation'
 export const isRotationSupported = Platform.OS === 'web'

@@ -6,11 +6,14 @@ import { t } from '@/i18n'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Tabs } from 'expo-router'
 import { StyleSheet, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 const TabsNavigation = () => {
 	useNavigationOpenFile()
 	// Landscape format: the controls on one side, the lists on the other
 	const controlsSide = useControlsSide()
+	// Rotated phones: not below the notch or the rounded corners at the sides (the header keeps clear of them itself)
+	const { left, right } = useSafeAreaInsets()
 
 	return (
 		<View
@@ -18,6 +21,7 @@ const TabsNavigation = () => {
 				styles.container,
 				controlsSide === 'right' && styles.row,
 				controlsSide === 'left' && styles.rowReverse,
+				{ paddingLeft: left, paddingRight: right },
 			]}
 		>
 			<View style={styles.lists}>

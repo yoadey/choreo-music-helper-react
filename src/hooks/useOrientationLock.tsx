@@ -1,12 +1,13 @@
 import { useAllowRotation } from '@/store/settings'
 import { useEffect } from 'react'
 
-type LockableOrientation = { lock?: (orientation: 'portrait') => Promise<void>; unlock?: () => void }
+type LockableOrientation = { lock?: (orientation: 'any') => Promise<void>; unlock?: () => void }
 
 /**
- * Keeps the app in portrait format unless landscape format is allowed in the settings. The manifest allows any
- * orientation, so the setting decides. Browsers only lock the orientation in an installed app or in full screen,
- * otherwise the page rotates anyway and the landscape layout is used (see useControlsSide).
+ * Lets the app rotate once landscape format is allowed in the settings. The manifest fixes the installed app to
+ * portrait format; locking to "any" overrides it, unlocking returns to it. Browsers only lock the orientation in an
+ * installed app or in full screen, otherwise the page rotates anyway and the landscape layout is used (see
+ * useControlsSide).
  */
 export const useOrientationLock = () => {
     const [allowRotation] = useAllowRotation()
@@ -14,8 +15,8 @@ export const useOrientationLock = () => {
         if (typeof screen === 'undefined' || !screen.orientation) return
         const orientation = screen.orientation as unknown as LockableOrientation
         try {
-            if (allowRotation) orientation.unlock?.()
-            else orientation.lock?.('portrait')?.catch(() => {})
+            if (allowRotation) orientation.lock?.('any')?.catch(() => {})
+            else orientation.unlock?.()
         } catch {
             // Not supported (e.g. desktop browsers)
         }

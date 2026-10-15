@@ -540,6 +540,31 @@ test.describe('settings', () => {
         await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')))
         await expect(page.getByTestId('install-state')).toHaveText('Die App ist installiert.')
     })
+
+    test('shows the controls next to the lists in landscape format once allowed', async ({ page }) => {
+        // Not allowed by default: the controls stay below the lists, also in a wide window
+        await expect(page.getByTestId('player-side')).toHaveCount(0)
+        const tabs = page.getByRole('tab', { name: 'Songs' })
+        const play = page.getByRole('button', { name: 'Play', exact: true })
+        expect((await play.boundingBox())!.y).toBeGreaterThan((await tabs.boundingBox())!.y + 100)
+
+        await openSettings(page)
+        await expect(page.getByTestId('controls-side-right')).toHaveCount(0)
+        await page.getByTestId('allow-rotation').click()
+        await openMenuItem(page, 'Musik')
+        const side = page.getByTestId('player-side')
+        await expect(side).toBeVisible()
+        expect((await side.boundingBox())!.x).toBeGreaterThan((await tabs.boundingBox())!.x)
+
+        await openMenuItem(page, 'Einstellungen')
+        await page.getByTestId('controls-side-left').click()
+        await openMenuItem(page, 'Musik')
+        expect((await side.boundingBox())!.x).toBeLessThan((await tabs.boundingBox())!.x)
+
+        // Portrait format: below the lists again
+        await page.setViewportSize({ width: 400, height: 800 })
+        await expect(side).toHaveCount(0)
+    })
 })
 
 test.describe('backup', () => {

@@ -85,12 +85,35 @@ export const usePlayerLayout = () => {
     return [layout === 'compact' ? 'compact' : 'large', (value: PlayerLayout) => setLayout(value)] as const
 }
 
+/**
+ * Allows turning the app into landscape format, off by default (the app stays in portrait format). Only on the web,
+ * the native app is fixed to portrait format (app.json).
+ */
+export const KEY_ALLOW_ROTATION = 'allowRotation'
+export const isRotationSupported = Platform.OS === 'web'
+export const useAllowRotation = () => {
+    const [allow, setAllow] = useMMKVBoolean(KEY_ALLOW_ROTATION, preferences)
+    return [isRotationSupported && (allow ?? false), setAllow] as const
+}
+
+/**
+ * Side of the screen on which the player controls are shown next to the songs / clips in landscape format.
+ */
+export type ControlsSide = 'right' | 'left'
+export const KEY_CONTROLS_SIDE = 'controlsSide'
+export const useControlsSideSetting = () => {
+    const [side, setSide] = useMMKVString(KEY_CONTROLS_SIDE, preferences)
+    return [side === 'left' ? 'left' : 'right', (value: ControlsSide) => setSide(value)] as const
+}
+
 /** Settings that are included in a backup (the loop refers to clips and is not part of it). */
 export const SETTINGS_KEYS = [
     KEY_UI_SCALE,
     KEY_KEEP_AWAKE,
     KEY_BACK_BUTTON,
     KEY_PLAYER_LAYOUT,
+    KEY_ALLOW_ROTATION,
+    KEY_CONTROLS_SIDE,
     KEY_SPEED,
     KEY_GLOBAL_SPEED_ONLY,
     KEY_LEAD_IN_DURATION,

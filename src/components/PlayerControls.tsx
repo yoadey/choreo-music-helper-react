@@ -13,6 +13,8 @@ import { PlayerProgressBar } from './PlayerProgressbar'
 
 type PlayerControlsProps = {
 	style?: ViewStyle
+	/** Landscape format: side of the screen on which the controls are shown next to the lists */
+	side?: 'left' | 'right' | null
 }
 
 type PlayerButtonProps = {
@@ -21,8 +23,14 @@ type PlayerButtonProps = {
 	iconSize?: number
 }
 
-export const PlayerControls = ({ style }: PlayerControlsProps) => {
+export const PlayerControls = ({ style, side }: PlayerControlsProps) => {
 	const [layout] = usePlayerLayout()
+	const containerStyle = [
+		styles.container,
+		side === 'right' && [styles.sidePanel, styles.sidePanelRight],
+		side === 'left' && [styles.sidePanel, styles.sidePanelLeft],
+		style,
+	]
 	const compact = layout === 'compact'
 	// Compact: one row of smaller buttons for small screens
 	const iconSize = compact ? 24 : 30
@@ -65,7 +73,7 @@ export const PlayerControls = ({ style }: PlayerControlsProps) => {
 
 	if (compact) {
 		return (
-			<View style={[styles.container, style]} testID="player-compact">
+			<View style={containerStyle} testID="player-compact">
 				<PlayerProgressBar style={{ marginTop: 6, paddingHorizontal: 10 }} />
 				<View style={styles.row}>
 					<LoopButton iconSize={26} buttonStyle={buttonStyle} />
@@ -78,7 +86,7 @@ export const PlayerControls = ({ style }: PlayerControlsProps) => {
 	}
 
 	return (
-		<View style={[styles.container, style]}>
+		<View style={containerStyle} testID={side ? 'player-side' : undefined}>
 			<View style={styles.row}>
 				<LoopButton />
 				<PlayerAddClipButton size={32} buttonStyle={styles.button} />
@@ -156,6 +164,22 @@ const styles = StyleSheet.create({
 	container: {
 		width: '100%',
 		backgroundColor: colors.backgroundSecondary,
+	},
+	// Next to the lists: full height, the controls vertically centered
+	sidePanel: {
+		width: '42%',
+		minWidth: 260,
+		maxWidth: 440,
+		justifyContent: 'center',
+		gap: 8,
+		paddingVertical: 8,
+		borderColor: colors.backgroundHighlighted,
+	},
+	sidePanelRight: {
+		borderLeftWidth: 1,
+	},
+	sidePanelLeft: {
+		borderRightWidth: 1,
 	},
 	row: {
 		flexDirection: 'row',

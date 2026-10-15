@@ -9,6 +9,9 @@ import {
     setUiScale,
     UI_SCALES,
     useBackButtonMode,
+    isRotationSupported,
+    useAllowRotation,
+    useControlsSideSetting,
     useKeepAwakeSetting,
     usePlayerLayout,
     useUiScale,
@@ -56,6 +59,8 @@ const scaleOptions = UI_SCALES.map((value) => ({ value, label: `${Math.round(val
 const Display = () => {
     const scale = useUiScale()
     const [layout, setLayout] = usePlayerLayout()
+    const [allowRotation, setAllowRotation] = useAllowRotation()
+    const [controlsSide, setControlsSide] = useControlsSideSetting()
     return (
         <>
             {isUiScaleSupported && (
@@ -76,6 +81,37 @@ const Display = () => {
                 onChange={setLayout}
                 testID="player-layout"
             />
+            {isRotationSupported && (
+                <>
+                    <View style={styles.row}>
+                        <Text style={[styles.label, styles.flex]}>{t.allowRotation}</Text>
+                        <Switch
+                            testID="allow-rotation"
+                            value={allowRotation}
+                            onValueChange={setAllowRotation}
+                            trackColor={{ true: colors.primary, false: colors.maximumTrackTintColor }}
+                            thumbColor={colors.text}
+                            {...({ activeThumbColor: colors.text } as object)}
+                            accessibilityLabel={t.allowRotation}
+                        />
+                    </View>
+                    <Text style={styles.hint}>{t.allowRotationHint}</Text>
+                    {allowRotation && (
+                        <>
+                            <Text style={styles.label}>{t.controlsSide}</Text>
+                            <Segmented
+                                options={[
+                                    { value: 'left', label: t.controlsSideLeft },
+                                    { value: 'right', label: t.controlsSideRight },
+                                ]}
+                                value={controlsSide}
+                                onChange={setControlsSide}
+                                testID="controls-side"
+                            />
+                        </>
+                    )}
+                </>
+            )}
         </>
     )
 }

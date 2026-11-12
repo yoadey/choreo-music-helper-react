@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# Installs a build of the web app in the current directory: the artifact web-<commit>.zip of a CI run
+# (.github/workflows/ci.yml, job web-artifact), which has to be copied into the directory first. The files of the
+# installed version are moved into a backup first, other files in the directory (e.g. this script, .htaccess)
+# are not touched.
+#
+#   ./deploy.sh [file.zip]        install the zip file (default: the newest *.zip in the current directory)
+#   ./deploy.sh list              list the backups (newest first)
+#   ./deploy.sh restore [backup]  restore a backup (default: the newest one)
+#
+# Requires bash and unzip. Backups are kept in .deploy-backups, the newest 5 are kept.
+set -euo pipefail
+
+BACKUP_DIR=.deploy-backups
+KEEP_BACKUPS=5
+# Names of the files and directories of the installed version
+INSTALLED=$BACKUP_DIR/installed
+
+die() {
+    echo "Error: $*" >&2
+    exit 1
+}
+
+command -v unzip > /dev/null || die "unzip is not installed"
+mkdir -p "$BACKUP_DIR"
+# The temporary directory is created here, /tmp may not be available (e.g. in a chroot of a web hosting)
+TEMP=$BACKUP_DIR/tmp-$$
+trap 'rm -rf "$TEMP"' EXIT
+
+# Prints the newest zip file in the current directory
+newest_zip() {
+    local file newest=""
+    for file in *.zip; do
+        [[ -f "$file" ]] || continue
+        if [[ -z "$newest" || "$file" -nt "$newest" ]]; then newest=$file; fi
+    done
+    echo "$newest"
+}
+
+# Prints the names of the entries of a directory, one per line
+entries() {
+    ls -A1 "$1"
+}
+
+backups() {
+    # Backup names start with the date, sorted names are sorted by age
+    local backup
+    for backup in "$BACKUP_DIR"/[0-9]*-[0-9]*; do
+        [[ -d "$backup" ]] && basename "$backup"
+    done | sort -r
+}
+
+# Moves the files of the installed version into a new backup. Without a list of the installed files (first
+# installation), the files with the names of the new version ($1) are moved.
+backup_current() {
+    local name entry
+    name=$(date +%Y%m%d-%H%M%S)
+    [[ -e "$BACKUP_DIR/$name" ]] && die "backup $name exists already, try again in a second"
+    mkdir "$BACKUP_DIR/$name"
+    if [[ -f "$INSTALLED" ]]; then
+        cat "$INSTALLED"
+    else
+        entries "$1"
+    fi | while IFS= read -r entry; do
+        # Never moves the backups or this script, whatever the list contains
+        [[ -n "$entry" && "$entry" != "$BACKUP_DIR" && "$entry" != "$(basename "$0")" && "$entry" != */* ]] || continue
+        if [[ -e "$entry" || -L "$entry" ]]; then mv "$entry" "$BACKUP_DIR/$name/"; fi
+    done
+    echo "Backup of the current version: $BACKUP_DIR/$name"
+}
+
+# Copies the entries of a directory into the current directory and remembers them as the installed version
+install_from() {
+    local entry
+    entries "$1" | while IFS= read -r entry; do
+        cp -a "$1/$entry" .
+    done
+    entries "$1" > "$INSTALLED"
+}
+
+prune_backups() {
+    local old
+    backups | tail -n +$((KEEP_BACKUPS + 1)) | while IFS= read -r old; do
+        rm -rf "${BACKUP_DIR:?}/$old"
+    done
+}
+
+update() {
+    local zip=${1:-}
+    [[ -n "$zip" ]] || zip=$(newest_zip)
+    [[ -n "$zip" ]] || die "no zip file in $(pwd), copy the artifact web-<commit>.zip of a CI run here first"
+    [[ -f "$zip" ]] || die "$zip not found"
+    echo "Installing $zip"
+    mkdir -p "$TEMP/web"
+    unzip -q "$zip" -d "$TEMP/web"
+    [[ -f "$TEMP/web/index.html" ]] || die "$zip contains no index.html, it is not a build of the app"
+    backup_current "$TEMP/web"
+    install_from "$TEMP/web"
+    prune_backups
+    echo "Installed $zip in $(pwd)"
+}
+
+list() {
+    backups
+}
+
+restore() {
+    local name=${1:-}
+    [[ -n "$name" ]] || name=$(backups | head -n 1)
+    [[ -n "$name" ]] || die "there is no backup"
+    [[ "$name" != */* && -d "$BACKUP_DIR/$name" ]] || die "backup $name not found, see: $0 list"
+    # Copied first: pruning after the backup of the current version could remove it
+    cp -a "$BACKUP_DIR/$name" "$TEMP"
+    backup_current "$TEMP"
+    install_from "$TEMP"
+    prune_backups
+    echo "Restored backup $name in $(pwd)"
+}
+
+case ${1:-} in
+    list) list ;;
+    restore) restore "${2:-}" ;;
+    -h | --help | help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *.zip | "") update "${1:-}" ;;
+    *) die "unknown command $1, see: $0 --help" ;;
+esac

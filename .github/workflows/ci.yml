@@ -49,8 +49,10 @@ jobs:
 
   # Static files for an own web server, served from the root of the domain (EXPO_BASE_URL empty).
   # Relative paths are not possible: Expo references the scripts absolutely and the router needs the base path
-  # to match routes. Unzip the artifact into the web root of the server.
+  # to match routes. Unzip the artifact into the web root of the server, or let scripts/deploy.sh do it (with a
+  # backup of the installed version). Only builds that pass the tests are uploaded.
   web-artifact:
+    needs: [check, e2e]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

@@ -2,9 +2,14 @@ import { database } from '@/model/index.web'
 import TrackWithClips from '@/model/track'
 import { useEffect, useState } from 'react'
 
-/** All tracks. Updates when tracks are added, removed or their title/color changes. */
-export const useTracks = () => {
-    const [tracks, setTracks] = useState<TrackWithClips[]>([])
+const NO_TRACKS: TrackWithClips[] = []
+
+/**
+ * All tracks, undefined until they are read from the database. Updates when tracks are added, removed or their
+ * title/color changes.
+ */
+export const useLoadedTracks = () => {
+    const [tracks, setTracks] = useState<TrackWithClips[]>()
 
     useEffect(() => {
         const subscription = database
@@ -17,3 +22,6 @@ export const useTracks = () => {
 
     return tracks
 }
+
+/** All tracks (none until they are read). Updates when tracks are added, removed or their title/color changes. */
+export const useTracks = () => useLoadedTracks() ?? NO_TRACKS

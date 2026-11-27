@@ -3,7 +3,7 @@ import { createBackup, isBackupSupported, pickBackupFile, restoreBackup, restore
 import { confirmAction, showMessage } from '@/helpers/dialogs'
 import { getInstallPlatform, promptInstall, useInstallState } from '@/helpers/pwa'
 import { isKeepAwakeSupported } from '@/hooks/useKeepAwake'
-import { useTracks } from '@/hooks/useTracks'
+import { useLoadedTracks } from '@/hooks/useTracks'
 import { t } from '@/i18n'
 import {
     isLandscapeLayoutSupported,
@@ -195,6 +195,7 @@ const BackupSelection = ({ tracks, selected, onChange, onSave, onCancel, busy }:
                 </Text>
                 <Pressable
                     onPress={() => onChange(allSelected ? new Set() : new Set(tracks.map((track) => track.id)))}
+                    disabled={busy}
                     accessibilityRole="button"
                     testID="backup-select-all"
                     hitSlop={8}
@@ -210,6 +211,7 @@ const BackupSelection = ({ tracks, selected, onChange, onSave, onCancel, busy }:
                             key={track.id}
                             style={styles.selectionItem}
                             onPress={() => toggle(track.id)}
+                            disabled={busy}
                             accessibilityRole="checkbox"
                             aria-checked={checked}
                             aria-label={track.title}
@@ -257,10 +259,11 @@ const Backup = () => {
     const [busy, setBusy] = useState(false)
     // The songs chosen for the backup while the selection is shown
     const [selection, setSelection] = useState<Set<string>>()
-    const allTracks = useTracks()
+    // Undefined until the songs are read: without them it is not known whether there is anything to choose
+    const allTracks = useLoadedTracks()
     const tracks = useMemo(
         () =>
-            allTracks
+            (allTracks ?? [])
                 .map((track) => ({ id: track.id, title: track.title }))
                 .sort((a, b) => a.title.localeCompare(b.title)),
         [allTracks],
@@ -289,7 +292,11 @@ const Backup = () => {
             }
         })
     // Without songs there is nothing to choose, only the settings are saved
-    const create = () => (tracks.length === 0 ? save() : setSelection(new Set(tracks.map((track) => track.id))))
+    const create = () => {
+        if (!allTracks) return
+        if (tracks.length === 0) save()
+        else setSelection(new Set(tracks.map((track) => track.id)))
+    }
     const saveSelection = () => {
         // Songs removed while the selection was shown are left out
         const ids = tracks.filter((track) => selection?.has(track.id)).map((track) => track.id)
@@ -318,7 +325,8 @@ const Backup = () => {
             }
         })
     }
-    if (selection) {
+    // If all songs were removed while the selection was shown, only the settings can be saved
+    if (selection && tracks.length > 0) {
         return (
             <BackupSelection
                 tracks={tracks}
@@ -334,7 +342,13 @@ const Backup = () => {
         <>
             <Text style={styles.hint}>{t.backupHint}</Text>
             <View style={styles.buttons}>
-                <Pressable style={styles.button} onPress={create} disabled={busy} accessibilityRole="button" testID="create-backup">
+                <Pressable
+                    style={[styles.button, !allTracks && styles.disabledButton]}
+                    onPress={create}
+                    disabled={busy || !allTracks}
+                    accessibilityRole="button"
+                    testID="create-backup"
+                >
                     <MaterialCommunityIcons name="content-save-outline" size={20} color={colors.text} />
                     <Text style={styles.buttonText}>{t.createBackup}</Text>
                 </Pressable>

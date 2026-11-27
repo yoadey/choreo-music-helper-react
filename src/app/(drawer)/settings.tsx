@@ -3,6 +3,7 @@ import { createBackup, isBackupSupported, pickBackupFile, restoreBackup, restore
 import { confirmAction, showMessage } from '@/helpers/dialogs'
 import { getInstallPlatform, promptInstall, useInstallState } from '@/helpers/pwa'
 import { isKeepAwakeSupported } from '@/hooks/useKeepAwake'
+import { useTracks } from '@/hooks/useTracks'
 import { t } from '@/i18n'
 import {
     isLandscapeLayoutSupported,
@@ -18,7 +19,7 @@ import {
     useUiScale,
 } from '@/store/settings'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
-import React, { ReactNode, useState } from 'react'
+import React, { ReactNode, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 
 const Section = ({ title, children }: { title: string; children: ReactNode }) => (
@@ -166,8 +167,104 @@ const Playback = () => {
     )
 }
 
+type BackupSelectionProps = {
+    tracks: readonly { id: string; title: string }[]
+    selected: ReadonlySet<string>
+    onChange: (selected: Set<string>) => void
+    onSave: () => void
+    onCancel: () => void
+    busy: boolean
+}
+
+/** Lets the user choose the songs of the backup */
+const BackupSelection = ({ tracks, selected, onChange, onSave, onCancel, busy }: BackupSelectionProps) => {
+    const count = tracks.filter((track) => selected.has(track.id)).length
+    const allSelected = count === tracks.length
+    const toggle = (id: string) => {
+        const next = new Set(selected)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        onChange(next)
+    }
+    return (
+        <View style={styles.selection} testID="backup-selection">
+            <Text style={styles.label}>{t.backupSelectSongs}</Text>
+            <View style={styles.row}>
+                <Text style={[styles.hint, styles.flex]} testID="backup-selected-count">
+                    {t.backupSelected(count, tracks.length)}
+                </Text>
+                <Pressable
+                    onPress={() => onChange(allSelected ? new Set() : new Set(tracks.map((track) => track.id)))}
+                    accessibilityRole="button"
+                    testID="backup-select-all"
+                    hitSlop={8}
+                >
+                    <Text style={styles.link}>{allSelected ? t.backupSelectNone : t.backupSelectAll}</Text>
+                </Pressable>
+            </View>
+            <ScrollView style={styles.selectionList} nestedScrollEnabled>
+                {tracks.map((track, index) => {
+                    const checked = selected.has(track.id)
+                    return (
+                        <Pressable
+                            key={track.id}
+                            style={styles.selectionItem}
+                            onPress={() => toggle(track.id)}
+                            accessibilityRole="checkbox"
+                            aria-checked={checked}
+                            aria-label={track.title}
+                            testID={`backup-song-${index}`}
+                        >
+                            <MaterialCommunityIcons
+                                name={checked ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                                size={22}
+                                color={checked ? colors.primary : colors.textMuted}
+                            />
+                            <Text style={[styles.text, styles.flex]} numberOfLines={1}>
+                                {track.title}
+                            </Text>
+                        </Pressable>
+                    )
+                })}
+            </ScrollView>
+            <View style={styles.buttons}>
+                <Pressable
+                    style={[styles.button, (busy || count === 0) && styles.disabledButton]}
+                    onPress={onSave}
+                    disabled={busy || count === 0}
+                    accessibilityRole="button"
+                    testID="save-backup"
+                >
+                    <MaterialCommunityIcons name="content-save-outline" size={20} color={colors.text} />
+                    <Text style={styles.buttonText}>{t.saveBackup}</Text>
+                </Pressable>
+                <Pressable
+                    style={[styles.button, styles.secondaryButton]}
+                    onPress={onCancel}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    testID="cancel-backup"
+                >
+                    <Text style={styles.buttonText}>{t.cancel}</Text>
+                </Pressable>
+                {busy && <ActivityIndicator color={colors.text} />}
+            </View>
+        </View>
+    )
+}
+
 const Backup = () => {
     const [busy, setBusy] = useState(false)
+    // The songs chosen for the backup while the selection is shown
+    const [selection, setSelection] = useState<Set<string>>()
+    const allTracks = useTracks()
+    const tracks = useMemo(
+        () =>
+            allTracks
+                .map((track) => ({ id: track.id, title: track.title }))
+                .sort((a, b) => a.title.localeCompare(b.title)),
+        [allTracks],
+    )
     const run = async (action: () => Promise<void>) => {
         setBusy(true)
         try {
@@ -176,10 +273,11 @@ const Backup = () => {
             setBusy(false)
         }
     }
-    const create = () =>
+    const save = (trackIds?: string[]) =>
         run(async () => {
             try {
-                const { songs, missingAudio } = await createBackup()
+                const { songs, missingAudio } = await createBackup(trackIds)
+                setSelection(undefined)
                 showMessage(
                     missingAudio > 0
                         ? `${t.backupCreated(songs)} ${t.backupMissingAudio(missingAudio)}`
@@ -190,6 +288,13 @@ const Backup = () => {
                 showMessage(t.backupFailed)
             }
         })
+    // Without songs there is nothing to choose, only the settings are saved
+    const create = () => (tracks.length === 0 ? save() : setSelection(new Set(tracks.map((track) => track.id))))
+    const saveSelection = () => {
+        // Songs removed while the selection was shown are left out
+        const ids = tracks.filter((track) => selection?.has(track.id)).map((track) => track.id)
+        if (ids.length > 0) save(ids)
+    }
     const restore = async () => {
         // Not busy while the picker is open: some browsers never report a cancelled picker
         let file: Blob | undefined
@@ -212,6 +317,18 @@ const Backup = () => {
                 showMessage(restoreErrorMessage(error))
             }
         })
+    }
+    if (selection) {
+        return (
+            <BackupSelection
+                tracks={tracks}
+                selected={selection}
+                onChange={setSelection}
+                onSave={saveSelection}
+                onCancel={() => setSelection(undefined)}
+                busy={busy}
+            />
+        )
     }
     return (
         <>
@@ -384,6 +501,30 @@ const styles = StyleSheet.create({
     },
     secondaryButton: {
         backgroundColor: colors.modal,
+    },
+    disabledButton: {
+        opacity: 0.5,
+    },
+    link: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: colors.primary,
+    },
+    selection: {
+        gap: 10,
+    },
+    selectionList: {
+        maxHeight: 320,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: colors.maximumTrackTintColor,
+    },
+    selectionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
     },
     button: {
         flexDirection: 'row',

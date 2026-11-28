@@ -5,8 +5,6 @@ import { getInstallPlatform, promptInstall, useInstallState } from '@/helpers/pw
 import { isKeepAwakeSupported } from '@/hooks/useKeepAwake'
 import { useLoadedTracks } from '@/hooks/useTracks'
 import { t } from '@/i18n'
-import { database } from '@/model/index.web'
-import TrackWithClips from '@/model/track'
 import {
     isLandscapeLayoutSupported,
     isRotationSupported,
@@ -263,11 +261,8 @@ const Backup = () => {
     const [busy, setBusy] = useState(false)
     // The songs left out of the backup while the selection is shown, undefined while it is not shown
     const [excluded, setExcluded] = useState<Set<string>>()
-    // Undefined until the songs are read: without them it is not known whether there is anything to choose
-    const loadedTracks = useLoadedTracks()
-    // Read when the backup is created before the list was read (it may fail and be read again for long)
-    const [readTracks, setReadTracks] = useState<TrackWithClips[]>()
-    const allTracks = loadedTracks ?? readTracks
+    // Undefined until the songs are read
+    const allTracks = useLoadedTracks()
     const tracks = useMemo(
         () =>
             (allTracks ?? [])
@@ -300,21 +295,12 @@ const Backup = () => {
             }
         })
     // Without songs there is nothing to choose, only the settings are saved
-    const create = async () => {
-        let count = allTracks?.length
-        if (count === undefined) {
-            try {
-                const read = await database.get<TrackWithClips>('tracks').query().fetch()
-                setReadTracks(read)
-                count = read.length
-            } catch (error) {
-                console.warn('Could not read the songs for the backup', error)
-                showMessage(t.backupFailed)
-                return
-            }
-        }
+    const create = () => {
+        // Until the songs are read (or if they cannot be read) all songs are saved, as without a selection: the
+        // backup reads them itself and reports a failure
+        if (!allTracks) save()
         // Not all songs: a song the list does not show yet is not saved without asking
-        if (count === 0) save([])
+        else if (allTracks.length === 0) save([])
         else setExcluded(new Set())
     }
     const saveSelection = () => {

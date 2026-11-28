@@ -46,6 +46,7 @@ describe('useLoadedTracks', () => {
     it('is undefined until the songs are read and reads them again after a failure', async () => {
         jest.useFakeTimers()
         jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+        mockTrackQueries.length = 0
         try {
             const { useLoadedTracks } = require('../useTracks') as typeof import('../useTracks')
             const { result, unmount } = renderHook(() => useLoadedTracks())
@@ -59,6 +60,9 @@ describe('useLoadedTracks', () => {
             expect(result.current).toEqual([{ id: 't1' }])
             unmount()
             expect(mockTrackQueries[1].observed).toBe(false)
+            // No retry after unmounting
+            act(() => jest.advanceTimersByTime(60_000))
+            expect(mockTrackQueries).toHaveLength(2)
         } finally {
             jest.useRealTimers()
             jest.restoreAllMocks()

@@ -19,22 +19,27 @@ export const useLoadedTracks = () => {
         let subscription: Subscription | undefined
         let retry: ReturnType<typeof setTimeout> | undefined
         let delay = RETRY_DELAY
+        const retryLater = (error: unknown) => {
+            console.warn(`Could not read the songs, trying again in ${delay / 1000}s`, error)
+            retry = setTimeout(subscribe, delay)
+            delay = Math.min(delay * 2, MAX_RETRY_DELAY)
+        }
         const subscribe = () => {
-            subscription = database
-                .get<TrackWithClips>('tracks')
-                .query()
-                .observeWithColumns(['title', 'color'])
-                .subscribe({
-                    next: (tracks) => {
-                        delay = RETRY_DELAY
-                        setTracks(tracks)
-                    },
-                    error: (error) => {
-                        console.warn(`Could not read the songs, trying again in ${delay / 1000}s`, error)
-                        retry = setTimeout(subscribe, delay)
-                        delay = Math.min(delay * 2, MAX_RETRY_DELAY)
-                    },
-                })
+            try {
+                subscription = database
+                    .get<TrackWithClips>('tracks')
+                    .query()
+                    .observeWithColumns(['title', 'color'])
+                    .subscribe({
+                        next: (tracks) => {
+                            delay = RETRY_DELAY
+                            setTracks(tracks)
+                        },
+                        error: retryLater,
+                    })
+            } catch (error) {
+                retryLater(error)
+            }
         }
         subscribe()
         return () => {

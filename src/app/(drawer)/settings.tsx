@@ -202,10 +202,10 @@ const BackupSelection = ({ tracks, excluded, onChange, onSave, onCancel, busy }:
                     testID="backup-select-all"
                     hitSlop={8}
                 >
-                    <Text style={styles.link}>{allSelected ? t.backupSelectNone : t.backupSelectAll}</Text>
+                    <Text style={[styles.link, busy && styles.disabledButton]}>{allSelected ? t.backupSelectNone : t.backupSelectAll}</Text>
                 </Pressable>
             </View>
-            <ScrollView style={styles.selectionList} nestedScrollEnabled>
+            <ScrollView style={[styles.selectionList, busy && styles.disabledButton]} nestedScrollEnabled>
                 {tracks.map((track, index) => {
                     const checked = !excluded.has(track.id)
                     return (

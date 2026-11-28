@@ -32,12 +32,12 @@ const download = (blob: Blob, fileName: string) => {
 }
 
 /**
- * Saves all songs with their clips, audio files and the settings as one file. Rejects if an audio file cannot be
- * read (a backup must not lose audio silently). Returns the number of songs and of songs whose file is missing
- * on this device (they cannot be played here either).
+ * Saves the songs with their clips, audio files and the settings as one file: the songs with the given ids, all
+ * songs without ids. Rejects if an audio file cannot be read (a backup must not lose audio silently). Returns the
+ * number of songs and of songs whose file is missing on this device (they cannot be played here either).
  */
-export const createBackup = async () => {
-    const tracks = await readAllTracks(database)
+export const createBackup = async (trackIds?: readonly string[]) => {
+    const tracks = await readAllTracks(database, trackIds)
     const settings: Record<string, string> = {}
     for (const key of SETTINGS_KEYS) {
         const value = preferences.getString(key)

@@ -612,6 +612,7 @@ test.describe('backup', () => {
 
         const download = page.waitForEvent('download')
         await page.getByTestId('create-backup').click()
+        await page.getByTestId('save-backup').click()
         const file = await (await download).path()
         expect((await download).suggestedFilename()).toMatch(/^choreo-music-helper-\d{4}-\d{2}-\d{2}\.choreobackup$/)
         await expect.poll(() => messages).toContain('Die Sicherung mit 1 Song wurde heruntergeladen.')
@@ -645,6 +646,55 @@ test.describe('backup', () => {
         await expect(page.getByTestId('clip-2')).toContainText('0:08.0')
     })
 
+    test('saves only the selected songs', async ({ page }) => {
+        const messages = dialogMessages(page)
+        await importFile(page, 'chapters.mp3')
+        await expect(page.getByTestId('track-0')).toContainText('Testsong')
+        await importFile(page, 'plain.mp3')
+        await expect(page.getByTestId(/^track-\d+$/)).toHaveCount(2)
+        await openMenuItem(page, 'Einstellungen')
+
+        await page.getByTestId('create-backup').click()
+        await expect(page.getByTestId('backup-selected-count')).toHaveText('2 von 2 ausgewählt')
+        // Nothing selected: nothing to save
+        await page.getByTestId('backup-select-all').click()
+        await expect(page.getByTestId('backup-selected-count')).toHaveText('0 von 2 ausgewählt')
+        await expect(page.getByTestId('save-backup')).toBeDisabled()
+        // Cancel keeps nothing
+        await page.getByTestId('cancel-backup').click()
+        await expect(page.getByTestId('backup-selection')).toHaveCount(0)
+
+        await page.getByTestId('create-backup').click()
+        const chosen = page.getByRole('checkbox', { name: 'Testsong' })
+        await page.getByRole('checkbox').filter({ hasNot: page.getByText('Testsong') }).click()
+        await expect(chosen).toHaveAttribute('aria-checked', 'true')
+        await expect(page.getByTestId('backup-selected-count')).toHaveText('1 von 2 ausgewählt')
+        const download = page.waitForEvent('download')
+        await page.getByTestId('save-backup').click()
+        const file = await (await download).path()
+        await expect.poll(() => messages).toContain('Die Sicherung mit 1 Song wurde heruntergeladen.')
+        await expect(page.getByTestId('backup-selection')).toHaveCount(0)
+
+        const chooser = page.waitForEvent('filechooser')
+        await page.getByTestId('restore-backup').click()
+        await (await chooser).setFiles(file)
+        await expect.poll(() => messages).toContain('1 Song wurde wiederhergestellt.')
+    })
+
+    test('the selection of songs is closed when leaving the settings', async ({ page }) => {
+        await importFile(page, 'chapters.mp3')
+        await expect(page.getByTestId('track-0')).toContainText('Testsong')
+        await openMenuItem(page, 'Einstellungen')
+        await page.getByTestId('create-backup').click()
+        await expect(page.getByTestId('backup-selection')).toBeVisible()
+        await expect(page.getByTestId('restore-backup')).toHaveCount(0)
+
+        await openMenuItem(page, 'Musik')
+        await openMenuItem(page, 'Einstellungen')
+        await expect(page.getByTestId('restore-backup')).toBeVisible()
+        await expect(page.getByTestId('backup-selection')).toHaveCount(0)
+    })
+
     test('restoring over the existing songs keeps them loaded and playable', async ({ page }) => {
         const messages = dialogMessages(page)
         await importFile(page, 'chapters.mp3')
@@ -653,6 +703,7 @@ test.describe('backup', () => {
         await openMenuItem(page, 'Einstellungen')
         const download = page.waitForEvent('download')
         await page.getByTestId('create-backup').click()
+        await page.getByTestId('save-backup').click()
         const file = await (await download).path()
 
         const chooser = page.waitForEvent('filechooser')

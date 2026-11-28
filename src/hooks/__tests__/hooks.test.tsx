@@ -2,11 +2,24 @@ import { describe, expect, it, jest } from '@jest/globals'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { Subject } from 'rxjs'
 
+const MockSubject = Subject
+
 const mockRecords = new Subject<unknown>()
+// A new subject per subscription of the tracks query (an observable that failed is finished)
+const mockTrackQueries: Subject<unknown[]>[] = []
 
 jest.mock('@/model/index.web', () => ({
     database: {
-        get: () => ({ findAndObserve: () => mockRecords }),
+        get: () => ({
+            findAndObserve: () => mockRecords,
+            query: () => ({
+                observeWithColumns: () => {
+                    const subject = new MockSubject<unknown[]>()
+                    mockTrackQueries.push(subject)
+                    return subject
+                },
+            }),
+        }),
         write: async (fn: () => Promise<void>) => fn(),
     },
 }))
@@ -26,6 +39,34 @@ describe('useObservedRecord', () => {
         expect(result.current).toEqual({ id: 'clip-1' })
         act(() => mockRecords.complete())
         expect(result.current).toBeNull()
+    })
+})
+
+describe('useLoadedTracks', () => {
+    it('is undefined until the songs are read and reads them again after a failure', async () => {
+        jest.useFakeTimers()
+        jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+        mockTrackQueries.length = 0
+        try {
+            const { useLoadedTracks } = require('../useTracks') as typeof import('../useTracks')
+            const { result, unmount } = renderHook(() => useLoadedTracks())
+            expect(result.current).toBeUndefined()
+            act(() => mockTrackQueries[0].error(new Error('read failed')))
+            // Not shown as no songs
+            expect(result.current).toBeUndefined()
+            act(() => jest.advanceTimersByTime(1000))
+            expect(mockTrackQueries).toHaveLength(2)
+            act(() => mockTrackQueries[1].next([{ id: 't1' }]))
+            expect(result.current).toEqual([{ id: 't1' }])
+            unmount()
+            expect(mockTrackQueries[1].observed).toBe(false)
+            // No retry after unmounting
+            act(() => jest.advanceTimersByTime(60_000))
+            expect(mockTrackQueries).toHaveLength(2)
+        } finally {
+            jest.useRealTimers()
+            jest.restoreAllMocks()
+        }
     })
 })
 

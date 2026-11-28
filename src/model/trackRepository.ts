@@ -87,6 +87,7 @@ export type TrackData = {
 
 /** All songs (or the songs with the ids) with their clips, e.g. for a backup. */
 export const readAllTracks = async (database: Database, ids?: readonly string[]): Promise<TrackData[]> => {
+    if (ids?.length === 0) return []
     const collection = database.get<TrackWithClips>('tracks')
     const tracks = await (ids ? collection.query(Q.where('id', Q.oneOf([...ids]))) : collection.query()).fetch()
     return Promise.all(

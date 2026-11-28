@@ -16,7 +16,14 @@ export const useLoadedTracks = () => {
             .get<TrackWithClips>('tracks')
             .query()
             .observeWithColumns(['title', 'color'])
-            .subscribe(setTracks)
+            .subscribe({
+                next: setTracks,
+                // Shown as no songs rather than loading forever
+                error: (error) => {
+                    console.warn('Could not read the songs', error)
+                    setTracks(NO_TRACKS)
+                },
+            })
         return () => subscription.unsubscribe()
     }, [])
 

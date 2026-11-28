@@ -681,6 +681,20 @@ test.describe('backup', () => {
         await expect.poll(() => messages).toContain('1 Song wurde wiederhergestellt.')
     })
 
+    test('the selection of songs is closed when leaving the settings', async ({ page }) => {
+        await importFile(page, 'chapters.mp3')
+        await expect(page.getByTestId('track-0')).toContainText('Testsong')
+        await openMenuItem(page, 'Einstellungen')
+        await page.getByTestId('create-backup').click()
+        await expect(page.getByTestId('backup-selection')).toBeVisible()
+        await expect(page.getByTestId('restore-backup')).toHaveCount(0)
+
+        await openMenuItem(page, 'Musik')
+        await openMenuItem(page, 'Einstellungen')
+        await expect(page.getByTestId('restore-backup')).toBeVisible()
+        await expect(page.getByTestId('backup-selection')).toHaveCount(0)
+    })
+
     test('restoring over the existing songs keeps them loaded and playable', async ({ page }) => {
         const messages = dialogMessages(page)
         await importFile(page, 'chapters.mp3')

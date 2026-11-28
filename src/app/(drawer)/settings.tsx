@@ -19,7 +19,8 @@ import {
     useUiScale,
 } from '@/store/settings'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
-import React, { ReactNode, useMemo, useState } from 'react'
+import { useFocusEffect } from 'expo-router'
+import React, { ReactNode, useCallback, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 
 const Section = ({ title, children }: { title: string; children: ReactNode }) => (
@@ -169,19 +170,20 @@ const Playback = () => {
 
 type BackupSelectionProps = {
     tracks: readonly { id: string; title: string }[]
-    selected: ReadonlySet<string>
-    onChange: (selected: Set<string>) => void
+    /** The songs that are not saved: songs added while the selection is shown are saved too */
+    excluded: ReadonlySet<string>
+    onChange: (excluded: Set<string>) => void
     onSave: () => void
     onCancel: () => void
     busy: boolean
 }
 
 /** Lets the user choose the songs of the backup */
-const BackupSelection = ({ tracks, selected, onChange, onSave, onCancel, busy }: BackupSelectionProps) => {
-    const count = tracks.filter((track) => selected.has(track.id)).length
+const BackupSelection = ({ tracks, excluded, onChange, onSave, onCancel, busy }: BackupSelectionProps) => {
+    const count = tracks.filter((track) => !excluded.has(track.id)).length
     const allSelected = count === tracks.length
     const toggle = (id: string) => {
-        const next = new Set(selected)
+        const next = new Set(excluded)
         if (next.has(id)) next.delete(id)
         else next.add(id)
         onChange(next)
@@ -194,7 +196,7 @@ const BackupSelection = ({ tracks, selected, onChange, onSave, onCancel, busy }:
                     {t.backupSelected(count, tracks.length)}
                 </Text>
                 <Pressable
-                    onPress={() => onChange(allSelected ? new Set() : new Set(tracks.map((track) => track.id)))}
+                    onPress={() => onChange(allSelected ? new Set(tracks.map((track) => track.id)) : new Set())}
                     disabled={busy}
                     accessibilityRole="button"
                     testID="backup-select-all"
@@ -205,7 +207,7 @@ const BackupSelection = ({ tracks, selected, onChange, onSave, onCancel, busy }:
             </View>
             <ScrollView style={styles.selectionList} nestedScrollEnabled>
                 {tracks.map((track, index) => {
-                    const checked = selected.has(track.id)
+                    const checked = !excluded.has(track.id)
                     return (
                         <Pressable
                             key={track.id}
@@ -257,8 +259,8 @@ const BackupSelection = ({ tracks, selected, onChange, onSave, onCancel, busy }:
 
 const Backup = () => {
     const [busy, setBusy] = useState(false)
-    // The songs chosen for the backup while the selection is shown
-    const [selection, setSelection] = useState<Set<string>>()
+    // The songs left out of the backup while the selection is shown, undefined while it is not shown
+    const [excluded, setExcluded] = useState<Set<string>>()
     // Undefined until the songs are read: without them it is not known whether there is anything to choose
     const allTracks = useLoadedTracks()
     const tracks = useMemo(
@@ -280,7 +282,7 @@ const Backup = () => {
         run(async () => {
             try {
                 const { songs, missingAudio } = await createBackup(trackIds)
-                setSelection(undefined)
+                setExcluded(undefined)
                 showMessage(
                     missingAudio > 0
                         ? `${t.backupCreated(songs)} ${t.backupMissingAudio(missingAudio)}`
@@ -295,13 +297,18 @@ const Backup = () => {
     const create = () => {
         if (!allTracks) return
         if (tracks.length === 0) save()
-        else setSelection(new Set(tracks.map((track) => track.id)))
+        else setExcluded(new Set())
     }
     const saveSelection = () => {
-        // Songs removed while the selection was shown are left out
-        const ids = tracks.filter((track) => selection?.has(track.id)).map((track) => track.id)
+        // Only songs that still exist
+        const ids = tracks.filter((track) => !excluded?.has(track.id)).map((track) => track.id)
         if (ids.length > 0) save(ids)
     }
+    // If all songs were removed while the selection was shown, only the settings can be saved
+    // (adjusted while rendering, see https://react.dev/learn/you-might-not-need-an-effect)
+    if (excluded && allTracks?.length === 0) setExcluded(undefined)
+    // A selection is not kept when the user leaves the screen
+    useFocusEffect(useCallback(() => () => setExcluded(undefined), []))
     const restore = async () => {
         // Not busy while the picker is open: some browsers never report a cancelled picker
         let file: Blob | undefined
@@ -325,15 +332,14 @@ const Backup = () => {
             }
         })
     }
-    // If all songs were removed while the selection was shown, only the settings can be saved
-    if (selection && tracks.length > 0) {
+    if (excluded && tracks.length > 0) {
         return (
             <BackupSelection
                 tracks={tracks}
-                selected={selection}
-                onChange={setSelection}
+                excluded={excluded}
+                onChange={setExcluded}
                 onSave={saveSelection}
-                onCancel={() => setSelection(undefined)}
+                onCancel={() => setExcluded(undefined)}
                 busy={busy}
             />
         )

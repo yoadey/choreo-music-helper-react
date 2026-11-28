@@ -20,7 +20,7 @@ import {
 } from '@/store/settings'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useFocusEffect } from 'expo-router'
-import React, { ReactNode, useCallback, useMemo, useState } from 'react'
+import React, { ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 
 const Section = ({ title, children }: { title: string; children: ReactNode }) => (
@@ -281,6 +281,7 @@ const Backup = () => {
     }
     const save = (trackIds?: string[]) =>
         run(async () => {
+            savingRef.current = true
             try {
                 const { songs, missingAudio } = await createBackup(trackIds)
                 setExcluded(undefined)
@@ -292,15 +293,15 @@ const Backup = () => {
             } catch (error) {
                 console.warn('Could not create the backup', error)
                 showMessage(t.backupFailed)
+            } finally {
+                savingRef.current = false
             }
         })
     // Without songs there is nothing to choose, only the settings are saved
     const create = () => {
-        // Until the songs are read (or if they cannot be read) all songs are saved, as without a selection: the
-        // backup reads them itself and reports a failure
-        if (!allTracks) save()
-        // Not all songs: a song the list does not show yet is not saved without asking
-        else if (allTracks.length === 0) save([])
+        // Until the songs are read (or if they cannot be read) and without songs, nothing is chosen: the backup
+        // reads all songs itself (also one the list does not show yet) and reports a failure
+        if (!allTracks?.length) save()
         else setExcluded(new Set())
     }
     const saveSelection = () => {
@@ -311,8 +312,16 @@ const Backup = () => {
     // If all songs were removed while the selection was shown, only the settings can be saved
     // (adjusted while rendering, see https://react.dev/learn/you-might-not-need-an-effect)
     if (excluded && allTracks?.length === 0) setExcluded(undefined)
-    // A selection is not kept when the user leaves the screen
-    useFocusEffect(useCallback(() => () => setExcluded(undefined), []))
+    // A selection is not kept when the user leaves the screen, except while it is saved (kept if that fails)
+    const savingRef = useRef(false)
+    useFocusEffect(
+        useCallback(
+            () => () => {
+                if (!savingRef.current) setExcluded(undefined)
+            },
+            [],
+        ),
+    )
     const restore = async () => {
         // Not busy while the picker is open: some browsers never report a cancelled picker
         let file: Blob | undefined

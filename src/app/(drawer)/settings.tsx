@@ -267,7 +267,8 @@ const Backup = () => {
         () =>
             (allTracks ?? [])
                 .map((track) => ({ id: track.id, title: track.title }))
-                .sort((a, b) => a.title.localeCompare(b.title)),
+                // Same titles always in the same order
+                .sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id)),
         [allTracks],
     )
     const run = async (action: () => Promise<void>) => {
@@ -296,7 +297,8 @@ const Backup = () => {
     // Without songs there is nothing to choose, only the settings are saved
     const create = () => {
         if (!allTracks) return
-        if (tracks.length === 0) save()
+        // Not all songs: a song the list does not show yet is not saved without asking
+        if (tracks.length === 0) save([])
         else setExcluded(new Set())
     }
     const saveSelection = () => {

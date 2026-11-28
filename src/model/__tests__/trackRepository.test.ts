@@ -94,6 +94,14 @@ describe('trackRepository', () => {
     })
 
     describe('backup', () => {
+        it('reads only the songs with the given ids, none for no ids', async () => {
+            const track = await createTrackWithClips(database, imported)
+            await createTrackWithClips(database, { ...imported, key: '/audio/other_2.mp3', title: 'Other' })
+            expect((await readAllTracks(database, [track.id])).map((t) => t.id)).toEqual([track.id])
+            expect(await readAllTracks(database, [])).toEqual([])
+            expect(await readAllTracks(database)).toHaveLength(2)
+        })
+
         it('restores deleted songs with the same ids', async () => {
             const track = await createTrackWithClips(database, imported)
             const backup = await readAllTracks(database)

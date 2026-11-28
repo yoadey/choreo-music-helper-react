@@ -18,10 +18,10 @@ export const useLoadedTracks = () => {
             .observeWithColumns(['title', 'color'])
             .subscribe({
                 next: setTracks,
-                // Shown as no songs rather than loading forever
+                // The songs read so far stay, without any shown as no songs rather than loading forever
                 error: (error) => {
                     console.warn('Could not read the songs', error)
-                    setTracks(NO_TRACKS)
+                    setTracks((current) => current ?? NO_TRACKS)
                 },
             })
         return () => subscription.unsubscribe()

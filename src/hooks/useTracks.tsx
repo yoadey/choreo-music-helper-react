@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react'
 import type { Subscription } from 'rxjs'
 
 const NO_TRACKS: TrackWithClips[] = []
+/** Waits longer after each failed read, up to the maximum */
 const RETRY_DELAY = 1000
+const MAX_RETRY_DELAY = 30_000
 
 /**
  * All tracks, undefined until they are read from the database. Updates when tracks are added, removed or their
@@ -16,16 +18,21 @@ export const useLoadedTracks = () => {
     useEffect(() => {
         let subscription: Subscription | undefined
         let retry: ReturnType<typeof setTimeout> | undefined
+        let delay = RETRY_DELAY
         const subscribe = () => {
             subscription = database
                 .get<TrackWithClips>('tracks')
                 .query()
                 .observeWithColumns(['title', 'color'])
                 .subscribe({
-                    next: setTracks,
+                    next: (tracks) => {
+                        delay = RETRY_DELAY
+                        setTracks(tracks)
+                    },
                     error: (error) => {
-                        console.warn('Could not read the songs, trying again', error)
-                        retry = setTimeout(subscribe, RETRY_DELAY)
+                        console.warn(`Could not read the songs, trying again in ${delay / 1000}s`, error)
+                        retry = setTimeout(subscribe, delay)
+                        delay = Math.min(delay * 2, MAX_RETRY_DELAY)
                     },
                 })
         }

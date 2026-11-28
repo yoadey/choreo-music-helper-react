@@ -5,6 +5,8 @@ import { getInstallPlatform, promptInstall, useInstallState } from '@/helpers/pw
 import { isKeepAwakeSupported } from '@/hooks/useKeepAwake'
 import { useLoadedTracks } from '@/hooks/useTracks'
 import { t } from '@/i18n'
+import { database } from '@/model/index.web'
+import TrackWithClips from '@/model/track'
 import {
     isLandscapeLayoutSupported,
     isRotationSupported,
@@ -243,7 +245,7 @@ const BackupSelection = ({ tracks, excluded, onChange, onSave, onCancel, busy }:
                     <Text style={styles.buttonText}>{t.saveBackup}</Text>
                 </Pressable>
                 <Pressable
-                    style={[styles.button, styles.secondaryButton]}
+                    style={[styles.button, styles.secondaryButton, busy && styles.disabledButton]}
                     onPress={onCancel}
                     disabled={busy}
                     accessibilityRole="button"
@@ -262,7 +264,10 @@ const Backup = () => {
     // The songs left out of the backup while the selection is shown, undefined while it is not shown
     const [excluded, setExcluded] = useState<Set<string>>()
     // Undefined until the songs are read: without them it is not known whether there is anything to choose
-    const allTracks = useLoadedTracks()
+    const loadedTracks = useLoadedTracks()
+    // Read when the backup is created before the list was read (it may fail and be read again for long)
+    const [readTracks, setReadTracks] = useState<TrackWithClips[]>()
+    const allTracks = loadedTracks ?? readTracks
     const tracks = useMemo(
         () =>
             (allTracks ?? [])
@@ -295,10 +300,21 @@ const Backup = () => {
             }
         })
     // Without songs there is nothing to choose, only the settings are saved
-    const create = () => {
-        if (!allTracks) return
+    const create = async () => {
+        let count = allTracks?.length
+        if (count === undefined) {
+            try {
+                const read = await database.get<TrackWithClips>('tracks').query().fetch()
+                setReadTracks(read)
+                count = read.length
+            } catch (error) {
+                console.warn('Could not read the songs for the backup', error)
+                showMessage(t.backupFailed)
+                return
+            }
+        }
         // Not all songs: a song the list does not show yet is not saved without asking
-        if (tracks.length === 0) save([])
+        if (count === 0) save([])
         else setExcluded(new Set())
     }
     const saveSelection = () => {
@@ -351,9 +367,9 @@ const Backup = () => {
             <Text style={styles.hint}>{t.backupHint}</Text>
             <View style={styles.buttons}>
                 <Pressable
-                    style={[styles.button, !allTracks && styles.disabledButton]}
+                    style={styles.button}
                     onPress={create}
-                    disabled={busy || !allTracks}
+                    disabled={busy}
                     accessibilityRole="button"
                     testID="create-backup"
                 >
